@@ -12,7 +12,8 @@ export default function InputSection({ onAnalyze, isLoading }) {
     }
   }
 
-  const wordCount = content.trim().split(/\s+/).filter(Boolean).length
+  // 中文字數統計：移除空白後計算字符數
+  const wordCount = content.trim().replace(/\s/g, '').length
 
   return (
     <div className="card">
