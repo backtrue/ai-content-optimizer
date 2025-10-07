@@ -1,0 +1,83 @@
+import { AlertTriangle, AlertCircle, Info } from 'lucide-react'
+
+export default function Recommendations({ recommendations }) {
+  const getPriorityIcon = (priority) => {
+    switch (priority) {
+      case 'high':
+        return <AlertTriangle className="w-5 h-5 text-red-600" />
+      case 'medium':
+        return <AlertCircle className="w-5 h-5 text-yellow-600" />
+      case 'low':
+        return <Info className="w-5 h-5 text-blue-600" />
+      default:
+        return <Info className="w-5 h-5 text-gray-600" />
+    }
+  }
+
+  const getPriorityBadge = (priority) => {
+    const badges = {
+      high: 'bg-red-100 text-red-800 border-red-200',
+      medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      low: 'bg-blue-100 text-blue-800 border-blue-200'
+    }
+    const labels = {
+      high: '高優先級',
+      medium: '中優先級',
+      low: '低優先級'
+    }
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${badges[priority]}`}>
+        {labels[priority]}
+      </span>
+    )
+  }
+
+  const sortedRecommendations = [...recommendations].sort((a, b) => {
+    const priorityOrder = { high: 0, medium: 1, low: 2 }
+    return priorityOrder[a.priority] - priorityOrder[b.priority]
+  })
+
+  return (
+    <div className="card">
+      <h3 className="text-xl font-bold text-gray-800 mb-6">優化建議清單</h3>
+      
+      <div className="space-y-4">
+        {sortedRecommendations.map((rec, index) => (
+          <div
+            key={index}
+            className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-200"
+          >
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">
+                {getPriorityIcon(rec.priority)}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  {getPriorityBadge(rec.priority)}
+                  {rec.category && (
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                      {rec.category}
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-800 font-medium mb-1">{rec.title}</p>
+                <p className="text-sm text-gray-600">{rec.description}</p>
+                {rec.example && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-700 border-l-2 border-primary-400">
+                    <span className="font-semibold">範例：</span> {rec.example}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {sortedRecommendations.length === 0 && (
+        <div className="text-center py-8 text-gray-500">
+          <p>太棒了！目前沒有需要改進的地方。</p>
+        </div>
+      )}
+    </div>
+  )
+}
