@@ -15,19 +15,21 @@ function App() {
     setAnalysisResults(null)
 
     try {
-      const response = await fetch('/api/analyze', {
+      const apiUrl = process.env.REACT_APP_API_BASE_URL || 'https://ragseo.thinkwithblack.com'
+      const response = await fetch(`${apiUrl}/api/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           content,
-          targetKeyword,
+          targetKeyword: targetKeyword.trim() || null,
         }),
       })
 
       if (!response.ok) {
-        throw new Error('分析請求失敗，請稍後再試')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || '分析請求失敗，請稍後再試')
       }
 
       const data = await response.json()

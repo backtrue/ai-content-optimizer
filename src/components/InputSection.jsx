@@ -5,11 +5,16 @@ export default function InputSection({ onAnalyze, isLoading }) {
   const [content, setContent] = useState('')
   const [targetKeyword, setTargetKeyword] = useState('')
 
+  const [error, setError] = useState('')
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (content.trim()) {
-      onAnalyze(content, targetKeyword)
+    if (!content.trim()) {
+      setError('請輸入文章內容')
+      return
     }
+    setError('')
+    onAnalyze(content, targetKeyword)
   }
 
   // 中文字數統計：移除空白後計算字符數
@@ -27,12 +32,16 @@ export default function InputSection({ onAnalyze, isLoading }) {
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="請貼上您的文章內容..."
-            className="input-field min-h-[300px] resize-y font-mono text-sm"
-            required
+            className={`input-field min-h-[300px] resize-y font-mono text-sm ${
+              error ? 'border-red-500' : ''
+            }`}
             disabled={isLoading}
           />
-          <div className="mt-2 text-sm text-gray-500">
-            字數統計: {wordCount} 字
+          <div className="flex justify-between mt-2">
+            <div className="text-sm text-gray-500">
+              字數統計: {wordCount} 字
+            </div>
+            {error && <div className="text-sm text-red-600">{error}</div>}
           </div>
         </div>
 
