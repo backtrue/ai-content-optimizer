@@ -1,8 +1,0 @@
-name = "ai-content-optimizer"
-compatibility_date = "2024-01-01"
-pages_build_output_dir = "dist"
-
-# Environment variables (set these in Cloudflare Dashboard)
-# OPENAI_API_KEY = "your-openai-api-key"
-# or
-# GEMINI_API_KEY = "your-gemini-api-key"
