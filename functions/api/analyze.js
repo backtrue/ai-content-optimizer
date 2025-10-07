@@ -1,7 +1,7 @@
 // Cloudflare Workers API endpoint for content analysis
 
 export async function onRequestPost(context) {
-  const { request, env } = context;
+  const { request, env = {} } = context;
 
   // CORS headers
   const corsHeaders = {
@@ -26,8 +26,13 @@ export async function onRequestPost(context) {
     }
 
     // Get API key from environment variables
-    const openaiApiKey = env.OPENAI_API_KEY;
-    const geminiApiKey = env.GEMINI_API_KEY;
+    const openaiApiKey = env?.OPENAI_API_KEY;
+    const geminiApiKey = env?.GEMINI_API_KEY;
+    
+    console.log('API Keys status:', {
+      hasOpenAI: !!openaiApiKey,
+      hasGemini: !!geminiApiKey
+    });
 
     let analysisResult;
 
