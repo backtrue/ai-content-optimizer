@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Header from './components/Header'
 import InputSection from './components/InputSection'
 import ResultsDashboard from './components/ResultsDashboard'
@@ -9,28 +9,95 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const handleAnalyze = async (content, targetKeyword) => {
-    setIsLoading(true)
-    setError(null)
-    setAnalysisResults(null)
+  // session and API base
+  const sessionId = useMemo(() => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`), [])
+  const apiUrl = useMemo(() => (import.meta?.env?.VITE_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')), [])
+  const [feedbackContext, setFeedbackContext] = useState(null)
+
+  // 帶有重試機制的 API 請求函數
+  const fetchWithRetry = async (url, options, retries = 2, delay = 1000) => {
+    let lastError;
+    
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const response = await fetch(url, options);
+        
+        if (response.ok) {
+          return response;
+        }
+        
+        // 如果是 5xx 錯誤，才重試
+        if (response.status < 500 || response.status >= 600) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        // 獲取錯誤訊息
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // 無法解析 JSON 錯誤響應
+          console.error('解析錯誤響應失敗:', e);
+        }
+        
+        throw new Error(errorMessage);
+        
+      } catch (error) {
+        lastError = error;
+        
+        // 如果不是最後一次重試，等待一段時間再重試
+        if (i < retries) {
+          console.warn(`請求失敗，${delay}ms 後重試 (${i + 1}/${retries})`, error);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          // 指數退避
+          delay *= 2;
+        }
+      }
+    }
+    
+    throw lastError;
+  };
+
+  // string sha256 helper (Web Crypto)
+  const sha256Hex = async (text) => {
+    const enc = new TextEncoder()
+    const data = enc.encode(text)
+    const hash = await crypto.subtle.digest('SHA-256', data)
+    const bytes = Array.from(new Uint8Array(hash))
+    return bytes.map(b => b.toString(16).padStart(2, '0')).join('')
+  }
+
+  const handleAnalyze = async (content, targetKeywords) => {
+    setIsLoading(true);
+    setError(null);
+    setAnalysisResults(null);
 
     try {
-      const apiUrl = process.env.REACT_APP_API_BASE_URL || 'https://ragseo.thinkwithblack.com'
-      const response = await fetch(`${apiUrl}/api/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const contentHash = await sha256Hex(content)
+      setFeedbackContext({ sessionId, contentHash, targetKeywords })
+      const response = await fetchWithRetry(
+        `${apiUrl}/api/analyze`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          mode: 'cors',
+          credentials: 'include',
+          body: JSON.stringify({
+            content,
+            targetKeywords,
+            returnChunks: true,
+          }),
         },
-        body: JSON.stringify({
-          content,
-          targetKeyword: targetKeyword.trim() || null,
-        }),
-      })
+        2, // 重試次數
+        1000 // 初始重試延遲(毫秒)
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || '分析請求失敗，請稍後再試')
-      }
+      // 如果代碼執行到這裡，表示請求成功
 
       const data = await response.json()
       setAnalysisResults(data)
@@ -64,7 +131,7 @@ function App() {
         
         {analysisResults && !isLoading && (
           <div className="mt-8">
-            <ResultsDashboard results={analysisResults} />
+            <ResultsDashboard results={analysisResults} feedbackContext={feedbackContext} apiBaseUrl={apiUrl} />
           </div>
         )}
       </main>

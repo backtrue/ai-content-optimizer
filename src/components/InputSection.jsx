@@ -3,7 +3,7 @@ import { FileText, Target, Sparkles } from 'lucide-react'
 
 export default function InputSection({ onAnalyze, isLoading }) {
   const [content, setContent] = useState('')
-  const [targetKeyword, setTargetKeyword] = useState('')
+  const [targetKeywordsInput, setTargetKeywordsInput] = useState('')
 
   const [error, setError] = useState('')
 
@@ -13,8 +13,23 @@ export default function InputSection({ onAnalyze, isLoading }) {
       setError('請輸入文章內容')
       return
     }
+    // 將輸入字串解析為關鍵字陣列：以逗號或空白分隔
+    const keywords = targetKeywordsInput
+      .split(/[\s,]+/)
+      .map(k => k.trim())
+      .filter(Boolean)
+
+    if (keywords.length === 0) {
+      setError('請輸入 1-5 個目標關鍵字')
+      return
+    }
+    if (keywords.length > 5) {
+      setError('目標關鍵字最多 5 個')
+      return
+    }
+
     setError('')
-    onAnalyze(content, targetKeyword)
+    onAnalyze(content, keywords)
   }
 
   // 中文字數統計：移除空白後計算字符數
@@ -48,15 +63,16 @@ export default function InputSection({ onAnalyze, isLoading }) {
         <div className="mb-6">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
             <Target className="w-5 h-5 text-primary-600" />
-            目標關鍵字 <span className="text-sm font-normal text-gray-500">(選填)</span>
+            目標關鍵字 <span className="text-sm font-normal text-gray-500">(必填，1-5 個，使用逗號或空白分隔)</span>
           </label>
           <input
             type="text"
-            value={targetKeyword}
-            onChange={(e) => setTargetKeyword(e.target.value)}
+            value={targetKeywordsInput}
+            onChange={(e) => setTargetKeywordsInput(e.target.value)}
             placeholder="例如：鑄鐵鍋保養、SEO 優化技巧..."
             className="input-field"
             disabled={isLoading}
+            required
           />
         </div>
 

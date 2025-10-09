@@ -2,17 +2,19 @@
 
 一個強大的 AI 驅動內容分析工具，幫助創作者優化文章的 SEO 與 AEO（Answer Engine Optimization）表現。
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## ✨ 功能特色
 
-- 🎯 **雙核心評分系統**：同時評估 AEO/RAG 友善度和傳統 SEO 效能
-- 📊 **視覺化儀表板**：直觀的評分圖表和詳細指標分析
-- 💡 **智慧建議系統**：提供具體、可操作的優化建議，按優先級排序
-- 🤖 **AI 驅動分析**：支援 OpenAI GPT-4 和 Google Gemini
+- 🎯 **雙核心評分系統**：同時評估 AEO/RAG 友善度與 8 大 SEO 評分指標
+- 📊 **視覺化儀表板**：整合圓餅圖、進度條與佐證清單，快速洞察重點
+- 💡 **智慧建議系統**：提供具體、可操作的優化建議並標示優先級
+- 🤖 **AI 驅動分析**：預設採用 Google Gemini 2.x，支援 OpenAI 作為備援
 - ⚡ **極速部署**：基於 Cloudflare Pages，全球 CDN 加速
 - 🎨 **現代化 UI**：使用 React + TailwindCSS 打造的美觀介面
+
+> **單篇內容限定**：目前版本專注於貼上文本的內部信號，不推測網域或競品資訊。當文本缺少必要線索時，AI 會回傳「文本未提供」。
 
 ## 📋 評分指標
 
@@ -23,11 +25,15 @@
 - 邏輯流暢度與論證結構
 - 可信度信號（數據、來源等）
 
-### 傳統 SEO 效能
-- 關鍵字的自然分佈與密度
-- 搜尋意圖的滿足程度
-- 主題的全面性與深度
-- 內容的獨創性與觀點
+### 傳統 SEO 效能（8 大指標）
+- E-E-A-T 信任線索（18%）
+- 內容品質與原創性（18%）
+- 人本與主題一致性（12%）
+- 標題與承諾落實（10%）
+- 搜尋意圖契合度（12%）
+- 新鮮度與時效性（8%）
+- 使用者安全與風險（12%）
+- 結構與可讀性（10%）
 
 ## 🛠️ 技術棧
 
@@ -45,7 +51,7 @@
 - Node.js 18+ 
 - npm 或 pnpm
 - Cloudflare 帳號
-- OpenAI API Key 或 Google Gemini API Key
+- Google Gemini API Key（推薦）或 OpenAI API Key（備援）
 
 ### 本地開發
 
@@ -63,7 +69,7 @@ npm install
 3. **設定環境變數**
 ```bash
 cp .env.example .env
-# 編輯 .env 文件，填入你的 API Key
+# 編輯 .env 或 .dev.vars，填入 GEMINI_API_KEY（必要）與選用的 OPENAI_API_KEY
 ```
 
 4. **啟動開發伺服器**
@@ -136,9 +142,9 @@ wrangler pages deploy dist --project-name=ai-content-optimizer
 
 5. **設定環境變數**
 ```bash
-wrangler pages secret put OPENAI_API_KEY
-# 或
 wrangler pages secret put GEMINI_API_KEY
+# 如需 OpenAI 備援，可另外設定：
+wrangler pages secret put OPENAI_API_KEY
 ```
 
 ## 🔑 獲取 API Key
@@ -163,6 +169,12 @@ wrangler pages secret put GEMINI_API_KEY
    - 雙核心分數：AEO 和 SEO 分別評分
    - 詳細指標：各項指標的具體分數
    - 優化建議：按優先級排序的改進建議
+
+## 🛡️ 安全性與隱私
+
+- **API 金鑰保護**：僅透過 Cloudflare Pages Secrets 儲存，前端從不暴露。
+- **最小化日誌**：後端僅記錄請求與回應摘要（如 token 數、候選數），避免洩漏文章內容或敏感資訊。
+- **輸出校驗**：防呆邏輯會過濾非物件建議、修補不完整 JSON，確保前端穩定展示。
 
 ## 🎯 未來規劃 (Roadmap)
 

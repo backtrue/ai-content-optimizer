@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import ScoreGauge from './ScoreGauge'
 import MetricsBreakdown from './MetricsBreakdown'
 import Recommendations from './Recommendations'
 import { Trophy } from 'lucide-react'
 
-export default function ResultsDashboard({ results }) {
-  const { overallScore, aeoScore, seoScore, metrics, recommendations } = results
+export default function ResultsDashboard({ results, feedbackContext, apiBaseUrl }) {
+  const { overallScore, aeoScore, seoScore, metrics, recommendations, chunks = [] } = results
+  const [selectedChunkIds, setSelectedChunkIds] = useState([])
 
   const getScoreColor = (score) => {
     if (score >= 80) return 'text-green-600'
@@ -16,6 +18,12 @@ export default function ResultsDashboard({ results }) {
     if (score >= 80) return '優秀'
     if (score >= 60) return '良好'
     return '需改進'
+  }
+
+  const toggleChunk = (id) => {
+    setSelectedChunkIds((prev) =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
   }
 
   return (
@@ -61,8 +69,37 @@ export default function ResultsDashboard({ results }) {
       {/* Detailed Metrics */}
       <MetricsBreakdown metrics={metrics} />
 
+      {/* Chunk Visualization */}
+      {chunks.length > 0 && (
+        <div className="card">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">Chunk Visualization</h3>
+          <p className="text-sm text-gray-600 mb-4">選擇與建議最相關的分段（Chunk）。</p>
+          <div className="space-y-2 max-h-72 overflow-auto">
+            {chunks.map((c) => (
+              <label key={c.id} className="flex items-start gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={selectedChunkIds.includes(c.id)}
+                  onChange={() => toggleChunk(c.id)}
+                />
+                <div className="text-sm text-gray-700">
+                  <div className="font-mono text-xs text-gray-500 mb-1">Chunk #{c.id} [{c.start}-{c.end}]</div>
+                  <div className="line-clamp-2">{c.text}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Recommendations */}
-      <Recommendations recommendations={recommendations} />
+      <Recommendations
+        recommendations={recommendations}
+        feedbackContext={feedbackContext}
+        apiBaseUrl={apiBaseUrl}
+        selectedChunkIds={selectedChunkIds}
+      />
     </div>
   )
 }

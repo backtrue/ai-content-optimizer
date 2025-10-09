@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { AlertTriangle, AlertCircle, Info } from 'lucide-react'
 
-export default function Recommendations({ recommendations }) {
+export default function Recommendations({ recommendations = [], feedbackContext, apiBaseUrl, selectedChunkIds = [] }) {
   const getPriorityIcon = (priority) => {
     switch (priority) {
       case 'high':
@@ -32,10 +33,44 @@ export default function Recommendations({ recommendations }) {
     )
   }
 
-  const sortedRecommendations = [...recommendations].sort((a, b) => {
-    const priorityOrder = { high: 0, medium: 1, low: 2 }
-    return priorityOrder[a.priority] - priorityOrder[b.priority]
+  const priorityOrder = { high: 0, medium: 1, low: 2 }
+  const safeRecommendations = Array.isArray(recommendations)
+    ? recommendations.filter((rec) => rec && typeof rec === 'object')
+    : []
+
+  const sortedRecommendations = [...safeRecommendations].sort((a, b) => {
+    const aPriority = priorityOrder[a?.priority] ?? 3
+    const bPriority = priorityOrder[b?.priority] ?? 3
+    return aPriority - bPriority
   })
+
+  const [sendingId, setSendingId] = useState(null)
+  const sendFeedback = async (recommendationId, verdict) => {
+    if (!feedbackContext) return
+    const { sessionId, contentHash, targetKeywords } = feedbackContext
+    setSendingId(recommendationId)
+    try {
+      await fetch(`${apiBaseUrl}/api/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors',
+        credentials: 'include',
+        body: JSON.stringify({
+          sessionId,
+          contentHash,
+          targetKeywords,
+          recommendationId,
+          verdict, // 'up' | 'down'
+          notes: null,
+          chunkIds: selectedChunkIds
+        })
+      })
+    } catch (e) {
+      console.error('feedback failed', e)
+    } finally {
+      setSendingId(null)
+    }
+  }
 
   return (
     <div className="card">
@@ -67,6 +102,22 @@ export default function Recommendations({ recommendations }) {
                     <span className="font-semibold">範例：</span> {rec.example}
                   </div>
                 )}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    className="px-3 py-1 text-xs rounded bg-green-600 text-white disabled:opacity-50"
+                    disabled={!feedbackContext || sendingId === `rec-${index}`}
+                    onClick={() => sendFeedback(`rec-${index}`, 'up')}
+                  >
+                    有幫助
+                  </button>
+                  <button
+                    className="px-3 py-1 text-xs rounded bg-gray-200 text-gray-800 disabled:opacity-50"
+                    disabled={!feedbackContext || sendingId === `rec-${index}`}
+                    onClick={() => sendFeedback(`rec-${index}`, 'down')}
+                  >
+                    不適用
+                  </button>
+                </div>
               </div>
             </div>
           </div>
