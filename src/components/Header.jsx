@@ -10,10 +10,10 @@ export default function Header() {
           </div>
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-purple-600 bg-clip-text text-transparent">
-              AI 內容優化大師
+              SEOer 的 AEO/GEO 小幫手
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              透過 AI 深度分析，提升內容的 SEO 與 AEO 表現
+              Gemini 驅動的內容診斷儀表板，解讀可信度、SEO 與 Answer Engine 指標
             </p>
           </div>
         </div>

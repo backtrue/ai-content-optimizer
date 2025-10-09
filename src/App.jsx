@@ -137,8 +137,19 @@ function App() {
       </main>
       
       <footer className="mt-16 py-8 bg-gray-900 text-gray-300">
-        <div className="container mx-auto px-4 text-center">
-          <p>© 2025 AI 內容優化大師 | Powered by AI</p>
+        <div className="container mx-auto px-4 text-center space-y-2">
+          <p>
+            © 2025 AEO/GEO 小幫手 (由 煜言顧問有限公司(TW) 及{' '}
+            <a
+              href="https://toldyou.co"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-300 hover:text-primary-200 underline transition-colors"
+            >
+              燈言顧問株式会社(JP)
+            </a>{' '}
+            提供). All Rights Reserved.
+          </p>
         </div>
       </footer>
     </div>
