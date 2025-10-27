@@ -13,7 +13,10 @@ export default function Header() {
               SEOer 的 AEO/GEO 小幫手
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              Gemini 驅動的內容診斷儀表板，解讀可信度、SEO 與 Answer Engine 指標
+              台灣 SEO 專家邱煜庭（小黑老師）基於 Google《搜尋品質評分者指南》與 HCU 打造的 Gemini 分析儀表板
+            </p>
+            <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+              透過 Google 官方搜尋品質評分邏輯、Helpful Content Update 指標與實戰 SEO 實驗，檢測文章是否符合 Google 偏好，並觀測內容被 AI 引用的可行性。
             </p>
           </div>
         </div>

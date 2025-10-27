@@ -1,13 +1,13 @@
-# 🚀 AI 內容優化大師 (Content Optimizer AI)
+# 🚀 SEOer 的 AEO/GEO 小幫手
 
-一個強大的 AI 驅動內容分析工具，幫助創作者優化文章的 SEO 與 AEO（Answer Engine Optimization）表現。
+由台灣 SEO 專家邱煜庭（小黑老師）研究開發，結合 Google《搜尋品質評分者指南》與 Helpful Content Update (HCU) 核心精神，打造專為內容團隊與 SEOer 設計的 AI 驅動分析工具。
 
 ![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## ✨ 功能特色
 
-- 🎯 **雙核心評分系統**：同時評估 AEO/RAG 友善度與 8 大 SEO 評分指標
+- 🎯 **雙核心評分系統**：同時評估 AEO/RAG 友善度與 8 大 SEO 評分指標，協助內容貼近 Google 喜好
 - 📊 **視覺化儀表板**：整合圓餅圖、進度條與佐證清單，快速洞察重點
 - 💡 **智慧建議系統**：提供具體、可操作的優化建議並標示優先級
 - 🤖 **AI 驅動分析**：預設採用 Google Gemini 2.x，支援 OpenAI 作為備援
@@ -169,6 +169,9 @@ wrangler pages secret put OPENAI_API_KEY
    - 雙核心分數：AEO 和 SEO 分別評分
    - 詳細指標：各項指標的具體分數
    - 優化建議：按優先級排序的改進建議
+   - AI 引用潛力：評估內容是否具備讓 AI 模型引用的可信度與完整度
+
+> **免責聲明**：本工具僅提供第三方檢測與優化建議，無法保證搜尋排名或流量成長。
 
 ## 🛡️ 安全性與隱私
 

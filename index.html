@@ -6,14 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="SEOer 的 AEO/GEO 小幫手：一鍵分析內容可信度、SEO 與 Answer Engine 表現，提供 8 大 SEO 指標與可執行建議。"
+      content="SEOer 的 AEO/GEO 小幫手：由台灣 SEO 專家邱煜庭（小黑老師）研發，基於 Google《搜尋品質評分者指南》與 HCU，檢測內容是否符合 Google 喜好並提升 AI 引用潛力。"
     />
     <meta property="og:locale" content="zh_TW" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="SEOer 的 AEO/GEO 小幫手" />
     <meta
       property="og:description"
-      content="專為 SEOer 打造的 AEO/GEO 小幫手，將文章貼上就能獲得 Gemini 深度分析、8 大 SEO 指標與優化建議。"
+      content="由台灣 SEO 專家邱煜庭（小黑老師）研發，結合 Google《搜尋品質評分者指南》與 HCU 指標，快速檢測內容是否符合 Google 喜好並強化 AI 引用率。"
     />
     <meta property="og:image" content="/og-image.png" />
     <meta property="og:image:width" content="1200" />
@@ -23,12 +23,48 @@
     <meta name="twitter:title" content="SEOer 的 AEO/GEO 小幫手" />
     <meta
       name="twitter:description"
-      content="Gemini 驅動的 AEO/GEO 小幫手，輸入文章立即取得 SEO 與可信度評估。"
+      content="台灣 SEO 專家邱煜庭（小黑老師）打造的 AEO/GEO 小幫手，基於 Google 評分指南與 HCU，分析內容 SEO、可信度與 AI 引用潛力。"
     />
     <meta name="twitter:image" content="https://ragseo.thinkwithblack.com/og-image.png" />
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-T2PJR9T5EN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-T2PJR9T5EN');
+    </script>
+    <script>
+      !(function (f, b, e, v, n, t, s) {
+        if (f.fbq) return;
+        n = f.fbq = function () {
+          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+        };
+        if (!f._fbq) f._fbq = n;
+        n.push = n;
+        n.loaded = !0;
+        n.version = '2.0';
+        n.queue = [];
+        t = b.createElement(e);
+        t.async = !0;
+        t.src = v;
+        s = b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t, s);
+      })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '1896556794468089');
+      fbq('track', 'PageView');
+    </script>
     <title>SEOer 的 AEO/GEO 小幫手</title>
   </head>
   <body>
+    <noscript>
+      <img
+        height="1"
+        width="1"
+        style="display:none"
+        src="https://www.facebook.com/tr?id=1896556794468089&ev=PageView&noscript=1"
+        alt="facebook-pixel"
+      />
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

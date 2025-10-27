@@ -69,14 +69,23 @@ function App() {
     return bytes.map(b => b.toString(16).padStart(2, '0')).join('')
   }
 
-  const handleAnalyze = async (content, targetKeywords) => {
+  const handleAnalyze = async (contentPayload, targetKeywords) => {
     setIsLoading(true);
     setError(null);
     setAnalysisResults(null);
 
     try {
-      const contentHash = await sha256Hex(content)
-      setFeedbackContext({ sessionId, contentHash, targetKeywords })
+      const plainText = typeof contentPayload?.plain === 'string' ? contentPayload.plain : ''
+      const htmlText = typeof contentPayload?.html === 'string' ? contentPayload.html : ''
+      const markdownText = typeof contentPayload?.markdown === 'string' ? contentPayload.markdown : ''
+      const formatHint = markdownText
+        ? 'markdown'
+        : htmlText
+          ? 'html'
+          : 'plain'
+
+      const contentHash = await sha256Hex(plainText)
+      setFeedbackContext({ sessionId, contentHash, targetKeywords, format: formatHint })
       const response = await fetchWithRetry(
         `${apiUrl}/api/analyze`,
         {
@@ -88,7 +97,11 @@ function App() {
           mode: 'cors',
           credentials: 'include',
           body: JSON.stringify({
-            content,
+            content: plainText,
+            contentPlain: plainText,
+            contentHtml: htmlText || null,
+            contentMarkdown: markdownText || null,
+            contentFormatHint: formatHint,
             targetKeywords,
             returnChunks: true,
           }),
@@ -114,6 +127,16 @@ function App() {
       <Header />
       
       <main className="container mx-auto px-4 py-8 max-w-7xl">
+        <section className="mb-8">
+          <div className="bg-white border border-primary-100/60 rounded-2xl shadow-sm p-6 space-y-3">
+            <p className="text-sm text-gray-700 leading-relaxed">
+              本工具由台灣 SEO 專家<strong>邱煜庭（小黑老師）</strong>歷時多年的實戰研究打造，評分邏輯結合 Google 官方《搜尋品質評分者指南》、Helpful Content Update (HCU) 以及各項國際 SEO 評估標準，協助判讀文章是否貼近 Google 喜好並提高被 AI 模型引用的機會。
+            </p>
+            <p className="text-xs text-gray-500">
+              免責聲明：本工具僅作為第三方檢測與優化建議參考，無法保證搜尋排名或流量成長。
+            </p>
+          </div>
+        </section>
         <InputSection onAnalyze={handleAnalyze} isLoading={isLoading} />
         
         {error && (

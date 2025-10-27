@@ -303,8 +303,39 @@ export async function onRequestPost(context) {
       throw new Error('無效的 JSON 請求體');
     }
     
-    const { content } = requestBody;
-    // 規範化並驗證目標關鍵字（必填 1~5 個）
+    const contentVariants = normalizeContentVariants(requestBody);
+    const {
+      plain: contentPlain,
+      html: contentHtml,
+      markdown: contentMarkdown,
+      hint: contentFormatHint
+    } = contentVariants;
+    const primaryContent = derivePrimaryPlainContent(contentVariants);
+    const normalizedContentVariants = {
+      ...contentVariants,
+      plain: primaryContent
+    };
+    const chunkSourceText = deriveChunkSourceText(normalizedContentVariants);
+    const chunkSourceFormat = guessChunkSourceFormat(normalizedContentVariants);
+
+    console.log('請求體解析成功:', JSON.stringify({
+      contentLengthLegacy: typeof requestBody.content === 'string' ? requestBody.content.length : 0,
+      contentPlainLength: normalizedContentVariants.plain.length,
+      contentHtmlLength: normalizedContentVariants.html.length,
+      contentMarkdownLength: normalizedContentVariants.markdown.length,
+      contentFormatHint: normalizedContentVariants.hint,
+      hasTargetKeywords: Array.isArray(requestBody.targetKeywords),
+      targetKeywordLegacy: !!requestBody.targetKeyword
+    }, null, 2));
+
+    if (!normalizedContentVariants.plain.trim()) {
+      return new Response(
+        JSON.stringify({ error: 'Content is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Normalize target keywords
     let targetKeywords = [];
     if (Array.isArray(requestBody.targetKeywords)) {
       targetKeywords = requestBody.targetKeywords;
@@ -330,13 +361,6 @@ export async function onRequestPost(context) {
     console.log('目標關鍵字:', targetKeywords);
 
     const returnChunks = Boolean(requestBody.returnChunks);
-    
-    if (!content) {
-      return new Response(
-        JSON.stringify({ error: 'Content is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     // 從環境變量獲取 API 密鑰
     const geminiApiKey = env.GEMINI_API_KEY;
@@ -353,7 +377,7 @@ export async function onRequestPost(context) {
     console.log('開始處理分析請求...');
     let analysisResult;
     try {
-      analysisResult = await analyzeWithGemini(content, targetKeywords, env);
+      analysisResult = await analyzeWithGemini(normalizedContentVariants.plain, targetKeywords, env);
       console.log('分析成功完成');
       analysisResult = coerceAnalysisResult(analysisResult);
     } catch (error) {
@@ -362,16 +386,21 @@ export async function onRequestPost(context) {
       if (msg.includes('503') || msg.includes('429') || msg.toLowerCase().includes('overloaded')) {
         console.warn('偵測到模型過載/速率限制，改用模擬分析結果以維持體驗');
         const firstKeyword = Array.isArray(targetKeywords) && targetKeywords.length ? targetKeywords[0] : '';
-        analysisResult = generateMockAnalysis(typeof content === 'string' ? content : '', firstKeyword);
+        analysisResult = generateMockAnalysis(normalizedContentVariants.plain, firstKeyword);
       } else {
         throw new Error(`分析失敗: ${error.message}`);
       }
     }
     // 可選：回傳 chunk 視覺化資料
     let payload = normalizeAnalysisResult(analysisResult);
-    if (returnChunks && typeof content === 'string') {
-      const chunks = chunkContent(content);
-      payload = { ...payload, chunks };
+    if (returnChunks && chunkSourceText) {
+      const chunks = chunkContent(chunkSourceText, {
+        format: chunkSourceFormat,
+        html: normalizedContentVariants.html,
+        markdown: normalizedContentVariants.markdown,
+        plain: normalizedContentVariants.plain
+      });
+      payload = { ...payload, chunks, chunkSourceFormat };
     }
 
     return new Response(
@@ -567,20 +596,598 @@ ${content}
 - 嚴禁輸出 Markdown 圍欄或額外文字，僅回傳合法 JSON。`;
 }
 
-// Deterministic chunking helper for visualization
-function chunkContent(text, size = 3000, overlap = 300) {
-  if (typeof text !== 'string' || !text.length) return [];
-  const chunks = [];
-  let start = 0;
-  let id = 1;
-  while (start < text.length) {
-    const end = Math.min(start + size, text.length);
-    chunks.push({ id, start, end, text: text.slice(start, end) });
-    id += 1;
-    if (end === text.length) break;
-    start = Math.max(0, end - overlap);
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value;
+    if (Array.isArray(value) && value.length) return value.join('\n');
   }
+  return '';
+}
+
+function coerceString(value) {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(coerceString).join('\n');
+  if (typeof value === 'object' && typeof value.toString === 'function') return value.toString();
+  return '';
+}
+
+function normalizeContentVariants(source = {}) {
+  const plain = firstNonEmpty(
+    source.contentPlain,
+    source.plain,
+    typeof source.content === 'string' ? source.content : '',
+    source.text
+  );
+  const html = firstNonEmpty(source.contentHtml, source.html, source.rawHtml);
+  const markdown = firstNonEmpty(source.contentMarkdown, source.markdown, source.rawMarkdown);
+  const hintSource = coerceString(source.contentFormatHint || source.hint || '');
+  const hint = hintSource.trim().toLowerCase();
+
+  return {
+    plain: coerceString(plain),
+    html: coerceString(html),
+    markdown: coerceString(markdown),
+    hint: hint === 'html' || hint === 'markdown' || hint === 'plain' ? hint : ''
+  };
+}
+
+function derivePrimaryPlainContent(variants) {
+  const plain = coerceString(variants?.plain || '').trim();
+  if (plain) return normalizeWhitespace(plain);
+
+  const markdown = coerceString(variants?.markdown || '').trim();
+  if (markdown) return normalizeWhitespace(markdownToPlain(markdown));
+
+  const html = coerceString(variants?.html || '').trim();
+  if (html) return normalizeWhitespace(htmlToStructuredText(html));
+
+  return '';
+}
+
+function deriveChunkSourceText(variants) {
+  if (!variants) return '';
+  const hint = variants.hint;
+  const html = coerceString(variants.html || '').trim();
+  const markdown = coerceString(variants.markdown || '').trim();
+  const plain = coerceString(variants.plain || '').trim();
+
+  if (hint === 'html' && html) return normalizeWhitespace(htmlToStructuredText(html));
+  if (hint === 'markdown' && markdown) return normalizeWhitespace(markdownToStructuredText(markdown));
+  if (html && !plain && !markdown) return normalizeWhitespace(htmlToStructuredText(html));
+  if (markdown && !plain) return normalizeWhitespace(markdownToStructuredText(markdown));
+
+  return normalizeWhitespace(plain || markdownToStructuredText(markdown) || htmlToStructuredText(html));
+}
+
+function guessChunkSourceFormat(variants) {
+  if (!variants) return 'plain';
+  if (variants.hint === 'html' || variants.hint === 'markdown' || variants.hint === 'plain') {
+    if (variants.hint === 'html' && !coerceString(variants.html).trim()) return 'plain';
+    if (variants.hint === 'markdown' && !coerceString(variants.markdown).trim()) return 'plain';
+    return variants.hint;
+  }
+  if (coerceString(variants.html).trim()) return 'html';
+  if (coerceString(variants.markdown).trim()) return 'markdown';
+  return 'plain';
+}
+
+function htmlToStructuredText(html) {
+  if (typeof html !== 'string' || !html.trim()) return '';
+  let output = html.replace(/\r\n/g, '\n');
+  output = output.replace(/<\s*(script|style)[^>]*>[\s\S]*?<\/\s*\1>/gi, '');
+
+  output = output.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, inner) => {
+    const prefix = '#'.repeat(Number(level) || 1);
+    const headingText = stripHtmlTags(inner).trim();
+    return `\n${prefix} ${headingText}\n`;
+  });
+
+  const blockTags = [
+    'p', 'div', 'section', 'article', 'header', 'footer', 'aside', 'nav',
+    'li', 'ul', 'ol', 'blockquote', 'pre', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
+    'figure', 'figcaption'
+  ];
+  for (const tag of blockTags) {
+    const regex = new RegExp(`<\\s*${tag}[^>]*>`, 'gi');
+    output = output.replace(regex, '\n');
+    const closeRegex = new RegExp(`<\\/\\s*${tag}\\s*>`, 'gi');
+    output = output.replace(closeRegex, '\n');
+  }
+
+  output = output.replace(/<br\s*\/?\s*>/gi, '\n');
+  output = stripHtmlTags(output);
+  output = decodeBasicEntities(output);
+  return normalizeWhitespace(output);
+}
+
+function markdownToStructuredText(markdown) {
+  if (typeof markdown !== 'string') return '';
+  return normalizeWhitespace(markdown.replace(/\r\n/g, '\n'));
+}
+
+function markdownToPlain(markdown) {
+  const structured = markdownToStructuredText(markdown);
+  return normalizeWhitespace(stripMarkdown(structured));
+}
+
+function stripMarkdown(markdown) {
+  if (!markdown) return '';
+  return markdown
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s{0,3}(#{1,6})\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .replace(/^\s{0,3}[-*+]\s+/gm, '')
+    .replace(/^\s{0,3}\d+\.\s+/gm, '')
+    .replace(/>\s?/g, '')
+    .replace(/\|\s?\|/g, ' ');
+}
+
+function stripHtmlTags(html) {
+  if (!html) return '';
+  return html.replace(/<[^>]+>/g, ' ');
+}
+
+function decodeBasicEntities(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+function normalizeWhitespace(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \f\v]{2,}/g, ' ')
+    .trim();
+}
+
+// 結構化 chunking 輔助工具（參考 chunkr 階層式分段概念）
+function chunkContent(text, options = {}) {
+  if (typeof text !== 'string' || !text.trim()) return [];
+
+  const normalized = text.replace(/\r\n/g, '\n');
+  const config = {
+    targetTokens: clampPositiveInteger(options.targetTokens, 520),
+    maxTokens: clampPositiveInteger(options.maxTokens, 680),
+    minTokens: clampPositiveInteger(options.minTokens, 140),
+    overlapTokens: clampNonNegativeInteger(options.overlapTokens, 80),
+    includeLeadingContext: options.includeLeadingContext !== false,
+    maxChunks: clampPositiveInteger(options.maxChunks, 500)
+  };
+  const sourceFormat = typeof options.format === 'string' ? options.format : 'plain';
+
+  if (config.maxTokens < config.targetTokens) {
+    config.maxTokens = config.targetTokens + 40;
+  }
+  if (config.minTokens > config.targetTokens) {
+    config.minTokens = Math.max(60, Math.floor(config.targetTokens * 0.4));
+  }
+
+  const segments = segmentContent(normalized, config);
+  if (!segments.length) {
+    const fallbackText = normalized.trim();
+    return fallbackText
+      ? [
+          {
+            id: 1,
+            start: 0,
+            end: fallbackText.length,
+            text: fallbackText,
+            tokens: estimateTokens(fallbackText),
+            segmentCount: 1,
+            headings: [],
+            leadingContext: '',
+            sourceFormat
+          }
+        ]
+      : [];
+  }
+
+  const blueprints = buildChunkBlueprints(segments, config).slice(0, config.maxChunks);
+  return finalizeChunks(blueprints, normalized, config, sourceFormat);
+}
+
+function clampPositiveInteger(value, fallback) {
+  const num = Number.parseInt(value, 10);
+  if (Number.isFinite(num) && num > 0) return num;
+  return fallback;
+}
+
+function clampNonNegativeInteger(value, fallback) {
+  const num = Number.parseInt(value, 10);
+  if (Number.isFinite(num) && num >= 0) return num;
+  return fallback;
+}
+
+function segmentContent(text, config) {
+  const segments = [];
+  const lines = text.split('\n');
+  let lineStart = 0;
+  let bufferLines = [];
+  let bufferStart = 0;
+  let bufferEnd = 0;
+  let bufferType = null;
+  let bufferHeadingLevel = null;
+  let inCodeFence = false;
+
+  const flushBuffer = () => {
+    if (!bufferLines.length) return;
+    const segment = createSegmentFromRange(
+      text,
+      bufferStart,
+      bufferEnd,
+      bufferType || 'paragraph',
+      bufferHeadingLevel
+    );
+    appendSegment(segment, segments, config);
+    bufferLines = [];
+    bufferType = null;
+    bufferHeadingLevel = null;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const trimmed = rawLine.trim();
+    const nextCharIndex = lineStart + rawLine.length;
+    const hasTrailingNewline = text[nextCharIndex] === '\n' ? 1 : 0;
+    const lineEndWithNewline = nextCharIndex + hasTrailingNewline;
+
+    if (inCodeFence) {
+      if (!bufferLines.length) {
+        bufferStart = lineStart;
+      }
+      bufferLines.push(rawLine);
+      bufferEnd = lineEndWithNewline;
+      if (trimmed.startsWith('```')) {
+        inCodeFence = false;
+        flushBuffer();
+      }
+      lineStart = lineEndWithNewline;
+      continue;
+    }
+
+    if (!trimmed.length) {
+      flushBuffer();
+      lineStart = lineEndWithNewline;
+      continue;
+    }
+
+    if (trimmed.startsWith('```')) {
+      flushBuffer();
+      inCodeFence = true;
+      bufferStart = lineStart;
+      bufferLines = [rawLine];
+      bufferEnd = lineEndWithNewline;
+      bufferType = 'code';
+      lineStart = lineEndWithNewline;
+      continue;
+    }
+
+    const classification = classifyLine(trimmed);
+
+    if (classification.type === 'heading') {
+      flushBuffer();
+      const headingSegment = createSegmentFromRange(
+        text,
+        lineStart,
+        lineEndWithNewline,
+        'heading',
+        classification.headingLevel
+      );
+      appendSegment(headingSegment, segments, config);
+      lineStart = lineEndWithNewline;
+      continue;
+    }
+
+    if (classification.type === 'image' || classification.type === 'caption') {
+      flushBuffer();
+      const singleSegment = createSegmentFromRange(
+        text,
+        lineStart,
+        lineEndWithNewline,
+        classification.type,
+        null
+      );
+      appendSegment(singleSegment, segments, config);
+      lineStart = lineEndWithNewline;
+      continue;
+    }
+
+    if (classification.type === 'table' || classification.type === 'list' || classification.type === 'quote') {
+      if (!bufferLines.length) {
+        bufferStart = lineStart;
+        bufferType = classification.type;
+      }
+      bufferHeadingLevel = bufferHeadingLevel ?? classification.headingLevel ?? null;
+      bufferLines.push(rawLine);
+      bufferEnd = lineEndWithNewline;
+      lineStart = lineEndWithNewline;
+      continue;
+    }
+
+    // Default paragraph
+    if (!bufferLines.length) {
+      bufferStart = lineStart;
+      bufferType = 'paragraph';
+    }
+    bufferHeadingLevel = null;
+    bufferLines.push(rawLine);
+    bufferEnd = lineEndWithNewline;
+    lineStart = lineEndWithNewline;
+  }
+
+  flushBuffer();
+  return segments;
+}
+
+function appendSegment(segment, segments, config) {
+  if (segment.tokens <= config.maxTokens) {
+    segments.push(segment);
+    return;
+  }
+
+  const pieces = splitLargeSegment(segment, config.maxTokens);
+  for (const piece of pieces) {
+    segments.push(piece);
+  }
+}
+
+function createSegmentFromRange(text, start, end, type, headingLevel = null) {
+  const raw = text.slice(start, end);
+  const trimmed = raw.trim();
+  return {
+    type,
+    headingLevel,
+    raw,
+    text: trimmed,
+    start,
+    end,
+    tokens: estimateTokens(trimmed),
+    isCaption: type === 'caption'
+  };
+}
+
+function classifyLine(line) {
+  if (!line) return { type: 'paragraph', headingLevel: null };
+
+  if (/^#{1,6}\s+/.test(line)) {
+    const level = line.match(/^#{1,6}/)[0].length;
+    return { type: 'heading', headingLevel: level };
+  }
+
+  if (/^(?:[IVXLC]+\.)(?:\d+\.)*\s+/.test(line)) {
+    const depth = line.split('.')[0]?.length ?? 1;
+    return { type: 'heading', headingLevel: Math.min(6, depth + 1) };
+  }
+
+  if (/^\d+(?:\.\d+)+\s+\S/.test(line)) {
+    const depth = line.split(' ')[0].split('.').length;
+    return { type: 'heading', headingLevel: Math.min(6, depth) };
+  }
+
+  if (/^(\*|-|\+|\u2022|\d+[\.\)])\s+/.test(line)) {
+    return { type: 'list', headingLevel: null };
+  }
+
+  if (/^>\s+/.test(line)) {
+    return { type: 'quote', headingLevel: null };
+  }
+
+  if (/^\|.+\|\s*$/.test(line) || /^\s*\+-[-+]+\+\s*$/.test(line)) {
+    return { type: 'table', headingLevel: null };
+  }
+
+  if (/^!\[.*\]\(.*\)/.test(line) || /<img\s.+?>/.test(line)) {
+    return { type: 'image', headingLevel: null };
+  }
+
+  if (/^(?:Figure|圖|表|圖表|圖片|照片)\s*\d+[:：.\-）\)]/i.test(line)) {
+    return { type: 'caption', headingLevel: null };
+  }
+
+  if (/^[A-Z0-9][A-Z0-9\s\-:]{2,}$/.test(line) && line.length <= 80) {
+    return { type: 'heading', headingLevel: 2 };
+  }
+
+  return { type: 'paragraph', headingLevel: null };
+}
+
+function splitLargeSegment(segment, maxTokens) {
+  const approxChars = Math.max(80, Math.floor(maxTokens * 4));
+  const parts = [];
+  const text = segment.raw || segment.text || '';
+  const relativeStart = segment.start;
+  const totalLength = text.length;
+  let cursor = 0;
+
+  while (cursor < totalLength) {
+    let sliceEnd = Math.min(cursor + approxChars, totalLength);
+    if (sliceEnd < totalLength) {
+      const searchWindow = text.slice(sliceEnd, Math.min(sliceEnd + 120, totalLength));
+      const sentenceBreak = searchWindow.search(/[\.。！？!?\n]/u);
+      if (sentenceBreak !== -1) {
+        sliceEnd += sentenceBreak + 1;
+      }
+    }
+
+    const partText = text.slice(cursor, sliceEnd);
+    const absoluteStart = relativeStart + cursor;
+    const absoluteEnd = relativeStart + sliceEnd;
+    const cleanPart = partText.trim();
+
+    parts.push({
+      type: segment.type,
+      headingLevel: segment.headingLevel,
+      raw: partText,
+      text: cleanPart,
+      start: absoluteStart,
+      end: absoluteEnd,
+      tokens: estimateTokens(cleanPart),
+      isCaption: segment.isCaption
+    });
+
+    cursor = sliceEnd;
+  }
+
+  return parts;
+}
+
+function buildChunkBlueprints(segments, config) {
+  const blueprints = [];
+  let currentSegments = [];
+  let currentTokens = 0;
+  let i = 0;
+
+  const pushCurrent = () => {
+    if (!currentSegments.length) return;
+    blueprints.push({
+      segments: currentSegments,
+      tokens: currentTokens
+    });
+    currentSegments = [];
+    currentTokens = 0;
+  };
+
+  while (i < segments.length) {
+    let segment = segments[i];
+
+    if (segment.type === 'heading') {
+      pushCurrent();
+      currentSegments.push(segment);
+      currentTokens = Math.max(1, segment.tokens);
+      i += 1;
+      continue;
+    }
+
+    let bundle = [segment];
+    let bundleTokens = Math.max(1, segment.tokens);
+
+    if (shouldPairWithNext(segment, segments[i + 1])) {
+      const partner = segments[i + 1];
+      bundle.push(partner);
+      bundleTokens += Math.max(1, partner.tokens);
+      i += 1;
+    }
+
+    if (currentTokens && currentTokens + bundleTokens > config.maxTokens) {
+      pushCurrent();
+    }
+
+    for (const item of bundle) {
+      currentSegments.push(item);
+      currentTokens += Math.max(1, item.tokens);
+    }
+
+    const next = segments[i + 1];
+    const reachedTarget = currentTokens >= config.targetTokens;
+    const nextWouldOverflow = next && currentTokens + Math.max(1, next.tokens) > config.maxTokens;
+    const nextIsHeading = next && next.type === 'heading';
+
+    if (
+      nextIsHeading ||
+      nextWouldOverflow ||
+      (reachedTarget && (!next || currentTokens >= config.targetTokens))
+    ) {
+      pushCurrent();
+    }
+
+    i += 1;
+  }
+
+  pushCurrent();
+  return blueprints;
+}
+
+function shouldPairWithNext(current, next) {
+  if (!next) return false;
+  const assetTypes = new Set(['image', 'table']);
+  if (assetTypes.has(current.type) && next.type === 'caption') return true;
+  if (current.type === 'caption' && assetTypes.has(next.type)) return true;
+  return false;
+}
+
+function finalizeChunks(blueprints, text, config, sourceFormat) {
+  const chunks = [];
+  const approxCharsPerToken = 4;
+  const overlapChars = config.overlapTokens * approxCharsPerToken;
+  let previousTail = '';
+
+  for (const blueprint of blueprints) {
+    if (!blueprint.segments || !blueprint.segments.length) continue;
+    const start = Math.max(0, blueprint.segments[0].start);
+    const end = Math.min(text.length, blueprint.segments[blueprint.segments.length - 1].end);
+    const chunkRaw = text.slice(start, end);
+    const cleaned = chunkRaw.trim();
+    if (!cleaned) continue;
+
+    const headings = collectHeadings(blueprint.segments);
+    const leadingContext = config.includeLeadingContext
+      ? buildLeadingContext(previousTail, headings)
+      : '';
+    const tokens = Math.max(1, estimateTokens(cleaned));
+
+    chunks.push({
+      id: chunks.length + 1,
+      start,
+      end,
+      text: cleaned,
+      tokens,
+      segmentCount: blueprint.segments.length,
+      headings,
+      leadingContext,
+      sourceFormat
+    });
+
+    const tail = cleaned.slice(-Math.max(overlapChars, 160));
+    previousTail = tail.trimStart();
+  }
+
   return chunks;
+}
+
+function collectHeadings(segments) {
+  const headings = [];
+  for (const segment of segments) {
+    if (segment.type === 'heading' && segment.text) {
+      headings.push(segment.text);
+    }
+  }
+  return headings;
+}
+
+function buildLeadingContext(previousTail, headings) {
+  const context = [];
+  if (headings.length) {
+    context.push(headings.slice(-3).join(' > '));
+  }
+  if (previousTail) {
+    context.push(previousTail);
+  }
+  return context.join('\n').trim();
+}
+
+function estimateTokens(text) {
+  if (typeof text !== 'string') return 0;
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return 0;
+  const words = cleaned.split(' ');
+  const avgWordLength = cleaned.length / words.length;
+  const approx = Math.ceil((words.length + cleaned.length / 4) / 2);
+  return Math.max(1, Math.ceil(approx * Math.max(0.7, Math.min(1.3, 4 / Math.max(1, avgWordLength)))));
 }
 
 // Mock analysis for testing without API key

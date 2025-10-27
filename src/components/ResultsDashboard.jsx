@@ -73,19 +73,51 @@ export default function ResultsDashboard({ results, feedbackContext, apiBaseUrl 
       {chunks.length > 0 && (
         <div className="card">
           <h3 className="text-xl font-bold text-gray-800 mb-4">Chunk Visualization</h3>
-          <p className="text-sm text-gray-600 mb-4">選擇與建議最相關的分段（Chunk）。</p>
-          <div className="space-y-2 max-h-72 overflow-auto">
+          <p className="text-sm text-gray-600 mb-4">
+            選擇與建議最相關的分段（Chunk），查看來源格式、段落標題與切分上下文。
+          </p>
+          <div className="space-y-3 max-h-96 overflow-auto pr-1">
             {chunks.map((c) => (
-              <label key={c.id} className="flex items-start gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
+              <label
+                key={c.id}
+                className="flex gap-3 p-3 border border-gray-100 rounded-lg hover:border-primary-200 hover:bg-primary-50/30 transition-colors cursor-pointer"
+              >
                 <input
                   type="checkbox"
-                  className="mt-1"
+                  className="mt-1.5"
                   checked={selectedChunkIds.includes(c.id)}
                   onChange={() => toggleChunk(c.id)}
                 />
-                <div className="text-sm text-gray-700">
-                  <div className="font-mono text-xs text-gray-500 mb-1">Chunk #{c.id} [{c.start}-{c.end}]</div>
-                  <div className="line-clamp-2">{c.text}</div>
+                <div className="flex-1 text-sm text-gray-700 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs text-gray-500">
+                      Chunk #{c.id} · {c.tokens ?? '?'} tokens
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 text-xs font-semibold">
+                      {c.sourceFormat?.toUpperCase?.() || 'PLAIN'}
+                    </span>
+                    {Array.isArray(c.headings) && c.headings.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {c.headings.slice(-3).map((heading, idx) => (
+                          <span
+                            key={`${c.id}-h-${idx}`}
+                            className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs"
+                            title={heading}
+                          >
+                            {heading.length > 28 ? `${heading.slice(0, 28)}…` : heading}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {c.leadingContext && (
+                    <p className="text-xs text-gray-500 bg-gray-100 rounded px-2 py-1 line-clamp-2" title={c.leadingContext}>
+                      {c.leadingContext}
+                    </p>
+                  )}
+                  <p className="line-clamp-3 leading-relaxed" title={c.text}>
+                    {c.text}
+                  </p>
                 </div>
               </label>
             ))}
