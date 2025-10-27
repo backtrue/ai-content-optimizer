@@ -1562,26 +1562,26 @@ function buildContentQualityFlags(contentSignals = {}) {
   const uniqueWordRatio = Number(contentSignals.uniqueWordRatio || 0)
   const paragraphAverageLength = Number(contentSignals.paragraphAverageLength || 0)
 
-  const depthLow = wordCount < 500 || paragraphCount < 5
-  const depthVeryLow = wordCount < 320 || paragraphCount < 3
+  const depthLow = wordCount < 450 || paragraphCount < 4
+  const depthVeryLow = (wordCount < 260 && paragraphCount < 2) || paragraphCount === 0
 
   return {
     wordCount,
     paragraphCount,
     depthLow,
     depthVeryLow,
-    actionableWeak: actionableScore <= 1 && actionableStepCount < 2,
+    actionableWeak: actionableScore === 0 && actionableStepCount < 1,
     actionableZero: actionableStepCount === 0 && actionableScore === 0,
-    evidenceWeak: evidenceCount < 2 || externalAuthorityLinkCount === 0,
+    evidenceWeak: evidenceCount < 1 && externalAuthorityLinkCount === 0,
     evidenceNone: evidenceCount === 0 && externalAuthorityLinkCount === 0,
     freshnessWeak: recentYearCount === 0 && !contentSignals.hasPublishedDate && !contentSignals.hasModifiedDate,
     experienceWeak: experienceCueCount === 0 && !hasFirstPersonNarrative,
-    titleMismatch: titleIntentMatch < 0.4 || h1ContainsKeyword === false,
+    titleMismatch: titleIntentMatch < 0.3 || h1ContainsKeyword === false,
     readabilityWeak:
-      longParagraphCount > Math.max(2, Math.floor(paragraphCount * 0.35)) ||
-      avgSentenceLength > 120 ||
-      paragraphAverageLength > 420,
-    uniqueWordLow: uniqueWordRatio < 0.25,
+      longParagraphCount > Math.max(2, Math.floor(paragraphCount * 0.45)) ||
+      avgSentenceLength > 140 ||
+      paragraphAverageLength > 520,
+    uniqueWordLow: uniqueWordRatio < 0.2,
     actionableScore,
     actionableStepCount,
     evidenceCount,
@@ -2486,7 +2486,9 @@ function normalizeAnalysisResult(result, contentSignals = {}) {
 }
 
 function sanitizeMetricEntry(metric) {
-  const score = clampScore(metric?.score);
+  const rawScore = metric?.score;
+  const hasFiniteScore = Number.isFinite(Number(rawScore));
+  const score = hasFiniteScore ? clampScore(rawScore) : null;
   const description = typeof metric?.description === 'string' ? metric.description : '';
   const evidence = Array.isArray(metric?.evidence)
     ? metric.evidence.filter((item) => typeof item === 'string' && item.trim())
@@ -2530,6 +2532,7 @@ function computeAverageScore(metrics) {
   let total = 0;
   let count = 0;
   metrics.forEach((metric) => {
+    if (!Number.isFinite(metric?.score)) return;
     const score = clampScore(metric.score);
     total += score;
     count += 1;
@@ -2544,7 +2547,7 @@ function computeWeightedScore(metrics) {
   let weightedSum = 0;
   let totalWeight = 0;
   metrics.forEach((metric) => {
-    if (typeof metric.weight === 'number') {
+    if (typeof metric.weight === 'number' && Number.isFinite(metric?.score)) {
       const score = clampScore(metric.score);
       weightedSum += metric.weight * score;
       totalWeight += metric.weight;
