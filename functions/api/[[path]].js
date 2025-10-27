@@ -1616,6 +1616,127 @@ function normalizeHcuReview(review) {
   })
 }
 
+function deriveFallbackMetricScore(metricName, scope, context = {}) {
+  if (scope !== 'seo') return null
+
+  const signals = context.contentSignals || {}
+  const flags = context.contentQualityFlags || {}
+  const missing = context.missingCritical || {}
+
+  const num = (value, fallback = 0) => {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+
+  const clamp0to10 = (value) => {
+    if (!Number.isFinite(value)) return null
+    return Math.max(0, Math.min(10, value))
+  }
+
+  switch (metricName) {
+    case 'E-E-A-T 信任線索': {
+      let score = 10
+      if (missing.author) score -= 2
+      if (missing.publisher) score -= 2
+      if (missing.authorityLinksMissing) score -= 1
+      if (!signals.hasArticleSchema) score -= 1
+      const evidenceCount = num(signals.evidenceCount ?? flags.evidenceCount)
+      if (evidenceCount >= 4) score += 2
+      else if (evidenceCount >= 2) score += 1
+      const experienceCueCount = num(signals.experienceCueCount ?? flags.experienceCueCount)
+      if (experienceCueCount >= 2) score += 1
+      return clamp0to10(score)
+    }
+    case '內容品質與原創性': {
+      let score = 10
+      if (flags.depthLow) score -= 2
+      if (flags.uniqueWordLow) score -= 1
+      const evidenceCount = num(signals.evidenceCount ?? flags.evidenceCount)
+      if (evidenceCount === 0) score -= 2
+      else if (evidenceCount < 2) score -= 1
+      const experienceCueCount = num(signals.experienceCueCount ?? flags.experienceCueCount)
+      if (experienceCueCount >= 3) score += 2
+      else if (experienceCueCount >= 1) score += 1
+      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
+      if (actionableScore >= 2) score += 1
+      return clamp0to10(score)
+    }
+    case '人本與主題一致性': {
+      let score = 7
+      const titleIntentMatch = num(signals.titleIntentMatch ?? flags.titleIntentMatch)
+      if (titleIntentMatch >= 0.8) score += 2
+      else if (titleIntentMatch >= 0.6) score += 1
+      else if (titleIntentMatch < 0.3) score -= 2
+      if (flags.actionableWeak) score -= 2
+      if (missing.h1Keyword) score -= 2
+      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
+      if (actionableScore >= 2) score += 1
+      const referenceKeywordCount = num(signals.referenceKeywordCount)
+      if (referenceKeywordCount === 0) score -= 1
+      return clamp0to10(score)
+    }
+    case '標題與承諾落實': {
+      let score = 8
+      if (flags.titleMismatch) score -= 3
+      if (missing.h1Count) score -= 2
+      if (flags.actionableWeak) score -= 1
+      if (signals.hasMetaDescription) score += 1
+      if (signals.hasUniqueTitle) score += 1
+      return clamp0to10(score)
+    }
+    case '搜尋意圖契合度': {
+      let score = 8
+      if (missing.h2Coverage) score -= 3
+      if (flags.depthLow) score -= 2
+      if (flags.actionableWeak) score -= 1
+      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
+      if (actionableScore >= 2) score += 2
+      else if (actionableScore === 0) score -= 2
+      const paragraphCount = num(signals.paragraphCount)
+      if (paragraphCount >= 6) score += 1
+      else if (paragraphCount <= 2) score -= 1
+      return clamp0to10(score)
+    }
+    case '新鮮度與時效性': {
+      let score = 6
+      if (signals.hasPublishedDate) score += 2
+      if (signals.hasVisibleDate) score += 1
+      if (signals.hasModifiedDate) score += 1
+      const recentYearCount = num(signals.recentYearCount ?? flags.recentYearCount)
+      if (recentYearCount >= 2) score += 1
+      if (recentYearCount === 0) score -= 3
+      return clamp0to10(score)
+    }
+    case '使用者安全與風險': {
+      let score = 8
+      if (missing.metaDescription) score -= 3
+      if (missing.canonical) score -= 2
+      const evidenceCount = num(signals.evidenceCount ?? flags.evidenceCount)
+      if (evidenceCount === 0) score -= 2
+      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
+      if (actionableScore === 0) score -= 1
+      if (signals.externalAuthorityLinkCount > 0) score += 1
+      return clamp0to10(score)
+    }
+    case '結構與可讀性': {
+      let score = 8
+      if (flags.readabilityWeak) score -= 4
+      const paragraphCount = num(signals.paragraphCount)
+      if (paragraphCount <= 1) score -= 3
+      else if (paragraphCount <= 3) score -= 1
+      const listCount = num(signals.listCount)
+      if (listCount > 0) score += 1
+      const tableCount = num(signals.tableCount)
+      if (tableCount > 0) score += 1
+      const longParagraphCount = num(signals.longParagraphCount)
+      if (longParagraphCount > Math.max(2, Math.floor(paragraphCount * 0.5))) score -= 1
+      return clamp0to10(score)
+    }
+    default:
+      return null
+  }
+}
+
 function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
   if (!payload || typeof payload !== 'object') return payload || {}
   const clone = structuredClone ? structuredClone(payload) : JSON.parse(JSON.stringify(payload))
@@ -2589,7 +2710,9 @@ function ensureMetricShape(metrics, defaults, scope) {
 
   return defaults.map((item) => {
     const baseline = existing.get(item.name) || {}
-    const score = clampScore(baseline.score)
+    const baselineScore = baseline.score
+    const hasFiniteScore = Number.isFinite(Number(baselineScore))
+    const score = hasFiniteScore ? clampScore(baselineScore) : null
     const description = typeof baseline.description === 'string' && baseline.description.trim()
       ? baseline.description
       : item.description || ''
