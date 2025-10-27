@@ -1,4 +1,209 @@
+import { Readability } from '@mozilla/readability'
+import { parseHTML } from 'linkedom'
+
 // Cloudflare Workers API endpoint for content analysis
+
+const FETCH_MAX_BYTES = 1.5 * 1024 * 1024 // 1.5 MB
+const FETCH_TIMEOUT_MS = 10_000
+const FETCH_MAX_REDIRECTS = 3
+const FETCH_USER_AGENT = 'AEO-GEO Analyzer/1.0 (+https://ragseo.thinkwithblack.com)'
+
+const RATE_LIMIT_CONFIG = {
+  session: { limit: 20, windowSeconds: 24 * 60 * 60 },
+  ip: { limit: 40, windowSeconds: 60 * 60 }
+}
+
+const rateLimitStore = globalThis.__AEO_RATE_LIMIT_STORE__ || new Map()
+if (!globalThis.__AEO_RATE_LIMIT_STORE__) {
+  globalThis.__AEO_RATE_LIMIT_STORE__ = rateLimitStore
+}
+
+function nowSeconds() {
+  return Math.floor(Date.now() / 1000)
+}
+
+function getClientSessionId(requestBody) {
+  if (typeof requestBody?.sessionId === 'string' && requestBody.sessionId.trim()) {
+    return requestBody.sessionId.trim()
+  }
+  if (typeof requestBody?.session === 'string' && requestBody.session.trim()) {
+    return requestBody.session.trim()
+  }
+  return null
+}
+
+function getClientIp(request) {
+  const headerKeys = ['cf-connecting-ip', 'x-forwarded-for', 'x-real-ip']
+  for (const key of headerKeys) {
+    const value = request.headers.get(key)
+    if (value && typeof value === 'string') {
+      return value.split(',')[0].trim()
+    }
+  }
+  return null
+}
+
+function rateLimitKey(prefix, id) {
+  return `${prefix}:${id}`
+}
+
+function checkRateLimit(prefix, id, config) {
+  if (!id) return { allowed: true }
+  const key = rateLimitKey(prefix, id)
+  const entry = rateLimitStore.get(key)
+  const now = nowSeconds()
+
+  if (!entry || entry.resetAt <= now) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + config.windowSeconds })
+    return { allowed: true, remaining: config.limit - 1 }
+  }
+
+  if (entry.count >= config.limit) {
+    return { allowed: false, retryAfter: entry.resetAt - now }
+  }
+
+  entry.count += 1
+  return { allowed: true, remaining: config.limit - entry.count }
+}
+
+function responseWithRateLimitError(message, retryAfter, corsHeaders) {
+  return new Response(
+    JSON.stringify({ error: message, retryAfter }),
+    {
+      status: 429,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Retry-After': String(Math.max(1, retryAfter ?? 60))
+      }
+    }
+  )
+}
+
+function validateContentUrl(rawUrl) {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) return { valid: false, error: 'contentUrl 必須是字串' }
+  let url
+  try {
+    url = new URL(rawUrl.trim())
+  } catch (error) {
+    return { valid: false, error: 'URL 格式不正確' }
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    return { valid: false, error: '僅支援 http/https 網址' }
+  }
+
+  return { valid: true, url }
+}
+
+async function fetchUrlContent(url, { fetch, signal }) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort('fetch-timeout'), FETCH_TIMEOUT_MS)
+  let redirectedCount = 0
+  let currentUrl = url
+  let response
+
+  try {
+    while (redirectedCount <= FETCH_MAX_REDIRECTS) {
+      response = await fetch(currentUrl.toString(), {
+        method: 'GET',
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': FETCH_USER_AGENT,
+          'Accept': 'text/html,application/xhtml+xml'
+        }
+      })
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location')
+        if (!location) {
+          throw new Error(`抓取失敗：收到 ${response.status} 但無 Location 標頭`)
+        }
+        const nextUrl = new URL(location, currentUrl)
+        if (!['http:', 'https:'].includes(nextUrl.protocol)) {
+          throw new Error('抓取失敗：轉址至不支援的協定')
+        }
+        currentUrl = nextUrl
+        redirectedCount += 1
+        continue
+      }
+
+      break
+    }
+
+    if (!response) {
+      throw new Error('抓取失敗：無回應')
+    }
+
+    if (response.status >= 400) {
+      throw new Error(`抓取失敗：HTTP ${response.status}`)
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.includes('text/html')) {
+      throw new Error('抓取失敗：僅支援 HTML 內容')
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('抓取失敗：回應無可讀取的內容')
+    }
+
+    const chunks = []
+    let received = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      received += value.length
+      if (received > FETCH_MAX_BYTES) {
+        throw new Error('抓取失敗：頁面大小超過限制')
+      }
+      chunks.push(value)
+    }
+    const combined = new Uint8Array(received)
+    let offset = 0
+    for (const chunk of chunks) {
+      combined.set(chunk, offset)
+      offset += chunk.length
+    }
+
+    const decoder = new TextDecoder('utf-8', { fatal: false })
+    const html = decoder.decode(combined)
+    return { html, finalUrl: currentUrl.toString() }
+  } finally {
+    clearTimeout(timeoutId)
+    controller.abort()
+  }
+}
+
+function extractReadableContent(htmlText, finalUrl) {
+  const { document } = parseHTML(htmlText)
+  const reader = new Readability(document, { baseURI: finalUrl })
+  const article = reader.parse()
+  if (!article) {
+    throw new Error('無法解析頁面正文，請確認網頁內容')
+  }
+
+  const sanitizedHtml = sanitizeHtml(article.content)
+  const plain = normalizeWhitespace(stripHtmlTags(sanitizedHtml))
+  return {
+    html: sanitizedHtml,
+    plain,
+    markdown: ''
+  }
+}
+
+function sanitizeHtml(html) {
+  if (typeof html !== 'string') return ''
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/on[a-z]+\s*=\s*"[^"]*"/gi, '')
+    .replace(/on[a-z]+\s*=\s*'[^']*'/gi, '')
+    .replace(/on[a-z]+\s*=\s*[^"'\s>]+/gi, '')
+    .replace(/javascript:/gi, '')
+}
 
 function stripTrailingComma(text) {
   return typeof text === 'string' ? text.replace(/,\s*$/u, '') : text;
@@ -268,55 +473,205 @@ function tryParseJson(text) {
 }
 
 export async function onRequestPost(context) {
-  console.log('=== 收到分析請求 ===');
-  const { request, env } = context;
- 
+  const { request } = context
 
-  // 記錄請求頭部信息
-  console.log('請求頭部:', JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
-
-  // CORS headers
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://ragseo.thinkwithblack.com',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Credentials': 'true'
-  };
+  }
 
-  // Handle CORS preflight
   if (request.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
+  }
+
+  const requestUrl = new URL(request.url)
+  const segments = requestUrl.pathname.split('/').filter(Boolean)
+  const lastSegment = segments[segments.length - 1] || ''
+
+  if (lastSegment === 'fetch-content') {
+    return handleFetchContent(context, corsHeaders)
+  }
+
+  return handleAnalyzePost(context, corsHeaders)
+}
+
+async function handleFetchContent(context, corsHeaders) {
+  const { request } = context
+
+  let requestBody
+  try {
+    requestBody = await request.json()
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: '無效的 JSON 請求體' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const rawUrl = requestBody?.contentUrl || requestBody?.url
+  if (!rawUrl) {
+    return new Response(
+      JSON.stringify({ error: 'contentUrl 是必填參數' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const validation = validateContentUrl(rawUrl)
+  if (!validation.valid) {
+    return new Response(
+      JSON.stringify({ error: validation.error }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const sessionId = getClientSessionId(requestBody)
+  const clientIp = getClientIp(request)
+
+  const sessionLimit = checkRateLimit('session-fetch', sessionId, RATE_LIMIT_CONFIG.session)
+  if (!sessionLimit.allowed) {
+    return responseWithRateLimitError('URL 擷取次數已達上限，請稍後再試。', sessionLimit.retryAfter, corsHeaders)
+  }
+
+  const ipLimit = checkRateLimit('ip-fetch', clientIp, RATE_LIMIT_CONFIG.ip)
+  if (!ipLimit.allowed) {
+    return responseWithRateLimitError('URL 擷取次數已達上限，請稍後再試。', ipLimit.retryAfter, corsHeaders)
   }
 
   try {
-    console.log('開始解析請求體...');
-    let requestBody;
+    const { html, finalUrl } = await fetchUrlContent(validation.url, { fetch, signal: request.signal })
+    const extracted = extractReadableContent(html, finalUrl)
+    if (!extracted.plain.trim()) {
+      throw new Error('擷取的頁面內容為空，請確認網址是否正確')
+    }
+
+    return new Response(
+      JSON.stringify({
+        ...extracted,
+        finalUrl
+      }),
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+  } catch (error) {
+    console.error('抓取網址內容失敗:', error)
+    return new Response(
+      JSON.stringify({
+        error: '擷取網址內容失敗',
+        message: error.message
+      }),
+      {
+        status: 422,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+  }
+}
+
+async function handleAnalyzePost(context, corsHeaders) {
+  console.log('=== 收到分析請求 ===')
+  const { request, env } = context
+
+  console.log('請求頭部:', JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2))
+
+  try {
+    console.log('開始解析請求體...')
+    let requestBody
     try {
-      requestBody = await request.json();
+      requestBody = await request.json()
       console.log('請求體解析成功:', JSON.stringify({
         contentLength: requestBody.content?.length || 0,
         hasTargetKeywords: Array.isArray(requestBody.targetKeywords),
         targetKeywordLegacy: !!requestBody.targetKeyword
-      }, null, 2));
+      }, null, 2))
     } catch (e) {
-      console.error('解析請求體失敗:', e);
-      throw new Error('無效的 JSON 請求體');
+      console.error('解析請求體失敗:', e)
+      throw new Error('無效的 JSON 請求體')
     }
-    
-    const contentVariants = normalizeContentVariants(requestBody);
+
+    const rawContentUrl = requestBody?.contentUrl || requestBody?.url
+    const hasInlineContent = [
+      requestBody?.content,
+      requestBody?.contentPlain,
+      requestBody?.contentHtml,
+      requestBody?.contentMarkdown
+    ].some(value => typeof value === 'string' && value.trim().length)
+
+    if (rawContentUrl && !hasInlineContent) {
+      const validation = validateContentUrl(rawContentUrl)
+      if (!validation.valid) {
+        return new Response(
+          JSON.stringify({ error: validation.error }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const sessionId = getClientSessionId(requestBody)
+      const clientIp = getClientIp(request)
+
+      const sessionLimit = checkRateLimit('session-fetch', sessionId, RATE_LIMIT_CONFIG.session)
+      if (!sessionLimit.allowed) {
+        return responseWithRateLimitError('URL 擷取次數已達上限，請稍後再試。', sessionLimit.retryAfter, corsHeaders)
+      }
+
+      const ipLimit = checkRateLimit('ip-fetch', clientIp, RATE_LIMIT_CONFIG.ip)
+      if (!ipLimit.allowed) {
+        return responseWithRateLimitError('URL 擷取次數已達上限，請稍後再試。', ipLimit.retryAfter, corsHeaders)
+      }
+
+      try {
+        const { html, finalUrl } = await fetchUrlContent(validation.url, { fetch, signal: request.signal })
+        const extracted = extractReadableContent(html, finalUrl)
+        if (!extracted.plain.trim()) {
+          throw new Error('擷取的頁面內容為空，請確認網址是否正確')
+        }
+
+        requestBody.contentPlain = extracted.plain
+        requestBody.contentHtml = extracted.html
+        requestBody.contentMarkdown = extracted.markdown
+        requestBody.contentFormatHint = 'html'
+        requestBody.fetchedUrl = finalUrl
+      } catch (error) {
+        console.error('分析前擷取網址內容失敗:', error)
+        return new Response(
+          JSON.stringify({
+            error: '擷取網址內容失敗',
+            message: error.message
+          }),
+          {
+            status: 422,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      }
+    }
+
+    const contentVariants = normalizeContentVariants(requestBody)
     const {
       plain: contentPlain,
       html: contentHtml,
       markdown: contentMarkdown,
       hint: contentFormatHint
-    } = contentVariants;
-    const primaryContent = derivePrimaryPlainContent(contentVariants);
+    } = contentVariants
+    const primaryContent = derivePrimaryPlainContent(contentVariants)
     const normalizedContentVariants = {
       ...contentVariants,
       plain: primaryContent
-    };
-    const chunkSourceText = deriveChunkSourceText(normalizedContentVariants);
-    const chunkSourceFormat = guessChunkSourceFormat(normalizedContentVariants);
+    }
+    const chunkSourceText = deriveChunkSourceText(normalizedContentVariants)
+    const chunkSourceFormat = guessChunkSourceFormat(normalizedContentVariants)
 
     console.log('請求體解析成功:', JSON.stringify({
       contentLengthLegacy: typeof requestBody.content === 'string' ? requestBody.content.length : 0,
@@ -326,96 +681,98 @@ export async function onRequestPost(context) {
       contentFormatHint: normalizedContentVariants.hint,
       hasTargetKeywords: Array.isArray(requestBody.targetKeywords),
       targetKeywordLegacy: !!requestBody.targetKeyword
-    }, null, 2));
+    }, null, 2))
 
     if (!normalizedContentVariants.plain.trim()) {
       return new Response(
         JSON.stringify({ error: 'Content is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      )
     }
 
-    // Normalize target keywords
-    let targetKeywords = [];
+    let targetKeywords = []
     if (Array.isArray(requestBody.targetKeywords)) {
-      targetKeywords = requestBody.targetKeywords;
+      targetKeywords = requestBody.targetKeywords
     } else if (typeof requestBody.targetKeywords === 'string') {
-      targetKeywords = requestBody.targetKeywords.split(/[\s,]+/);
-    } else if (typeof requestBody.targetKeyword === 'string') { // 兼容舊版
-      targetKeywords = requestBody.targetKeyword.split(/[\s,]+/);
+      targetKeywords = requestBody.targetKeywords.split(/[\s,]+/)
+    } else if (typeof requestBody.targetKeyword === 'string') {
+      targetKeywords = requestBody.targetKeyword.split(/[\s,]+/)
     }
-    targetKeywords = targetKeywords.map(k => String(k).trim()).filter(Boolean);
+    targetKeywords = targetKeywords.map(k => String(k).trim()).filter(Boolean)
 
     if (targetKeywords.length === 0) {
       return new Response(
         JSON.stringify({ error: 'targetKeywords 是必填，請輸入 1-5 個關鍵字' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      )
     }
     if (targetKeywords.length > 5) {
       return new Response(
         JSON.stringify({ error: '最多只允許 5 個關鍵字', received: targetKeywords.length }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      )
     }
-    console.log('目標關鍵字:', targetKeywords);
+    console.log('目標關鍵字:', targetKeywords)
 
-    const returnChunks = Boolean(requestBody.returnChunks);
+    const returnChunks = Boolean(requestBody.returnChunks)
 
-    // 從環境變量獲取 API 密鑰
-    const geminiApiKey = env.GEMINI_API_KEY;
-    console.log('GEMINI_API_KEY 長度:', geminiApiKey ? `${geminiApiKey.substring(0, 5)}...${geminiApiKey.substring(geminiApiKey.length - 3)}` : '未設置');
-    
+    const geminiApiKey = env.GEMINI_API_KEY
+    console.log('GEMINI_API_KEY 長度:', geminiApiKey ? `${geminiApiKey.substring(0, 5)}...${geminiApiKey.substring(geminiApiKey.length - 3)}` : '未設置')
+
     if (!geminiApiKey) {
-      console.error('GEMINI_API_KEY is not set in environment variables');
+      console.error('GEMINI_API_KEY is not set in environment variables')
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      )
     }
 
-    console.log('開始處理分析請求...');
-    let analysisResult;
+    console.log('開始處理分析請求...')
+    let analysisResult
     try {
-      analysisResult = await analyzeWithGemini(normalizedContentVariants.plain, targetKeywords, env);
-      console.log('分析成功完成');
-      analysisResult = coerceAnalysisResult(analysisResult);
+      analysisResult = await analyzeWithGemini(normalizedContentVariants.plain, targetKeywords, env)
+      console.log('分析成功完成')
+      analysisResult = coerceAnalysisResult(analysisResult)
     } catch (error) {
-      console.error('分析過程中出錯:', error);
-      const msg = String(error && error.message ? error.message : '');
+      console.error('分析過程中出錯:', error)
+      const msg = String(error && error.message ? error.message : '')
       if (msg.includes('503') || msg.includes('429') || msg.toLowerCase().includes('overloaded')) {
-        console.warn('偵測到模型過載/速率限制，改用模擬分析結果以維持體驗');
-        const firstKeyword = Array.isArray(targetKeywords) && targetKeywords.length ? targetKeywords[0] : '';
-        analysisResult = generateMockAnalysis(normalizedContentVariants.plain, firstKeyword);
+        console.warn('偵測到模型過載/速率限制，改用模擬分析結果以維持體驗')
+        const firstKeyword = Array.isArray(targetKeywords) && targetKeywords.length ? targetKeywords[0] : ''
+        analysisResult = generateMockAnalysis(normalizedContentVariants.plain, firstKeyword)
       } else {
-        throw new Error(`分析失敗: ${error.message}`);
+        throw new Error(`分析失敗: ${error.message}`)
       }
     }
-    // 可選：回傳 chunk 視覺化資料
-    let payload = normalizeAnalysisResult(analysisResult);
+
+    let payload = normalizeAnalysisResult(analysisResult)
     if (returnChunks && chunkSourceText) {
       const chunks = chunkContent(chunkSourceText, {
         format: chunkSourceFormat,
         html: normalizedContentVariants.html,
         markdown: normalizedContentVariants.markdown,
         plain: normalizedContentVariants.plain
-      });
-      payload = { ...payload, chunks, chunkSourceFormat };
+      })
+      payload = { ...payload, chunks, chunkSourceFormat }
+    }
+
+    if (requestBody.fetchedUrl) {
+      payload = { ...payload, sourceUrl: requestBody.fetchedUrl }
     }
 
     return new Response(
       JSON.stringify(payload),
-      { 
-        status: 200, 
-        headers: { 
+      {
+        status: 200,
+        headers: {
           ...corsHeaders,
-          'Content-Type': 'application/json' 
-        } 
+          'Content-Type': 'application/json'
+        }
       }
-    );
+    )
   } catch (error) {
-    console.error('Error processing request:', error);
-    const errorResponse = { 
+    console.error('Error processing request:', error)
+    const errorResponse = {
       error: 'Failed to process request',
       message: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
@@ -423,26 +780,26 @@ export async function onRequestPost(context) {
         name: error.name,
         ...(error.response?.status && { status: error.response.status }),
         ...(error.response?.statusText && { statusText: error.response.statusText }),
-        ...(error.config && { 
+        ...(error.config && {
           url: error.config.url,
           method: error.config.method,
           headers: error.config.headers
         })
       }
-    };
-    
-    console.error('Error details:', JSON.stringify(errorResponse, null, 2));
-    
+    }
+
+    console.error('Error details:', JSON.stringify(errorResponse, null, 2))
+
     return new Response(
       JSON.stringify(errorResponse),
-      { 
-        status: 500, 
-        headers: { 
+      {
+        status: 500,
+        headers: {
           ...corsHeaders,
-          'Content-Type': 'application/json' 
-        } 
+          'Content-Type': 'application/json'
+        }
       }
-    );
+    )
   }
 }
 

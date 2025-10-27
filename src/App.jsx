@@ -69,7 +69,7 @@ function App() {
     return bytes.map(b => b.toString(16).padStart(2, '0')).join('')
   }
 
-  const handleAnalyze = async (contentPayload, targetKeywords) => {
+  const handleAnalyze = async (contentPayload, targetKeywords, meta = {}) => {
     setIsLoading(true);
     setError(null);
     setAnalysisResults(null);
@@ -85,7 +85,7 @@ function App() {
           : 'plain'
 
       const contentHash = await sha256Hex(plainText)
-      setFeedbackContext({ sessionId, contentHash, targetKeywords, format: formatHint })
+      setFeedbackContext({ sessionId, contentHash, targetKeywords, format: formatHint, sourceUrl: meta.fetchedUrl || meta.contentUrl || null })
       const response = await fetchWithRetry(
         `${apiUrl}/api/analyze`,
         {
@@ -104,6 +104,10 @@ function App() {
             contentFormatHint: formatHint,
             targetKeywords,
             returnChunks: true,
+            sessionId,
+            mode: meta.mode,
+            contentUrl: meta.contentUrl,
+            fetchedUrl: meta.fetchedUrl || meta.contentUrl,
           }),
         },
         2, // 重試次數
@@ -122,6 +126,36 @@ function App() {
     }
   }
 
+  const handleFetchUrl = async (url) => {
+    const payload = {
+      contentUrl: url,
+      sessionId,
+    }
+
+    const response = await fetchWithRetry(
+      `${apiUrl}/api/fetch-content`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      },
+      1,
+      1000
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData?.message || errorData?.error || '擷取網址內容失敗')
+    }
+
+    return response.json()
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header />
@@ -137,7 +171,7 @@ function App() {
             </p>
           </div>
         </section>
-        <InputSection onAnalyze={handleAnalyze} isLoading={isLoading} />
+        <InputSection onAnalyze={handleAnalyze} onFetchUrl={handleFetchUrl} isLoading={isLoading} />
         
         {error && (
           <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
