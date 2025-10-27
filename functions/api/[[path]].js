@@ -215,13 +215,37 @@ async function fetchUrlContent(url, { fetch, signal }) {
 function extractReadableContent(htmlText, finalUrl) {
   const { document } = parseHTML(htmlText)
   const reader = new Readability(document, { baseURI: finalUrl })
-  const article = reader.parse()
-  if (!article) {
-    throw new Error('無法解析頁面正文，請確認網頁內容')
+  let article = reader.parse()
+
+  let sanitizedHtml = article?.content ? sanitizeHtml(article.content) : ''
+  let plain = normalizeWhitespace(stripHtmlTags(sanitizedHtml))
+
+  const needsFallback = !plain || plain.length < 200
+
+  if (needsFallback) {
+    const fallbackRoot =
+      document.querySelector('main') ||
+      document.querySelector('[role="main"]') ||
+      document.querySelector('article') ||
+      document.body
+
+    if (!fallbackRoot) {
+      throw new Error('無法解析頁面正文，請確認網頁內容')
+    }
+
+    const cloned = fallbackRoot.cloneNode(true)
+    Array.from(cloned.querySelectorAll('script,style,noscript')).forEach((el) => el.remove())
+    const fallbackHtml = `<div>${cloned.innerHTML || ''}</div>`
+    const fallbackPlain = normalizeWhitespace(stripHtmlTags(fallbackHtml))
+
+    if (!fallbackPlain) {
+      throw new Error('無法解析頁面正文，請確認網頁內容')
+    }
+
+    sanitizedHtml = sanitizeHtml(fallbackHtml)
+    plain = fallbackPlain
   }
 
-  const sanitizedHtml = sanitizeHtml(article.content)
-  const plain = normalizeWhitespace(stripHtmlTags(sanitizedHtml))
   return {
     html: sanitizedHtml,
     plain,
@@ -1462,6 +1486,77 @@ function constrainLength(text, maxLength) {
   return `${trimmed.slice(0, maxLength - 1)}…`
 }
 
+function buildContentQualityFlags(contentSignals = {}) {
+  const wordCount = Number(contentSignals.wordCount || 0)
+  const paragraphCount = Number(contentSignals.paragraphCount || 0)
+  const actionableScore = Number(contentSignals.actionableScore || 0)
+  const actionableStepCount = Number(contentSignals.actionableStepCount || 0)
+  const evidenceCount = Number(contentSignals.evidenceCount || 0)
+  const externalAuthorityLinkCount = Number(contentSignals.externalAuthorityLinkCount || 0)
+  const recentYearCount = Number(contentSignals.recentYearCount || 0)
+  const experienceCueCount = Number(contentSignals.experienceCueCount || 0)
+  const hasFirstPersonNarrative = Boolean(contentSignals.hasFirstPersonNarrative)
+  const titleIntentMatch = Number(contentSignals.titleIntentMatch || 0)
+  const h1ContainsKeyword = contentSignals.h1ContainsKeyword
+  const longParagraphCount = Number(contentSignals.longParagraphCount || 0)
+  const avgSentenceLength = Number(contentSignals.avgSentenceLength || 0)
+  const uniqueWordRatio = Number(contentSignals.uniqueWordRatio || 0)
+  const paragraphAverageLength = Number(contentSignals.paragraphAverageLength || 0)
+
+  const depthLow = wordCount < 600 || paragraphCount < 6
+  const depthVeryLow = wordCount < 400 || paragraphCount < 4
+
+  return {
+    wordCount,
+    paragraphCount,
+    depthLow,
+    depthVeryLow,
+    actionableWeak: actionableScore <= 1 || actionableStepCount < 3,
+    actionableZero: actionableStepCount === 0,
+    evidenceWeak: evidenceCount < 2 || externalAuthorityLinkCount === 0,
+    evidenceNone: evidenceCount === 0 && externalAuthorityLinkCount === 0,
+    freshnessWeak: recentYearCount === 0 && !contentSignals.hasPublishedDate && !contentSignals.hasModifiedDate,
+    experienceWeak: experienceCueCount === 0 && !hasFirstPersonNarrative,
+    titleMismatch: titleIntentMatch < 0.4 || h1ContainsKeyword === false,
+    readabilityWeak:
+      longParagraphCount > Math.max(2, Math.floor(paragraphCount * 0.35)) ||
+      avgSentenceLength > 120 ||
+      paragraphAverageLength > 420,
+    uniqueWordLow: uniqueWordRatio < 0.25,
+    actionableScore,
+    actionableStepCount,
+    evidenceCount,
+    externalAuthorityLinkCount,
+    recentYearCount,
+    experienceCueCount,
+    titleIntentMatch,
+    uniqueWordRatio
+  }
+}
+
+function normalizeHcuReview(review) {
+  const answered = new Map()
+  if (Array.isArray(review)) {
+    review.forEach((item) => {
+      if (item && typeof item.id === 'string') {
+        answered.set(item.id, {
+          id: item.id,
+          answer: normalizeHcuAnswer(item.answer),
+          explanation: constrainLength(typeof item.explanation === 'string' ? item.explanation : '', 120)
+        })
+      }
+    })
+  }
+
+  return HCU_QUESTION_SET.map((question) => {
+    return answered.get(question.id) || {
+      id: question.id,
+      answer: 'no',
+      explanation: '模型未提供說明，預設視為未達標。'
+    }
+  })
+}
+
 function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
   if (!payload || typeof payload !== 'object') return payload || {}
   const clone = structuredClone ? structuredClone(payload) : JSON.parse(JSON.stringify(payload))
@@ -1523,17 +1618,7 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
     authorityLinksMissing: contentSignals.externalAuthorityLinkCount < 1
   }
 
-  const contentQualityFlags = {
-    depthLow: (contentSignals.wordCount || 0) < 600 || (contentSignals.paragraphCount || 0) < 6,
-    depthVeryLow: (contentSignals.wordCount || 0) < 400 || (contentSignals.paragraphCount || 0) < 4,
-    actionableWeak: (contentSignals.actionableScore || 0) <= 1 || (contentSignals.actionableStepCount || 0) < 3,
-    evidenceWeak: (contentSignals.evidenceCount || 0) < 2 || (contentSignals.externalAuthorityLinkCount || 0) === 0,
-    freshnessWeak: (contentSignals.recentYearCount || 0) === 0 && !contentSignals.hasPublishedDate && !contentSignals.hasModifiedDate,
-    experienceWeak: (contentSignals.experienceCueCount || 0) === 0 && !contentSignals.hasFirstPersonNarrative,
-    titleMismatch: (contentSignals.titleIntentMatch || 0) < 0.4 || contentSignals.h1ContainsKeyword === false,
-    readabilityWeak: (contentSignals.longParagraphCount || 0) > Math.max(2, Math.floor((contentSignals.paragraphCount || 0) * 0.35)) || (contentSignals.avgSentenceLength || 0) > 120,
-    uniqueWordLow: (contentSignals.uniqueWordRatio || 0) < 0.25
-  }
+  const contentQualityFlags = buildContentQualityFlags(contentSignals)
 
   if (Array.isArray(clone.metrics?.aeo)) {
     clone.metrics.aeo = clone.metrics.aeo.map((metric) => {
@@ -2264,32 +2349,22 @@ function normalizeAnalysisResult(result) {
     result.metrics = {};
   }
 
-  if (Array.isArray(result.metrics.aeo)) {
-    result.metrics.aeo = result.metrics.aeo.map(sanitizeMetricEntry);
-    const computedAeo = computeAverageScore(result.metrics.aeo);
-    if (!Number.isFinite(result.aeoScore) && computedAeo !== null) {
-      result.aeoScore = computedAeo;
-    }
+  result.metrics.aeo = ensureMetricShape(result.metrics.aeo, AEO_METRIC_DEFAULTS, 'aeo');
+  result.metrics.seo = ensureMetricShape(result.metrics.seo, SEO_METRIC_DEFAULTS, 'seo');
+
+  const computedAeo = computeAverageScore(result.metrics.aeo);
+  const weightedSeo = computeWeightedScore(result.metrics.seo);
+  const averageSeo = weightedSeo !== null ? weightedSeo : computeAverageScore(result.metrics.seo);
+
+  if (!Number.isFinite(result.aeoScore) && computedAeo !== null) {
+    result.aeoScore = computedAeo;
   }
 
-  if (Array.isArray(result.metrics.seo)) {
-    result.metrics.seo = result.metrics.seo.map(sanitizeSeoMetricEntry);
-    const weightedSeo = computeWeightedScore(result.metrics.seo);
-    const averageSeo = weightedSeo !== null ? weightedSeo : computeAverageScore(result.metrics.seo);
-    if (!Number.isFinite(result.seoScore) && averageSeo !== null) {
-      result.seoScore = averageSeo;
-    }
+  if (!Number.isFinite(result.seoScore) && averageSeo !== null) {
+    result.seoScore = averageSeo;
   }
 
-  result.hcuReview = Array.isArray(result.hcuReview)
-    ? result.hcuReview
-        .map((item) => ({
-          id: typeof item?.id === 'string' ? item.id : '',
-          answer: normalizeHcuAnswer(item?.answer),
-          explanation: constrainLength(typeof item?.explanation === 'string' ? item.explanation : '', 120)
-        }))
-        .filter((item) => item.id)
-    : []
+  result.hcuReview = normalizeHcuReview(result.hcuReview)
 
   result.recommendations = Array.isArray(result.recommendations)
     ? result.recommendations.filter((item) => item && typeof item === 'object')
@@ -2385,4 +2460,63 @@ function computeWeightedScore(metrics) {
   if (totalWeight <= 0) return null;
   const averageOutOfTen = weightedSum / totalWeight;
   return Math.round(averageOutOfTen * 10);
+}
+
+const AEO_METRIC_DEFAULTS = [
+  { name: '段落獨立性', description: '評估各段是否能獨立傳達重點，利於 AI 抽取答案。' },
+  { name: '語言清晰度', description: '檢查句構與用詞是否清晰易懂，避免曖昧語句。' },
+  { name: '實體辨識', description: '評估是否明確提及品牌、產品、地點等實體名稱。' },
+  { name: '邏輯流暢度', description: '判斷段落安排是否具備起承轉合，方便理解脈絡。' },
+  { name: '可信度信號', description: '檢視是否有數據、案例或來源支撐，提高可信度。' }
+]
+
+const SEO_METRIC_DEFAULTS = [
+  { name: 'E-E-A-T 信任線索', weight: 18, description: '作者、品牌背景與來源引用是否充分展現專業與可信度。' },
+  { name: '內容品質與原創性', weight: 18, description: '內容是否提供深度洞察、案例或自家觀點。' },
+  { name: '人本與主題一致性', weight: 12, description: '內容是否貼近讀者需求且與標題主題一致。' },
+  { name: '標題與承諾落實', weight: 10, description: '標題或開頭承諾是否在正文中兌現，避免誇大。' },
+  { name: '搜尋意圖契合度', weight: 12, description: '內容是否完整回應搜尋者意圖並提供後續行動。' },
+  { name: '新鮮度與時效性', weight: 8, description: '是否提供最新資料或標註更新時間。' },
+  { name: '使用者安全與風險', weight: 12, description: '內容是否避免錯誤指引並提供必要免責或安全提醒。' },
+  { name: '結構與可讀性', weight: 10, description: '段落、列表、排版是否利於掃讀與行動裝置瀏覽。' }
+]
+
+function ensureMetricShape(metrics, defaults, scope) {
+  const existing = new Map()
+  if (Array.isArray(metrics)) {
+    metrics.forEach((metric) => {
+      if (metric && typeof metric.name === 'string') {
+        existing.set(metric.name, metric)
+      }
+    })
+  }
+
+  return defaults.map((item) => {
+    const baseline = existing.get(item.name) || {}
+    const score = clampScore(baseline.score)
+    const description = typeof baseline.description === 'string' && baseline.description.trim()
+      ? baseline.description
+      : item.description || ''
+    const evidence = Array.isArray(baseline.evidence)
+      ? baseline.evidence.filter((text) => typeof text === 'string' && text.trim())
+      : []
+    const weight = item.weight ?? baseline.weight
+
+    const normalizedMetric = {
+      ...item,
+      ...baseline,
+      name: item.name,
+      score,
+      description,
+      evidence
+    }
+
+    if (typeof weight === 'number') {
+      normalizedMetric.weight = weight
+    }
+
+    return scope === 'aeo'
+      ? sanitizeMetricEntry(normalizedMetric)
+      : sanitizeSeoMetricEntry(normalizedMetric)
+  })
 }
