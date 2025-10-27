@@ -1724,7 +1724,7 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
           guarded.score = Math.min(guarded.score, 5)
         }
         guarded.score = applyHcuCaps(guarded.score, metric.name, 'aeo')
-        guarded.score = clampMetricScoreValue(guarded.score)
+        guarded.score = clampScore(guarded.score)
       } else {
         guarded.score = null
       }
@@ -1792,7 +1792,7 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
       }
       if (Number.isFinite(guarded.score)) {
         guarded.score = applyHcuCaps(guarded.score, metric.name, 'seo')
-        guarded.score = clampMetricScoreValue(guarded.score)
+        guarded.score = clampScore(guarded.score)
       } else {
         guarded.score = null
       }
