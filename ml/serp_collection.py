@@ -14,7 +14,7 @@ from datetime import datetime
 
 # Configuration
 VALUESERP_API_KEY = os.getenv('VALUESERP_API_KEY', '')
-ANALYZE_API_URL = os.getenv('ANALYZE_API_URL', 'https://ragseo.thinkwithblack.com/functions/api/analyze')
+ANALYZE_API_URL = os.getenv('ANALYZE_API_URL', 'https://ragseo.thinkwithblack.com/api/analyze-worker')
 OUTPUT_DIR = './ml'
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, 'training_data.csv')
 OUTPUT_JSON = os.path.join(OUTPUT_DIR, 'training_data.json')
@@ -72,7 +72,7 @@ def fetch_serp_results(keyword: str) -> List[Dict]:
         print("ERROR: VALUESERP_API_KEY not set. Set it via: export VALUESERP_API_KEY=<your_key>")
         return []
     
-    url = "https://api.valueserp.com/v1/search"
+    url = "https://api.valueserp.com/search"
     params = {
         'api_key': VALUESERP_API_KEY,
         'q': keyword,
@@ -117,7 +117,7 @@ def analyze_url(url: str, keyword: str) -> Optional[Dict]:
     
     try:
         print(f"    Analyzing: {url[:60]}...")
-        response = requests.post(ANALYZE_API_URL, json=payload, timeout=30)
+        response = requests.post(ANALYZE_API_URL, json=payload, timeout=60)
         response.raise_for_status()
         data = response.json()
         
@@ -210,7 +210,7 @@ def collect_training_data():
                     'features': features
                 })
             
-            time.sleep(0.5)  # Rate limiting between URLs
+            time.sleep(2)  # Rate limiting between URLs (increased due to API timeout)
     
     # Save as JSON
     print(f"\n\nSaving {len(training_data)} records to {OUTPUT_JSON}...")
