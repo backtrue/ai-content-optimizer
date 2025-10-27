@@ -246,7 +246,7 @@ function appendMissingClosers(text) {
   return text + stack.reverse().join('');
 }
 
-async function analyzeWithGemini(content, targetKeywords, env) {
+async function analyzeWithGemini(content, targetKeywords, env, contentSignals = {}) {
   try {
     console.log('Starting Gemini API call...');
     
@@ -259,7 +259,7 @@ async function analyzeWithGemini(content, targetKeywords, env) {
     // 控制輸入長度避免超出總tokens
     const MAX_CONTENT_CHARS = 8000;
     const truncatedContent = typeof content === 'string' ? content.slice(0, MAX_CONTENT_CHARS) : content;
-    const prompt = buildAnalysisPrompt(truncatedContent, targetKeywords);
+    const prompt = buildAnalysisPrompt(truncatedContent, targetKeywords, contentSignals);
     console.log('Prompt length:', prompt.length);
     
     // 動態選擇可用模型：呼叫 v1 ListModels 並挑選支援 generateContent 的 2.x 或 1.5 模型
@@ -716,6 +716,14 @@ async function handleAnalyzePost(context, corsHeaders) {
 
     const returnChunks = Boolean(requestBody.returnChunks)
 
+    const contentSignals = computeContentSignals({
+      plain: normalizedContentVariants.plain,
+      html: normalizedContentVariants.html,
+      markdown: normalizedContentVariants.markdown,
+      targetKeywords,
+      sourceUrl: requestBody.fetchedUrl || requestBody.contentUrl || requestBody.url || null
+    })
+
     const geminiApiKey = env.GEMINI_API_KEY
     console.log('GEMINI_API_KEY 長度:', geminiApiKey ? `${geminiApiKey.substring(0, 5)}...${geminiApiKey.substring(geminiApiKey.length - 3)}` : '未設置')
 
@@ -730,7 +738,7 @@ async function handleAnalyzePost(context, corsHeaders) {
     console.log('開始處理分析請求...')
     let analysisResult
     try {
-      analysisResult = await analyzeWithGemini(normalizedContentVariants.plain, targetKeywords, env)
+      analysisResult = await analyzeWithGemini(normalizedContentVariants.plain, targetKeywords, env, contentSignals)
       console.log('分析成功完成')
       analysisResult = coerceAnalysisResult(analysisResult)
     } catch (error) {
@@ -746,6 +754,7 @@ async function handleAnalyzePost(context, corsHeaders) {
     }
 
     let payload = normalizeAnalysisResult(analysisResult)
+    payload = applyScoreGuards(payload, contentSignals, targetKeywords)
     if (returnChunks && chunkSourceText) {
       const chunks = chunkContent(chunkSourceText, {
         format: chunkSourceFormat,
@@ -759,6 +768,8 @@ async function handleAnalyzePost(context, corsHeaders) {
     if (requestBody.fetchedUrl) {
       payload = { ...payload, sourceUrl: requestBody.fetchedUrl }
     }
+
+    payload = { ...payload, contentSignals }
 
     return new Response(
       JSON.stringify(payload),
@@ -898,14 +909,18 @@ function extractTextFromRawResponse(rawResponse) {
 }
 
 // Build the analysis prompt (multiple keywords)
-function buildAnalysisPrompt(content, targetKeywords) {
+function buildAnalysisPrompt(content, targetKeywords, contentSignals = {}) {
   const keywordsList = Array.isArray(targetKeywords) ? targetKeywords.filter(Boolean).join(', ') : '';
+  const signals = serializeContentSignals(contentSignals)
   return `你是一位嚴謹的 SEO 與 AEO 分析專家。請僅依據使用者提供的目標關鍵字進行分析，不要臆測或自行假設任何關鍵字。
 
 文章內容：
 ${content}
 
 目標關鍵字（1-5 個，僅限以下清單）：${keywordsList}
+
+已解析的頁面結構與訊號（請務必據此評分，缺失即視為不符合）：
+${signals}
 
 請以 JSON 格式回傳分析結果，包含以下結構：
 {
@@ -944,7 +959,8 @@ ${content}
 
 重要：
 - 僅使用提供的目標關鍵字進行分析，不得臆測新增或替換。
-- 僅依據貼上內容本身的文字線索進行評估；若文本未提供所需資訊，請於 description 與 evidence 中明確標註「文本未提供」。
+- 僅依據貼上內容本身的文字線索與上述「頁面訊號」進行評估；若文本未提供所需資訊，請於 description 與 evidence 中明確標註「文本未提供」。
+- 如頁面訊號顯示缺少某項結構(例如：缺少 FAQ schema 或作者資訊)，對應指標最高分僅能給 4 分。
 - 若內容不足以評估，請在描述與建議中明確指出不足與需要補充的資訊。
 - highRiskFlags 為必填欄位，若無風險請輸出空陣列。
 - 必須輸出上述 8 項 \`metrics.seo\` 指標，不可刪減或整併。
@@ -1110,6 +1126,279 @@ function normalizeWhitespace(text) {
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \f\v]{2,}/g, ' ')
     .trim();
+}
+
+function computeContentSignals({ plain = '', html = '', markdown = '', targetKeywords = [], sourceUrl = null }) {
+  const signal = {
+    hasHtml: Boolean(html && html.trim()),
+    hasMarkdown: Boolean(markdown && markdown.trim()),
+    hasPlain: Boolean(plain && plain.trim()),
+    hasFaqSchema: false,
+    hasHowToSchema: false,
+    hasArticleSchema: false,
+    hasOrganizationSchema: false,
+    hasAuthorInfo: false,
+    hasPublisherInfo: false,
+    hasPublishedDate: false,
+    hasModifiedDate: false,
+    hasVisibleDate: false,
+    hasMetaDescription: false,
+    hasUniqueTitle: false,
+    h1Count: 0,
+    h1ContainsKeyword: false,
+    h2Count: 0,
+    h2WithKeywordCount: 0,
+    paragraphAverageLength: 0,
+    listCount: 0,
+    tableCount: 0,
+    imageCount: 0,
+    imageWithAltCount: 0,
+    internalLinkCount: 0,
+    externalLinkCount: 0,
+    externalAuthorityLinkCount: 0,
+    hasCanonical: false,
+    sourceUrl,
+    keywordSample: targetKeywords.slice(0, 5)
+  }
+
+  const sourceHtml = html || ''
+  if (!sourceHtml.trim()) {
+    return signal
+  }
+
+  try {
+    const { document } = parseHTML(sourceHtml)
+
+    const head = document.querySelector('head')
+    const body = document.body
+
+    if (head) {
+      const titleEl = head.querySelector('title')
+      if (titleEl && titleEl.textContent) {
+        signal.hasUniqueTitle = titleEl.textContent.trim().length > 0
+      }
+      const metaDescription = head.querySelector('meta[name="description"]')
+      if (metaDescription && metaDescription.getAttribute('content')) {
+        signal.hasMetaDescription = metaDescription.getAttribute('content').trim().length > 30
+      }
+      const canonical = head.querySelector('link[rel="canonical"]')
+      signal.hasCanonical = Boolean(canonical && canonical.getAttribute('href'))
+    }
+
+    const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+    for (const script of scripts) {
+      try {
+        const json = JSON.parse(script.textContent || 'null')
+        const items = Array.isArray(json) ? json : [json]
+        for (const item of items) {
+          if (!item || typeof item !== 'object') continue
+          const type = Array.isArray(item['@type']) ? item['@type'] : [item['@type']]
+          if (type.includes('FAQPage')) signal.hasFaqSchema = true
+          if (type.includes('HowTo')) signal.hasHowToSchema = true
+          if (type.includes('Article') || type.includes('BlogPosting') || type.includes('NewsArticle')) {
+            signal.hasArticleSchema = true
+            if (item.author) signal.hasAuthorInfo = true
+            if (item.publisher) signal.hasPublisherInfo = true
+            if (item.datePublished) signal.hasPublishedDate = true
+            if (item.dateModified) signal.hasModifiedDate = true
+          }
+          if (type.includes('Organization') || type.includes('Brand')) {
+            signal.hasOrganizationSchema = true
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to parse schema JSON-LD', error);
+      }
+    }
+
+    if (body) {
+      const textContent = body.textContent || ''
+      if (/\d{4}[年\/-]/.test(textContent)) {
+        signal.hasVisibleDate = true
+      }
+
+      const headings = Array.from(body.querySelectorAll('h1, h2, h3, h4'))
+      headings.forEach((heading) => {
+        const level = Number((heading.tagName || '').replace('H', ''))
+        const text = (heading.textContent || '').trim()
+        if (!text) return
+        if (level === 1) {
+          signal.h1Count += 1
+          signal.h1ContainsKeyword = signal.h1ContainsKeyword || targetKeywords.some((kw) => kw && text.includes(kw))
+        }
+        if (level === 2) {
+          signal.h2Count += 1
+          if (targetKeywords.some((kw) => kw && text.includes(kw))) {
+            signal.h2WithKeywordCount += 1
+          }
+        }
+      })
+
+      const paragraphs = Array.from(body.querySelectorAll('p')).map((p) => (p.textContent || '').trim()).filter(Boolean)
+      if (paragraphs.length) {
+        const totalLength = paragraphs.reduce((sum, paragraph) => sum + paragraph.length, 0)
+        signal.paragraphAverageLength = Math.round(totalLength / paragraphs.length)
+      }
+
+      signal.listCount = body.querySelectorAll('ul, ol').length
+      signal.tableCount = body.querySelectorAll('table').length
+
+      const images = Array.from(body.querySelectorAll('img'))
+      signal.imageCount = images.length
+      signal.imageWithAltCount = images.filter((img) => (img.getAttribute('alt') || '').trim().length > 3).length
+
+      const anchors = Array.from(body.querySelectorAll('a[href]'))
+      anchors.forEach((a) => {
+        const href = (a.getAttribute('href') || '').trim()
+        if (!href || href.startsWith('#')) return
+        try {
+          const url = new URL(href, signal.sourceUrl || 'https://example.com')
+          if (url.hostname && signal.sourceUrl && new URL(signal.sourceUrl).hostname === url.hostname) {
+            signal.internalLinkCount += 1
+          } else {
+            signal.externalLinkCount += 1
+            if (/\.(gov|edu)$/i.test(url.hostname) || /^(www\.)?(nyt|bbc|forbes|bloomberg|reuters|statista|mckinsey)\./i.test(url.hostname)) {
+              signal.externalAuthorityLinkCount += 1
+            }
+          }
+        } catch (error) {}
+      })
+    }
+  } catch (error) {
+    console.error('computeContentSignals failed', error)
+  }
+
+  return signal
+}
+
+function serializeContentSignals(signals = {}) {
+  try {
+    return JSON.stringify(signals, null, 2)
+  } catch (error) {
+    return '{}'
+  }
+}
+
+function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
+  if (!payload || typeof payload !== 'object') return payload || {}
+  const clone = structuredClone ? structuredClone(payload) : JSON.parse(JSON.stringify(payload))
+
+  if (clone.metrics?.aeo) {
+    clone.metrics.aeo = clone.metrics.aeo.map((metric) => sanitizeMetricEntry(metric))
+  }
+  if (clone.metrics?.seo) {
+    clone.metrics.seo = clone.metrics.seo.map((metric) => sanitizeSeoMetricEntry(metric))
+  }
+
+  const missingCritical = {
+    faq: !contentSignals.hasFaqSchema,
+    howto: !contentSignals.hasHowToSchema,
+    article: !contentSignals.hasArticleSchema,
+    author: !contentSignals.hasAuthorInfo,
+    publisher: !contentSignals.hasPublisherInfo,
+    publishedDate: !contentSignals.hasPublishedDate,
+    modifiedDate: !contentSignals.hasModifiedDate,
+    visibleDate: !contentSignals.hasVisibleDate,
+    metaDescription: !contentSignals.hasMetaDescription,
+    canonical: !contentSignals.hasCanonical,
+    h1Keyword: !contentSignals.h1ContainsKeyword,
+    h1Count: contentSignals.h1Count !== 1,
+    h2Coverage: contentSignals.h2Count < 2,
+    paragraphsLong: contentSignals.paragraphAverageLength > 420,
+    listMissing: contentSignals.listCount === 0,
+    tableMissing: contentSignals.tableCount === 0,
+    imageAltMissing: contentSignals.imageCount > 0 && contentSignals.imageWithAltCount < contentSignals.imageCount,
+    externalLinksMissing: contentSignals.externalLinkCount < 1,
+    authorityLinksMissing: contentSignals.externalAuthorityLinkCount < 1
+  }
+
+  if (Array.isArray(clone.metrics?.aeo)) {
+    clone.metrics.aeo = clone.metrics.aeo.map((metric) => {
+      const guarded = { ...metric }
+      if (metric.name === '段落獨立性' && missingCritical.h2Coverage) {
+        guarded.score = Math.min(guarded.score, 5)
+      }
+      if (metric.name === '語言清晰度' && missingCritical.paragraphsLong) {
+        guarded.score = Math.min(guarded.score, 6)
+      }
+      if (metric.name === '可信度信號' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
+        guarded.score = Math.min(guarded.score, 4)
+      }
+      return guarded
+    })
+  }
+
+  if (Array.isArray(clone.metrics?.seo)) {
+    clone.metrics.seo = clone.metrics.seo.map((metric) => {
+      const guarded = { ...metric }
+      const lower = (maxScore) => {
+        guarded.score = Math.min(guarded.score, maxScore)
+      }
+      switch (metric.name) {
+        case 'E-E-A-T 信任線索':
+          if (missingCritical.author || missingCritical.publisher) lower(4)
+          if (missingCritical.authorityLinksMissing) lower(4)
+          break
+        case '內容品質與原創性':
+          if (missingCritical.externalLinksMissing) lower(5)
+          break
+        case '人本與主題一致性':
+          if (missingCritical.h1Count || missingCritical.h1Keyword) lower(5)
+          break
+        case '標題與承諾落實':
+          if (missingCritical.h1Count) lower(6)
+          break
+        case '搜尋意圖契合度':
+          if (missingCritical.h2Coverage) lower(6)
+          break
+        case '新鮮度與時效性':
+          if (missingCritical.publishedDate || missingCritical.visibleDate) lower(3)
+          if (missingCritical.modifiedDate) lower(4)
+          break
+        case '使用者安全與風險':
+          if (missingCritical.metaDescription || missingCritical.canonical) lower(6)
+          break
+        case '結構與可讀性':
+          if (missingCritical.listMissing) lower(5)
+          if (missingCritical.tableMissing) lower(6)
+          if (missingCritical.paragraphsLong) lower(5)
+          break
+        default:
+          break
+      }
+      return guarded
+    })
+  }
+
+  const aeoScore = computeAverageScore(clone.metrics?.aeo || [])
+  const seoScore = computeWeightedScore(clone.metrics?.seo || [])
+
+  if (Number.isFinite(aeoScore)) clone.aeoScore = aeoScore
+  if (Number.isFinite(seoScore)) clone.seoScore = seoScore
+
+  clone.overallScore = recomputeOverallScore(clone)
+
+  clone.scoreGuards = {
+    missingCritical,
+    appliedAt: new Date().toISOString()
+  }
+
+  return clone
+}
+
+function recomputeOverallScore(result) {
+  const aeoScore = Number.isFinite(result.aeoScore) ? result.aeoScore : null
+  const seoScore = Number.isFinite(result.seoScore) ? result.seoScore : null
+  if (aeoScore === null && seoScore === null) return 0
+  const base = (
+    (aeoScore !== null ? aeoScore * 0.45 : 0) +
+    (seoScore !== null ? seoScore * 0.55 : 0)
+  )
+  const raw = Math.round(base)
+  if (result.highRiskFlags && Array.isArray(result.highRiskFlags) && result.highRiskFlags.some((flag) => flag?.severity === 'critical')) {
+    return Math.min(raw, 40)
+  }
+  return raw
 }
 
 // 結構化 chunking 輔助工具（參考 chunkr 階層式分段概念）
