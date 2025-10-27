@@ -958,6 +958,13 @@ ${content}
 已解析的頁面結構與訊號（請務必據此評分，缺失即視為不符合）：
 ${signals}
 
+請依照上述訊號遵循以下原則：
+- 篇幅不足（wordCount < 600 或 paragraphCount < 6）視為內容深度不足。
+- 行動性弱（actionableScore ≤ 1 或 actionableStepCount < 3）視為未完全回應使用者需求。
+- 若 evidenceCount < 2、recentYearCount = 0 或 externalAuthorityLinkCount = 0，可信度與 E-E-A-T 必須降為 partial/no。
+- 若 experienceCueCount < 1 或 hasFirstPersonNarrative = false，視為缺乏第一手經驗支撐。
+- titleIntentMatch < 0.4 或 h1ContainsKeyword = false 時，須在 HCU 問卷中標示為 partial/no。
+
 請先依據以下 Helpful Content Update (HCU) 問卷逐題判斷內容是否符合：
 ${hcuQuestions}
 每題必須輸出 "answer": "yes|partial|no" 以及 40 字內的說明；若資料不足必須回答 "no" 或 "partial"。
@@ -1200,20 +1207,42 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
     externalLinkCount: 0,
     externalAuthorityLinkCount: 0,
     hasCanonical: false,
+    paragraphCount: 0,
+    longParagraphCount: 0,
+    wordCount: 0,
+    sentenceCount: 0,
+    avgSentenceLength: 0,
+    uniqueWordRatio: 0,
+    actionableStepCount: 0,
+    hasNumberedSteps: false,
+    hasChecklistLanguage: false,
+    actionableScore: 0,
+    evidenceCount: 0,
+    recentYearCount: 0,
+    referenceKeywordCount: 0,
+    experienceCueCount: 0,
+    hasFirstPersonNarrative: false,
+    caseStudyCount: 0,
+    titleIntentMatch: 0,
     sourceUrl,
     keywordSample: targetKeywords.slice(0, 5)
   }
 
   const sourceHtml = html || ''
-  if (!sourceHtml.trim()) {
-    return signal
-  }
+  const hasHtml = Boolean(sourceHtml.trim())
 
   try {
-    const { document } = parseHTML(sourceHtml)
+    let document
+    let head = null
+    let body = null
+    let primaryH1 = ''
+    let paragraphTexts = []
 
-    const head = document.querySelector('head')
-    const body = document.body
+    if (hasHtml) {
+      ({ document } = parseHTML(sourceHtml))
+      head = document.querySelector('head')
+      body = document.body
+    }
 
     if (head) {
       const titleEl = head.querySelector('title')
@@ -1228,7 +1257,7 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
       signal.hasCanonical = Boolean(canonical && canonical.getAttribute('href'))
     }
 
-    const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+    const scripts = hasHtml ? Array.from(document.querySelectorAll('script[type="application/ld+json"]')) : []
     for (const script of scripts) {
       try {
         const json = JSON.parse(script.textContent || 'null')
@@ -1268,6 +1297,7 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
         if (level === 1) {
           signal.h1Count += 1
           signal.h1ContainsKeyword = signal.h1ContainsKeyword || targetKeywords.some((kw) => kw && text.includes(kw))
+          if (!primaryH1) primaryH1 = text
         }
         if (level === 2) {
           signal.h2Count += 1
@@ -1278,9 +1308,12 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
       })
 
       const paragraphs = Array.from(body.querySelectorAll('p')).map((p) => (p.textContent || '').trim()).filter(Boolean)
+      paragraphTexts = paragraphs
+      signal.paragraphCount = paragraphs.length
       if (paragraphs.length) {
         const totalLength = paragraphs.reduce((sum, paragraph) => sum + paragraph.length, 0)
         signal.paragraphAverageLength = Math.round(totalLength / paragraphs.length)
+        signal.longParagraphCount = paragraphs.filter((paragraph) => paragraph.length > 380).length
       }
 
       signal.listCount = body.querySelectorAll('ul, ol').length
@@ -1307,6 +1340,71 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
         } catch (error) {}
       })
     }
+
+    if (!body && typeof plain === 'string' && plain.trim()) {
+      paragraphTexts = plain.split(/\n{2,}/).map((chunk) => chunk.trim()).filter(Boolean)
+      signal.paragraphCount = paragraphTexts.length
+      if (paragraphTexts.length) {
+        const totalLength = paragraphTexts.reduce((sum, paragraph) => sum + paragraph.length, 0)
+        signal.paragraphAverageLength = Math.round(totalLength / paragraphTexts.length)
+        signal.longParagraphCount = paragraphTexts.filter((paragraph) => paragraph.length > 380).length
+      }
+      const bulletMatches = plain.match(/^\s*(?:[-*+]|\d+[\.)])\s+/gm) || []
+      signal.listCount = bulletMatches.length ? Math.max(1, Math.round(bulletMatches.length / 2)) : signal.listCount
+      const tableMatches = plain.match(/\|[^\n]+\|/g) || []
+      signal.tableCount = tableMatches.length ? Math.max(1, Math.round(tableMatches.length / 4)) : signal.tableCount
+    }
+
+    const plainTextSource = normalizeWhitespace(firstNonEmpty(
+      plain,
+      paragraphTexts.join('\n'),
+      body?.textContent || '',
+      markdown,
+      html
+    ))
+    const sentences = extractSentences(plainTextSource)
+    const words = extractWords(plainTextSource)
+    const uniqueWords = new Set(words.map((w) => w.toLowerCase()))
+    signal.wordCount = words.length
+    signal.sentenceCount = sentences.length
+    signal.avgSentenceLength = sentences.length ? Math.round(plainTextSource.length / sentences.length) : plainTextSource.length
+    signal.uniqueWordRatio = signal.wordCount ? Number((uniqueWords.size / signal.wordCount).toFixed(3)) : 0
+
+    const actionablePatterns = [/(?:步驟|操作指引|行動計畫|清單)/g, /checklist/gi, /step\s*\d+/gi, /how\s*to/gi, /guide/gi]
+    const actionableMatches = actionablePatterns.reduce((acc, pattern) => {
+      const match = plainTextSource.match(pattern)
+      return acc + (match ? match.length : 0)
+    }, 0)
+    const numberedMatches = plainTextSource.match(/(?:^|\n)\s*(?:第[一二三四五六七八九十]|[0-9]{1,2}[\.)])\s+/g) || []
+    signal.hasChecklistLanguage = actionableMatches > 0
+    signal.hasNumberedSteps = numberedMatches.length > 0
+    signal.actionableStepCount = numberedMatches.length + signal.listCount
+    signal.actionableScore = [signal.listCount > 0, signal.hasChecklistLanguage, signal.hasNumberedSteps].filter(Boolean).length
+
+    const yearMatches = plainTextSource.match(/\b(20\d{2}|19\d{2})\b/g) || []
+    signal.recentYearCount = yearMatches.filter((year) => Number(year) >= 2020).length
+    const referencePatterns = [/根據/g, /研究/g, /調查/g, /報告/g, /數據顯示/g, /參考/g, /according to/gi, /study/gi, /source/gi]
+    signal.referenceKeywordCount = referencePatterns.reduce((acc, pattern) => acc + (pattern.test(plainTextSource) ? 1 : 0), 0)
+    referencePatterns.forEach((pattern) => pattern.lastIndex = 0)
+    signal.evidenceCount = yearMatches.length + signal.referenceKeywordCount
+
+    const firstPersonPatterns = [/\bwe\b/gi, /\bour\b/gi, /\bmy\b/gi, /我們/g, /我[們在曾有]/g]
+    signal.hasFirstPersonNarrative = firstPersonPatterns.some((pattern) => pattern.test(plainTextSource))
+    firstPersonPatterns.forEach((pattern) => pattern.lastIndex = 0)
+    const experiencePatterns = [/案例/g, /實作/g, /體驗/g, /經驗/g, /客戶/g, /成功案例/g, /case study/gi, /testimonial/gi]
+    signal.experienceCueCount = experiencePatterns.reduce((acc, pattern) => acc + (plainTextSource.match(pattern)?.length || 0), 0)
+    signal.caseStudyCount = plainTextSource.match(/案例|case study/gi)?.length || 0
+
+    const titleKeywords = extractKeywordSet(primaryH1)
+    const bodyLead = paragraphTexts.slice(0, 3).join(' ') || plainTextSource.slice(0, 600)
+    const bodyKeywords = extractKeywordSet(bodyLead)
+    if (titleKeywords.size > 0 && bodyKeywords.size > 0) {
+      let overlap = 0
+      titleKeywords.forEach((keyword) => {
+        if (bodyKeywords.has(keyword)) overlap += 1
+      })
+      signal.titleIntentMatch = Number((overlap / titleKeywords.size).toFixed(2))
+    }
   } catch (error) {
     console.error('computeContentSignals failed', error)
   }
@@ -1320,6 +1418,33 @@ function serializeContentSignals(signals = {}) {
   } catch (error) {
     return '{}'
   }
+}
+
+function extractSentences(text) {
+  if (typeof text !== 'string' || !text.trim()) return []
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\s+/g, ' ').trim()
+  if (!normalized) return []
+  const matches = normalized.match(/[^。！？!?\.]+[。！？!?\.]?/g)
+  return matches ? matches.map((sentence) => sentence.trim()).filter(Boolean) : [normalized]
+}
+
+function extractWords(text) {
+  if (typeof text !== 'string' || !text.trim()) return []
+  const matches = text.match(/[A-Za-z\u4e00-\u9fff0-9]+/g)
+  return matches ? matches : []
+}
+
+function extractKeywordSet(text) {
+  const keywords = new Set()
+  if (typeof text !== 'string') return keywords
+  const words = extractWords(text)
+  words.forEach((word) => {
+    const normalized = word.toLowerCase()
+    if (normalized.length >= 2 && !/^[0-9]+$/.test(normalized)) {
+      keywords.add(normalized)
+    }
+  })
+  return keywords
 }
 
 function normalizeHcuAnswer(answer) {
@@ -1398,17 +1523,47 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
     authorityLinksMissing: contentSignals.externalAuthorityLinkCount < 1
   }
 
+  const contentQualityFlags = {
+    depthLow: (contentSignals.wordCount || 0) < 600 || (contentSignals.paragraphCount || 0) < 6,
+    depthVeryLow: (contentSignals.wordCount || 0) < 400 || (contentSignals.paragraphCount || 0) < 4,
+    actionableWeak: (contentSignals.actionableScore || 0) <= 1 || (contentSignals.actionableStepCount || 0) < 3,
+    evidenceWeak: (contentSignals.evidenceCount || 0) < 2 || (contentSignals.externalAuthorityLinkCount || 0) === 0,
+    freshnessWeak: (contentSignals.recentYearCount || 0) === 0 && !contentSignals.hasPublishedDate && !contentSignals.hasModifiedDate,
+    experienceWeak: (contentSignals.experienceCueCount || 0) === 0 && !contentSignals.hasFirstPersonNarrative,
+    titleMismatch: (contentSignals.titleIntentMatch || 0) < 0.4 || contentSignals.h1ContainsKeyword === false,
+    readabilityWeak: (contentSignals.longParagraphCount || 0) > Math.max(2, Math.floor((contentSignals.paragraphCount || 0) * 0.35)) || (contentSignals.avgSentenceLength || 0) > 120,
+    uniqueWordLow: (contentSignals.uniqueWordRatio || 0) < 0.25
+  }
+
   if (Array.isArray(clone.metrics?.aeo)) {
     clone.metrics.aeo = clone.metrics.aeo.map((metric) => {
       const guarded = { ...metric }
       if (metric.name === '段落獨立性' && missingCritical.h2Coverage) {
         guarded.score = Math.min(guarded.score, 5)
       }
+      if (metric.name === '段落獨立性' && contentQualityFlags.depthVeryLow) {
+        guarded.score = Math.min(guarded.score, 4)
+      }
       if (metric.name === '語言清晰度' && missingCritical.paragraphsLong) {
         guarded.score = Math.min(guarded.score, 6)
       }
+      if (metric.name === '語言清晰度' && contentQualityFlags.readabilityWeak) {
+        guarded.score = Math.min(guarded.score, 5)
+      }
       if (metric.name === '可信度信號' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
         guarded.score = Math.min(guarded.score, 4)
+      }
+      if (metric.name === '可信度信號' && contentQualityFlags.evidenceWeak) {
+        guarded.score = Math.min(guarded.score, 3)
+      }
+      if (metric.name === '語言清晰度' && contentQualityFlags.uniqueWordLow) {
+        guarded.score = Math.min(guarded.score, 6)
+      }
+      if (metric.name === '實體辨識' && contentQualityFlags.uniqueWordLow) {
+        guarded.score = Math.min(guarded.score, 5)
+      }
+      if (metric.name === '邏輯流暢度' && (contentQualityFlags.actionableWeak || contentQualityFlags.readabilityWeak)) {
+        guarded.score = Math.min(guarded.score, 5)
       }
       guarded.score = applyHcuCaps(guarded.score, metric.name, 'aeo')
       return guarded
@@ -1428,27 +1583,38 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
           break
         case '內容品質與原創性':
           if (missingCritical.externalLinksMissing) lower(5)
+          if (contentQualityFlags.depthLow) lower(6)
+          if (contentQualityFlags.uniqueWordLow) lower(5)
+          if (contentQualityFlags.experienceWeak) lower(5)
           break
         case '人本與主題一致性':
           if (missingCritical.h1Count || missingCritical.h1Keyword) lower(5)
+          if (contentQualityFlags.titleMismatch) lower(5)
+          if (contentQualityFlags.actionableWeak) lower(5)
           break
         case '標題與承諾落實':
           if (missingCritical.h1Count) lower(6)
+          if (contentQualityFlags.titleMismatch) lower(4)
           break
         case '搜尋意圖契合度':
           if (missingCritical.h2Coverage) lower(6)
+          if (contentQualityFlags.actionableWeak) lower(4)
+          if (contentQualityFlags.depthLow) lower(6)
           break
         case '新鮮度與時效性':
           if (missingCritical.publishedDate || missingCritical.visibleDate) lower(3)
           if (missingCritical.modifiedDate) lower(4)
+          if (contentQualityFlags.freshnessWeak) lower(3)
           break
         case '使用者安全與風險':
           if (missingCritical.metaDescription || missingCritical.canonical) lower(6)
+          if (contentQualityFlags.evidenceWeak) lower(5)
           break
         case '結構與可讀性':
           if (missingCritical.listMissing) lower(5)
           if (missingCritical.tableMissing) lower(6)
           if (missingCritical.paragraphsLong) lower(5)
+          if (contentQualityFlags.readabilityWeak) lower(4)
           break
         default:
           break
@@ -1466,6 +1632,29 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
 
   clone.overallScore = recomputeOverallScore(clone)
 
+  const overallCaps = []
+  if (hcuCounts.no >= 3) {
+    overallCaps.push(35)
+  } else if (hcuCounts.no >= 2) {
+    overallCaps.push(45)
+  } else if (hcuCounts.no >= 1) {
+    overallCaps.push(55)
+  } else if (hcuCounts.partial >= 3) {
+    overallCaps.push(65)
+  }
+
+  if (contentQualityFlags.depthVeryLow) overallCaps.push(40)
+  else if (contentQualityFlags.depthLow) overallCaps.push(55)
+  if (contentQualityFlags.actionableWeak) overallCaps.push(60)
+  if (contentQualityFlags.evidenceWeak) overallCaps.push(60)
+  if (contentQualityFlags.experienceWeak) overallCaps.push(65)
+  if (contentQualityFlags.titleMismatch) overallCaps.push(65)
+  if (contentQualityFlags.readabilityWeak) overallCaps.push(70)
+
+  if (overallCaps.length) {
+    clone.overallScore = Math.min(clone.overallScore, ...overallCaps)
+  }
+
   if (hcuCounts.no >= 3) {
     clone.overallScore = Math.min(clone.overallScore, 35)
   } else if (hcuCounts.no >= 2) {
@@ -1479,6 +1668,7 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
   clone.scoreGuards = {
     missingCritical,
     hcuCounts,
+    contentQualityFlags,
     appliedAt: new Date().toISOString()
   }
 
