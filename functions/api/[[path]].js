@@ -1678,38 +1678,56 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
   }
 
   const contentQualityFlags = buildContentQualityFlags(contentSignals)
+  const fallbackContext = {
+    hcuAnswerMap,
+    missingCritical,
+    contentQualityFlags,
+    contentSignals: contentSignals || {}
+  }
 
   if (Array.isArray(clone.metrics?.aeo)) {
     clone.metrics.aeo = clone.metrics.aeo.map((metric) => {
       const guarded = { ...metric }
-      if (metric.name === '段落獨立性' && missingCritical.h2Coverage) {
-        guarded.score = Math.min(guarded.score, 5)
+      if (!Number.isFinite(guarded.score)) {
+        const fallbackScore = deriveFallbackMetricScore(metric.name, 'aeo', fallbackContext)
+        if (Number.isFinite(fallbackScore)) {
+          guarded.score = fallbackScore
+        }
       }
-      if (metric.name === '段落獨立性' && contentQualityFlags.depthVeryLow) {
-        guarded.score = Math.min(guarded.score, 4)
+
+      if (Number.isFinite(guarded.score)) {
+        if (metric.name === '段落獨立性' && missingCritical.h2Coverage) {
+          guarded.score = Math.min(guarded.score, 5)
+        }
+        if (metric.name === '段落獨立性' && contentQualityFlags.depthVeryLow) {
+          guarded.score = Math.min(guarded.score, 4)
+        }
+        if (metric.name === '語言清晰度' && missingCritical.paragraphsLong) {
+          guarded.score = Math.min(guarded.score, 6)
+        }
+        if (metric.name === '語言清晰度' && contentQualityFlags.readabilityWeak) {
+          guarded.score = Math.min(guarded.score, 5)
+        }
+        if (metric.name === '可信度信號' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
+          guarded.score = Math.min(guarded.score, 4)
+        }
+        if (metric.name === '可信度信號' && contentQualityFlags.evidenceWeak) {
+          guarded.score = Math.min(guarded.score, 3)
+        }
+        if (metric.name === '語言清晰度' && contentQualityFlags.uniqueWordLow) {
+          guarded.score = Math.min(guarded.score, 6)
+        }
+        if (metric.name === '實體辨識' && contentQualityFlags.uniqueWordLow) {
+          guarded.score = Math.min(guarded.score, 5)
+        }
+        if (metric.name === '邏輯流暢度' && (contentQualityFlags.actionableWeak || contentQualityFlags.readabilityWeak)) {
+          guarded.score = Math.min(guarded.score, 5)
+        }
+        guarded.score = applyHcuCaps(guarded.score, metric.name, 'aeo')
+        guarded.score = clampMetricScoreValue(guarded.score)
+      } else {
+        guarded.score = null
       }
-      if (metric.name === '語言清晰度' && missingCritical.paragraphsLong) {
-        guarded.score = Math.min(guarded.score, 6)
-      }
-      if (metric.name === '語言清晰度' && contentQualityFlags.readabilityWeak) {
-        guarded.score = Math.min(guarded.score, 5)
-      }
-      if (metric.name === '可信度信號' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
-        guarded.score = Math.min(guarded.score, 4)
-      }
-      if (metric.name === '可信度信號' && contentQualityFlags.evidenceWeak) {
-        guarded.score = Math.min(guarded.score, 3)
-      }
-      if (metric.name === '語言清晰度' && contentQualityFlags.uniqueWordLow) {
-        guarded.score = Math.min(guarded.score, 6)
-      }
-      if (metric.name === '實體辨識' && contentQualityFlags.uniqueWordLow) {
-        guarded.score = Math.min(guarded.score, 5)
-      }
-      if (metric.name === '邏輯流暢度' && (contentQualityFlags.actionableWeak || contentQualityFlags.readabilityWeak)) {
-        guarded.score = Math.min(guarded.score, 5)
-      }
-      guarded.score = applyHcuCaps(guarded.score, metric.name, 'aeo')
       return guarded
     })
   }
@@ -1717,8 +1735,17 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
   if (Array.isArray(clone.metrics?.seo)) {
     clone.metrics.seo = clone.metrics.seo.map((metric) => {
       const guarded = { ...metric }
+      if (!Number.isFinite(guarded.score)) {
+        const fallbackScore = deriveFallbackMetricScore(metric.name, 'seo', fallbackContext)
+        if (Number.isFinite(fallbackScore)) {
+          guarded.score = fallbackScore
+        }
+      }
+
       const lower = (maxScore) => {
-        guarded.score = Math.min(guarded.score, maxScore)
+        if (Number.isFinite(guarded.score)) {
+          guarded.score = Math.min(guarded.score, maxScore)
+        }
       }
       switch (metric.name) {
         case 'E-E-A-T 信任線索':
@@ -1763,7 +1790,12 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
         default:
           break
       }
-      guarded.score = applyHcuCaps(guarded.score, metric.name, 'seo')
+      if (Number.isFinite(guarded.score)) {
+        guarded.score = applyHcuCaps(guarded.score, metric.name, 'seo')
+        guarded.score = clampMetricScoreValue(guarded.score)
+      } else {
+        guarded.score = null
+      }
       return guarded
     })
   }
