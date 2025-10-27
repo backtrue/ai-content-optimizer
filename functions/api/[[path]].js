@@ -722,7 +722,23 @@ async function handleAnalyzePost(context, corsHeaders) {
       }
     }
 
-    const contentVariants = normalizeContentVariants(requestBody)
+    let contentVariants = normalizeContentVariants(requestBody)
+    if (contentVariants.hint !== 'html' || !contentVariants.html.trim()) {
+      if (requestBody.contentUrl) {
+        try {
+          const extracted = await fetchAndExtractContent(requestBody.contentUrl)
+          contentVariants = {
+            ...contentVariants,
+            html: extracted.html || contentVariants.html,
+            plain: extracted.plain || contentVariants.plain,
+            markdown: contentVariants.markdown,
+            hint: 'html'
+          }
+        } catch (error) {
+          console.warn('Failed to fetch content for URL hint recovery', error)
+        }
+      }
+    }
     const {
       plain: contentPlain,
       html: contentHtml,
