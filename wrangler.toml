@@ -7,15 +7,3 @@ name = "ai-content-optimizer-worker-prod"
 routes = [
   { pattern = "ragseo.thinkwithblack.com/api/analyze-worker", zone_name = "thinkwithblack.com" }
 ]
-
-[[env.production.triggers.crons]]
-cron = "0 0 * * *"
-
-[build]
-command = "npm install"
-cwd = "./"
-watch_paths = ["functions/**/*.js"]
-
-[build.upload]
-format = "modules"
-main = "./functions/api/analyze-worker.js"

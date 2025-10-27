@@ -99,14 +99,18 @@ async function handleAnalyzeRequest(requestBody, env, ctx) {
   const aeoPredictions = isScoringModelReady() ? predictAeoMetricScores(modelContext) : null
   const seoPredictions = isScoringModelReady() ? predictSeoMetricScores(modelContext) : null
 
+  // Build metrics first
+  const aeoMetrics = buildMetricsFromPredictions(aeoPredictions, 'aeo')
+  const seoMetrics = buildMetricsFromPredictions(seoPredictions, 'seo')
+
   // Build response
   const response = {
     sourceUrl: contentUrl,
     targetKeywords,
     contentSignals,
     metrics: {
-      aeo: buildMetricsFromPredictions(aeoPredictions, 'aeo'),
-      seo: buildMetricsFromPredictions(seoPredictions, 'seo')
+      aeo: aeoMetrics,
+      seo: seoMetrics
     },
     scoreGuards: {
       contentQualityFlags: modelContext.contentQualityFlags,
@@ -114,8 +118,8 @@ async function handleAnalyzeRequest(requestBody, env, ctx) {
       hcuCounts
     },
     hcuReview,
-    aeoScore: computeAverageScore(response.metrics?.aeo || []),
-    seoScore: computeWeightedScore(response.metrics?.seo || [])
+    aeoScore: computeAverageScore(aeoMetrics),
+    seoScore: computeWeightedScore(seoMetrics)
   }
 
   if (returnChunks) {
