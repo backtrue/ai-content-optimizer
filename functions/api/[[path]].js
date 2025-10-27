@@ -13,6 +13,41 @@ const RATE_LIMIT_CONFIG = {
   ip: { limit: 40, windowSeconds: 60 * 60 }
 }
 
+const HCU_QUESTION_SET = [
+  { id: 'H1', category: 'helpfulness', question: '內容是否以協助人類讀者為主，而非僅為搜尋引擎打造？' },
+  { id: 'H2', category: 'helpfulness', question: '內容是否真實回答標題或開頭承諾的問題？' },
+  { id: 'H3', category: 'helpfulness', question: '讀者在閱讀後是否能獲得足夠資訊完成其目標？' },
+  { id: 'Q1', category: 'quality', question: '內容是否提供原創的資訊、分析或實務經驗，而非淪為整理或重寫？' },
+  { id: 'Q2', category: 'quality', question: '內容是否涵蓋主題所需的完整資訊（深度與廣度足夠）？' },
+  { id: 'Q3', category: 'quality', question: '內容是否提供超出顯而易見的洞察或案例？' },
+  { id: 'E1', category: 'expertise', question: '是否清楚展現作者或品牌的專業背景、來源與可信度？' },
+  { id: 'E2', category: 'expertise', question: '是否引用可信來源並避免明顯錯誤？' },
+  { id: 'P1', category: 'presentation', question: '內容在結構、排版與語言呈現上是否井然、有助閱讀？' },
+  { id: 'P2', category: 'presentation', question: '是否避免干擾閱讀的廣告或不必要元素？' },
+  { id: 'C1', category: 'context', question: '相較於搜尋結果競品，此內容是否提供更高的價值或獨特性？' }
+]
+
+const HCU_METRIC_RULES = [
+  { scope: 'seo', metric: '人本與主題一致性', questions: ['H1', 'H2'], caps: { partial: 6, no: 4 } },
+  { scope: 'seo', metric: '搜尋意圖契合度', questions: ['H2', 'H3', 'C1'], caps: { partial: 6, no: 4 } },
+  { scope: 'seo', metric: '內容品質與原創性', questions: ['Q1', 'Q2', 'Q3', 'C1'], caps: { partial: 6, no: 4 } },
+  { scope: 'seo', metric: 'E-E-A-T 信任線索', questions: ['E1'], caps: { partial: 6, no: 4 } },
+  { scope: 'seo', metric: '標題與承諾落實', questions: ['H2'], caps: { partial: 6, no: 4 } },
+  { scope: 'seo', metric: '新鮮度與時效性', questions: ['E2'], caps: { partial: 6, no: 4 } },
+  { scope: 'seo', metric: '結構與可讀性', questions: ['P1'], caps: { partial: 6, no: 4 } },
+  { scope: 'seo', metric: '使用者安全與風險', questions: ['P2'], caps: { partial: 6, no: 5 } },
+  { scope: 'aeo', metric: '段落獨立性', questions: ['H3', 'Q2', 'Q3'], caps: { partial: 6, no: 5 } },
+  { scope: 'aeo', metric: '語言清晰度', questions: ['H1', 'P1'], caps: { partial: 6, no: 5 } },
+  { scope: 'aeo', metric: '邏輯流暢度', questions: ['H3'], caps: { partial: 6, no: 5 } },
+  { scope: 'aeo', metric: '可信度信號', questions: ['E1', 'E2'], caps: { partial: 5, no: 4 } }
+]
+
+function formatHcuQuestions(questionSet = HCU_QUESTION_SET) {
+  return questionSet
+    .map((item, index) => `${index + 1}. [${item.id}] ${item.question}`)
+    .join('\n')
+}
+
 const rateLimitStore = globalThis.__AEO_RATE_LIMIT_STORE__ || new Map()
 if (!globalThis.__AEO_RATE_LIMIT_STORE__) {
   globalThis.__AEO_RATE_LIMIT_STORE__ = rateLimitStore
@@ -912,6 +947,7 @@ function extractTextFromRawResponse(rawResponse) {
 function buildAnalysisPrompt(content, targetKeywords, contentSignals = {}) {
   const keywordsList = Array.isArray(targetKeywords) ? targetKeywords.filter(Boolean).join(', ') : '';
   const signals = serializeContentSignals(contentSignals)
+  const hcuQuestions = formatHcuQuestions()
   return `你是一位嚴謹的 SEO 與 AEO 分析專家。請僅依據使用者提供的目標關鍵字進行分析，不要臆測或自行假設任何關鍵字。
 
 文章內容：
@@ -922,11 +958,18 @@ ${content}
 已解析的頁面結構與訊號（請務必據此評分，缺失即視為不符合）：
 ${signals}
 
+請先依據以下 Helpful Content Update (HCU) 問卷逐題判斷內容是否符合：
+${hcuQuestions}
+每題必須輸出 "answer": "yes|partial|no" 以及 40 字內的說明；若資料不足必須回答 "no" 或 "partial"。
+
 請以 JSON 格式回傳分析結果，包含以下結構：
 {
   "overallScore": 整數(0-100),
   "aeoScore": 整數(0-100),
   "seoScore": 整數(0-100),
+  "hcuReview": [
+    { "id": "...", "answer": "yes|partial|no", "explanation": "..." }
+  ],
   "metrics": {
     "aeo": [
       { "name": "段落獨立性", "score": 整數(0-10), "description": "簡短描述" },
@@ -1279,6 +1322,21 @@ function serializeContentSignals(signals = {}) {
   }
 }
 
+function normalizeHcuAnswer(answer) {
+  if (typeof answer !== 'string') return 'no'
+  const normalized = answer.trim().toLowerCase()
+  if (normalized === 'yes' || normalized === 'y') return 'yes'
+  if (normalized === 'partial' || normalized === 'maybe' || normalized === 'partially') return 'partial'
+  return 'no'
+}
+
+function constrainLength(text, maxLength) {
+  if (typeof text !== 'string') return ''
+  const trimmed = text.trim()
+  if (trimmed.length <= maxLength) return trimmed
+  return `${trimmed.slice(0, maxLength - 1)}…`
+}
+
 function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
   if (!payload || typeof payload !== 'object') return payload || {}
   const clone = structuredClone ? structuredClone(payload) : JSON.parse(JSON.stringify(payload))
@@ -1288,6 +1346,34 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
   }
   if (clone.metrics?.seo) {
     clone.metrics.seo = clone.metrics.seo.map((metric) => sanitizeSeoMetricEntry(metric))
+  }
+
+  const hcuAnswerMap = new Map()
+  const hcuCounts = { yes: 0, partial: 0, no: 0 }
+  if (Array.isArray(clone.hcuReview)) {
+    clone.hcuReview.forEach(({ id, answer }) => {
+      if (!id) return
+      const normalized = normalizeHcuAnswer(answer)
+      hcuAnswerMap.set(id, normalized)
+      if (normalized in hcuCounts) {
+        hcuCounts[normalized] += 1
+      }
+    })
+  } else {
+    clone.hcuReview = []
+  }
+
+  const applyHcuCaps = (score, metricName, scope) => {
+    const rule = HCU_METRIC_RULES.find((item) => item.metric === metricName && item.scope === scope)
+    if (!rule) return score
+    const answers = rule.questions.map((qid) => hcuAnswerMap.get(qid) || 'no')
+    if (answers.includes('no') && rule.caps?.no !== undefined) {
+      return Math.min(score, rule.caps.no)
+    }
+    if (answers.includes('partial') && rule.caps?.partial !== undefined) {
+      return Math.min(score, rule.caps.partial)
+    }
+    return score
   }
 
   const missingCritical = {
@@ -1324,6 +1410,7 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
       if (metric.name === '可信度信號' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
         guarded.score = Math.min(guarded.score, 4)
       }
+      guarded.score = applyHcuCaps(guarded.score, metric.name, 'aeo')
       return guarded
     })
   }
@@ -1366,6 +1453,7 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
         default:
           break
       }
+      guarded.score = applyHcuCaps(guarded.score, metric.name, 'seo')
       return guarded
     })
   }
@@ -1378,8 +1466,19 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
 
   clone.overallScore = recomputeOverallScore(clone)
 
+  if (hcuCounts.no >= 3) {
+    clone.overallScore = Math.min(clone.overallScore, 35)
+  } else if (hcuCounts.no >= 2) {
+    clone.overallScore = Math.min(clone.overallScore, 45)
+  } else if (hcuCounts.no >= 1) {
+    clone.overallScore = Math.min(clone.overallScore, 55)
+  } else if (hcuCounts.partial >= 3) {
+    clone.overallScore = Math.min(clone.overallScore, 65)
+  }
+
   clone.scoreGuards = {
     missingCritical,
+    hcuCounts,
     appliedAt: new Date().toISOString()
   }
 
@@ -1991,6 +2090,16 @@ function normalizeAnalysisResult(result) {
       result.seoScore = averageSeo;
     }
   }
+
+  result.hcuReview = Array.isArray(result.hcuReview)
+    ? result.hcuReview
+        .map((item) => ({
+          id: typeof item?.id === 'string' ? item.id : '',
+          answer: normalizeHcuAnswer(item?.answer),
+          explanation: constrainLength(typeof item?.explanation === 'string' ? item.explanation : '', 120)
+        }))
+        .filter((item) => item.id)
+    : []
 
   result.recommendations = Array.isArray(result.recommendations)
     ? result.recommendations.filter((item) => item && typeof item === 'object')
