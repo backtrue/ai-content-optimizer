@@ -812,7 +812,7 @@ async function handleAnalyzePost(context, corsHeaders) {
       }
     }
 
-    let payload = normalizeAnalysisResult(analysisResult)
+    let payload = normalizeAnalysisResult(analysisResult, contentSignals)
     payload = applyScoreGuards(payload, contentSignals, targetKeywords)
     if (returnChunks && chunkSourceText) {
       const chunks = chunkContent(chunkSourceText, {
@@ -1365,18 +1365,77 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
       })
     }
 
-    if (!body && typeof plain === 'string' && plain.trim()) {
-      paragraphTexts = plain.split(/\n{2,}/).map((chunk) => chunk.trim()).filter(Boolean)
+    const plainCandidate = typeof plain === 'string' ? plain : ''
+    const plainHasText = plainCandidate.trim().length > 0
+
+    if ((signal.paragraphCount === 0 || !paragraphTexts.length) && plainHasText) {
+      paragraphTexts = plainCandidate
+        .split(/\n{2,}/)
+        .map((chunk) => chunk.trim())
+        .filter(Boolean)
       signal.paragraphCount = paragraphTexts.length
       if (paragraphTexts.length) {
         const totalLength = paragraphTexts.reduce((sum, paragraph) => sum + paragraph.length, 0)
         signal.paragraphAverageLength = Math.round(totalLength / paragraphTexts.length)
         signal.longParagraphCount = paragraphTexts.filter((paragraph) => paragraph.length > 380).length
       }
-      const bulletMatches = plain.match(/^\s*(?:[-*+]|\d+[\.)])\s+/gm) || []
+    }
+
+    if (signal.listCount === 0 && plainHasText) {
+      const bulletMatches = plainCandidate.match(/^\s*(?:[-*+]|[0-9]{1,2}[\.)]|[一二三四五六七八九十]{1,3}[、．.])\s+/gm) || []
       signal.listCount = bulletMatches.length ? Math.max(1, Math.round(bulletMatches.length / 2)) : signal.listCount
-      const tableMatches = plain.match(/\|[^\n]+\|/g) || []
+    }
+
+    if (signal.tableCount === 0 && plainHasText) {
+      const tableMatches = plainCandidate.match(/\|[^\n]+\|/g) || []
       signal.tableCount = tableMatches.length ? Math.max(1, Math.round(tableMatches.length / 4)) : signal.tableCount
+    }
+
+    if (plainHasText) {
+      if (signal.h1Count === 0) {
+        const h1Matches = plainCandidate.match(/^#\s+.+/gm) || []
+        signal.h1Count = h1Matches.length
+        if (h1Matches.length) {
+          const firstHeading = h1Matches[0].replace(/^#\s+/, '').trim()
+          if (!primaryH1) {
+            primaryH1 = firstHeading
+          }
+          if (!signal.h1ContainsKeyword && targetKeywords.length) {
+            signal.h1ContainsKeyword = targetKeywords.some((kw) => kw && firstHeading.includes(kw))
+          }
+        }
+        if (!h1Matches.length) {
+          const firstLine = plainCandidate
+            .split('\n')
+            .map((line) => line.trim())
+            .find((line) => line.length > 0)
+          if (firstLine) {
+            signal.h1Count = 1
+            if (!primaryH1) primaryH1 = firstLine
+            if (!signal.h1ContainsKeyword && targetKeywords.length) {
+              signal.h1ContainsKeyword = targetKeywords.some((kw) => kw && firstLine.includes(kw))
+            }
+          }
+        }
+      }
+
+      if (signal.h2Count === 0) {
+        const markdownH2 = plainCandidate.match(/^##\s+.+/gm) || []
+        const enumeratedH2 = plainCandidate.match(/^[一二三四五六七八九十]{1,3}[、．.]+\s*.+/gm) || []
+        const h2Texts = []
+        markdownH2.forEach((heading) => {
+          const text = heading.replace(/^##\s+/, '').trim()
+          if (text) h2Texts.push(text)
+        })
+        enumeratedH2.forEach((heading) => {
+          const text = heading.replace(/^[一二三四五六七八九十]{1,3}[、．.]+\s*/, '').trim()
+          if (text) h2Texts.push(text)
+        })
+        signal.h2Count = h2Texts.length
+        signal.h2WithKeywordCount = h2Texts.reduce((count, text) => {
+          return count + (targetKeywords.some((kw) => kw && text.includes(kw)) ? 1 : 0)
+        }, 0)
+      }
     }
 
     const plainTextSource = normalizeWhitespace(firstNonEmpty(
@@ -1503,16 +1562,16 @@ function buildContentQualityFlags(contentSignals = {}) {
   const uniqueWordRatio = Number(contentSignals.uniqueWordRatio || 0)
   const paragraphAverageLength = Number(contentSignals.paragraphAverageLength || 0)
 
-  const depthLow = wordCount < 600 || paragraphCount < 6
-  const depthVeryLow = wordCount < 400 || paragraphCount < 4
+  const depthLow = wordCount < 500 || paragraphCount < 5
+  const depthVeryLow = wordCount < 320 || paragraphCount < 3
 
   return {
     wordCount,
     paragraphCount,
     depthLow,
     depthVeryLow,
-    actionableWeak: actionableScore <= 1 || actionableStepCount < 3,
-    actionableZero: actionableStepCount === 0,
+    actionableWeak: actionableScore <= 1 && actionableStepCount < 2,
+    actionableZero: actionableStepCount === 0 && actionableScore === 0,
     evidenceWeak: evidenceCount < 2 || externalAuthorityLinkCount === 0,
     evidenceNone: evidenceCount === 0 && externalAuthorityLinkCount === 0,
     freshnessWeak: recentYearCount === 0 && !contentSignals.hasPublishedDate && !contentSignals.hasModifiedDate,
@@ -2342,7 +2401,7 @@ function generateMockAnalysis(content, targetKeyword) {
   };
 }
 
-function normalizeAnalysisResult(result) {
+function normalizeAnalysisResult(result, contentSignals = {}) {
   if (!result || typeof result !== 'object') return result;
 
   if (!result.metrics || typeof result.metrics !== 'object') {
@@ -2365,6 +2424,8 @@ function normalizeAnalysisResult(result) {
   }
 
   result.hcuReview = normalizeHcuReview(result.hcuReview)
+
+  const contentFlags = buildContentQualityFlags(contentSignals)
 
   result.recommendations = Array.isArray(result.recommendations)
     ? result.recommendations.filter((item) => item && typeof item === 'object')
