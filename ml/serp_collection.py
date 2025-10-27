@@ -14,7 +14,7 @@ from datetime import datetime
 
 # Configuration
 VALUESERP_API_KEY = os.getenv('VALUESERP_API_KEY', '')
-ANALYZE_API_URL = os.getenv('ANALYZE_API_URL', 'https://ragseo.thinkwithblack.com/api/analyze-worker')
+ANALYZE_API_URL = os.getenv('ANALYZE_API_URL', 'https://ragseo.thinkwithblack.com/api/analyze')
 OUTPUT_DIR = './ml'
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, 'training_data.csv')
 OUTPUT_JSON = os.path.join(OUTPUT_DIR, 'training_data.json')
@@ -192,7 +192,7 @@ def collect_training_data():
         if not serp_results:
             continue
         
-        time.sleep(1)  # Rate limiting
+        time.sleep(5)  # Rate limiting between keywords
         
         for result in serp_results:
             url = result['url']
@@ -210,7 +210,7 @@ def collect_training_data():
                     'features': features
                 })
             
-            time.sleep(2)  # Rate limiting between URLs (increased due to API timeout)
+            time.sleep(8)  # Rate limiting between URLs (increased to avoid Worker rate limits)
     
     # Save as JSON
     print(f"\n\nSaving {len(training_data)} records to {OUTPUT_JSON}...")
