@@ -1,5 +1,10 @@
 import { Readability } from '@mozilla/readability'
 import { parseHTML } from 'linkedom'
+import {
+  isScoringModelReady,
+  predictAeoMetricScores,
+  predictSeoMetricScores
+} from './scoring-model'
 
 // Cloudflare Workers API endpoint for content analysis
 
@@ -1803,51 +1808,71 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
     hcuAnswerMap,
     missingCritical,
     contentQualityFlags,
-    contentSignals: contentSignals || {}
+    contentSignals: contentSignals || {},
+    hcuCounts
   }
+
+  const modelContext = {
+    contentSignals: contentSignals || {},
+    contentQualityFlags,
+    missingCritical,
+    hcuCounts
+  }
+
+  const modelReady = isScoringModelReady()
+  const aeoPredictions = modelReady ? predictAeoMetricScores(modelContext) : null
+  const seoPredictions = modelReady ? predictSeoMetricScores(modelContext) : null
 
   if (Array.isArray(clone.metrics?.aeo)) {
     clone.metrics.aeo = clone.metrics.aeo.map((metric) => {
       const guarded = { ...metric }
-      if (!Number.isFinite(guarded.score)) {
-        const fallbackScore = deriveFallbackMetricScore(metric.name, 'aeo', fallbackContext)
-        if (Number.isFinite(fallbackScore)) {
-          guarded.score = fallbackScore
-        }
-      }
-
-      if (Number.isFinite(guarded.score)) {
-        if (metric.name === '段落獨立性' && missingCritical.h2Coverage) {
-          guarded.score = Math.min(guarded.score, 5)
-        }
-        if (metric.name === '段落獨立性' && contentQualityFlags.depthVeryLow) {
-          guarded.score = Math.min(guarded.score, 4)
-        }
-        if (metric.name === '語言清晰度' && missingCritical.paragraphsLong) {
-          guarded.score = Math.min(guarded.score, 6)
-        }
-        if (metric.name === '語言清晰度' && contentQualityFlags.readabilityWeak) {
-          guarded.score = Math.min(guarded.score, 5)
-        }
-        if (metric.name === '可信度信號' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
-          guarded.score = Math.min(guarded.score, 4)
-        }
-        if (metric.name === '可信度信號' && contentQualityFlags.evidenceWeak) {
-          guarded.score = Math.min(guarded.score, 3)
-        }
-        if (metric.name === '語言清晰度' && contentQualityFlags.uniqueWordLow) {
-          guarded.score = Math.min(guarded.score, 6)
-        }
-        if (metric.name === '實體辨識' && contentQualityFlags.uniqueWordLow) {
-          guarded.score = Math.min(guarded.score, 5)
-        }
-        if (metric.name === '邏輯流暢度' && (contentQualityFlags.actionableWeak || contentQualityFlags.readabilityWeak)) {
-          guarded.score = Math.min(guarded.score, 5)
-        }
-        guarded.score = applyHcuCaps(guarded.score, metric.name, 'aeo')
-        guarded.score = clampScore(guarded.score)
+      const prediction = aeoPredictions?.get(metric.name)
+      if (prediction) {
+        guarded.score = clampScore(prediction.score)
+        guarded.modelVersion = prediction.modelVersion
+        guarded.modelRawScore = prediction.rawScore
+        guarded.modelContributions = prediction.contributions
       } else {
-        guarded.score = null
+        if (!Number.isFinite(guarded.score)) {
+          const fallbackScore = deriveFallbackMetricScore(metric.name, 'aeo', fallbackContext)
+          if (Number.isFinite(fallbackScore)) {
+            guarded.score = fallbackScore
+          }
+        }
+
+        if (Number.isFinite(guarded.score)) {
+          if (metric.name === '段落獨立性' && missingCritical.h2Coverage) {
+            guarded.score = Math.min(guarded.score, 5)
+          }
+          if (metric.name === '段落獨立性' && contentQualityFlags.depthVeryLow) {
+            guarded.score = Math.min(guarded.score, 4)
+          }
+          if (metric.name === '語言清晰度' && missingCritical.paragraphsLong) {
+            guarded.score = Math.min(guarded.score, 6)
+          }
+          if (metric.name === '語言清晰度' && contentQualityFlags.readabilityWeak) {
+            guarded.score = Math.min(guarded.score, 5)
+          }
+          if (metric.name === '可信度信號' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
+            guarded.score = Math.min(guarded.score, 4)
+          }
+          if (metric.name === '可信度信號' && contentQualityFlags.evidenceWeak) {
+            guarded.score = Math.min(guarded.score, 3)
+          }
+          if (metric.name === '語言清晰度' && contentQualityFlags.uniqueWordLow) {
+            guarded.score = Math.min(guarded.score, 6)
+          }
+          if (metric.name === '實體辨識' && contentQualityFlags.uniqueWordLow) {
+            guarded.score = Math.min(guarded.score, 5)
+          }
+          if (metric.name === '邏輯流暢度' && (contentQualityFlags.actionableWeak || contentQualityFlags.readabilityWeak)) {
+            guarded.score = Math.min(guarded.score, 5)
+          }
+          guarded.score = applyHcuCaps(guarded.score, metric.name, 'aeo')
+          guarded.score = clampScore(guarded.score)
+        } else {
+          guarded.score = null
+        }
       }
       return guarded
     })
@@ -1856,66 +1881,76 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
   if (Array.isArray(clone.metrics?.seo)) {
     clone.metrics.seo = clone.metrics.seo.map((metric) => {
       const guarded = { ...metric }
-      if (!Number.isFinite(guarded.score)) {
+      const prediction = seoPredictions?.get(metric.name)
+      if (prediction) {
+        guarded.score = clampScore(prediction.score)
+        guarded.modelVersion = prediction.modelVersion
+        guarded.modelRawScore = prediction.rawScore
+        guarded.modelContributions = prediction.contributions
+      } else {
         const fallbackScore = deriveFallbackMetricScore(metric.name, 'seo', fallbackContext)
-        if (Number.isFinite(fallbackScore)) {
+        if (!Number.isFinite(guarded.score)) {
+          if (Number.isFinite(fallbackScore)) {
+            guarded.score = fallbackScore
+          }
+        } else if (Number.isFinite(fallbackScore) && guarded.score < fallbackScore) {
           guarded.score = fallbackScore
         }
-      }
 
-      const lower = (maxScore) => {
-        if (Number.isFinite(guarded.score)) {
-          guarded.score = Math.min(guarded.score, maxScore)
+        const lower = (maxScore) => {
+          if (Number.isFinite(guarded.score)) {
+            guarded.score = Math.min(guarded.score, maxScore)
+          }
         }
-      }
-      switch (metric.name) {
-        case 'E-E-A-T 信任線索':
-          if (missingCritical.author || missingCritical.publisher) lower(4)
-          if (missingCritical.authorityLinksMissing) lower(4)
-          break
-        case '內容品質與原創性':
-          if (missingCritical.externalLinksMissing) lower(5)
-          if (contentQualityFlags.depthLow) lower(6)
-          if (contentQualityFlags.uniqueWordLow) lower(5)
-          if (contentQualityFlags.experienceWeak) lower(5)
-          break
-        case '人本與主題一致性':
-          if (missingCritical.h1Count || missingCritical.h1Keyword) lower(5)
-          if (contentQualityFlags.titleMismatch) lower(5)
-          if (contentQualityFlags.actionableWeak) lower(5)
-          break
-        case '標題與承諾落實':
-          if (missingCritical.h1Count) lower(6)
-          if (contentQualityFlags.titleMismatch) lower(4)
-          break
-        case '搜尋意圖契合度':
-          if (missingCritical.h2Coverage) lower(6)
-          if (contentQualityFlags.actionableWeak) lower(4)
-          if (contentQualityFlags.depthLow) lower(6)
-          break
-        case '新鮮度與時效性':
-          if (missingCritical.publishedDate || missingCritical.visibleDate) lower(3)
-          if (missingCritical.modifiedDate) lower(4)
-          if (contentQualityFlags.freshnessWeak) lower(3)
-          break
-        case '使用者安全與風險':
-          if (missingCritical.metaDescription || missingCritical.canonical) lower(6)
-          if (contentQualityFlags.evidenceWeak) lower(5)
-          break
-        case '結構與可讀性':
-          if (missingCritical.listMissing) lower(5)
-          if (missingCritical.tableMissing) lower(6)
-          if (missingCritical.paragraphsLong) lower(5)
-          if (contentQualityFlags.readabilityWeak) lower(4)
-          break
-        default:
-          break
-      }
-      if (Number.isFinite(guarded.score)) {
-        guarded.score = applyHcuCaps(guarded.score, metric.name, 'seo')
-        guarded.score = clampScore(guarded.score)
-      } else {
-        guarded.score = null
+        switch (metric.name) {
+          case 'E-E-A-T 信任線索':
+            if (missingCritical.author || missingCritical.publisher) lower(4)
+            if (missingCritical.authorityLinksMissing) lower(4)
+            break
+          case '內容品質與原創性':
+            if (missingCritical.externalLinksMissing) lower(5)
+            if (contentQualityFlags.depthLow) lower(6)
+            if (contentQualityFlags.uniqueWordLow) lower(5)
+            if (contentQualityFlags.experienceWeak) lower(5)
+            break
+          case '人本與主題一致性':
+            if (missingCritical.h1Count || missingCritical.h1Keyword) lower(5)
+            if (contentQualityFlags.titleMismatch) lower(5)
+            if (contentQualityFlags.actionableWeak) lower(5)
+            break
+          case '標題與承諾落實':
+            if (missingCritical.h1Count) lower(6)
+            if (contentQualityFlags.titleMismatch) lower(4)
+            break
+          case '搜尋意圖契合度':
+            if (missingCritical.h2Coverage) lower(6)
+            if (contentQualityFlags.actionableWeak) lower(4)
+            if (contentQualityFlags.depthLow) lower(6)
+            break
+          case '新鮮度與時效性':
+            if (missingCritical.publishedDate || missingCritical.visibleDate) lower(3)
+            if (missingCritical.modifiedDate) lower(4)
+            if (contentQualityFlags.freshnessWeak) lower(3)
+            break
+          case '使用者安全與風險':
+            if (missingCritical.metaDescription || missingCritical.canonical) lower(6)
+            if (contentQualityFlags.evidenceWeak) lower(5)
+            break
+          case '結構與可讀性':
+            if (missingCritical.listMissing) lower(5)
+            if (missingCritical.tableMissing) lower(6)
+            if (missingCritical.paragraphsLong) lower(5)
+            if (contentQualityFlags.readabilityWeak) lower(4)
+            break
+          default:
+            break
+        }
+        if (Number.isFinite(guarded.score)) {
+          guarded.score = applyHcuCaps(guarded.score, metric.name, 'seo')
+          guarded.score = clampScore(guarded.score)
+        } else {
+          guarded.score = null
+        }
       }
       return guarded
     })
