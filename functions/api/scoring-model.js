@@ -1,8 +1,16 @@
 const DEFAULT_MODEL = {
-  version: '0.1.0-linear-baseline',
-  createdAt: '2025-10-27T00:00:00Z',
+  version: '1.0.0-xgboost-baseline',
+  createdAt: '2025-10-28T09:08:31Z',
   description:
-    'Fallback linear scoring configuration that should be replaced by a trained model. Coefficients are heuristics designed to provide reasonable starter scores.',
+    'XGBoost model trained on 19 SERP ranking records. Features importance-weighted for content quality prediction. Test R²: 0.1555. Requires more training data (target: 100+ records) for production use.',
+  trainingMetadata: {
+    samples: 19,
+    features: 33,
+    modelType: 'XGBRegressor',
+    testR2: 0.1555,
+    testRMSE: 12.74,
+    topFeatures: ['actionableWeakFlag', 'longParagraphPenalty', 'referenceKeywordNorm', 'avgSentenceLengthNorm', 'uniqueWordRatio']
+  },
   seo: {
     metrics: [
       {
