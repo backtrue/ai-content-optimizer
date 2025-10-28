@@ -1,0 +1,85 @@
+{
+  "version": "1.0.0-xgboost-baseline",
+  "createdAt": "2025-10-28T09:08:31.587848",
+  "description": "Baseline XGBoost model trained on SERP ranking data",
+  "metrics": {
+    "train_rmse": 1.5107825088298468,
+    "test_rmse": 12.739544339976778,
+    "train_r2": 0.9746392965316772,
+    "test_r2": 0.1555330753326416,
+    "cv_r2_mean": -1.0764512896537781,
+    "cv_r2_std": 1.3872049896143837
+  },
+  "training_samples": 19,
+  "feature_count": 33,
+  "model_type": "XGBRegressor",
+  "hyperparameters": {
+    "n_estimators": 50,
+    "max_depth": 4,
+    "learning_rate": 0.1,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8
+  },
+  "top_features": [
+    {
+      "feature": "actionableWeakFlag",
+      "importance": 0.18198300898075104
+    },
+    {
+      "feature": "longParagraphPenalty",
+      "importance": 0.14715231955051422
+    },
+    {
+      "feature": "referenceKeywordNorm",
+      "importance": 0.0782022476196289
+    },
+    {
+      "feature": "avgSentenceLengthNorm",
+      "importance": 0.06906143575906754
+    },
+    {
+      "feature": "uniqueWordRatio",
+      "importance": 0.05415927618741989
+    },
+    {
+      "feature": "hasH1Keyword",
+      "importance": 0.05014227330684662
+    },
+    {
+      "feature": "experienceCueNorm",
+      "importance": 0.0470365472137928
+    },
+    {
+      "feature": "evidenceCountNorm",
+      "importance": 0.04603824019432068
+    },
+    {
+      "feature": "paragraphCountNorm",
+      "importance": 0.04567335918545723
+    },
+    {
+      "feature": "readabilityWeakFlag",
+      "importance": 0.04404958710074425
+    },
+    {
+      "feature": "hcuNoRatio",
+      "importance": 0.03993963450193405
+    },
+    {
+      "feature": "recentYearNorm",
+      "importance": 0.03781720995903015
+    },
+    {
+      "feature": "depthLowFlag",
+      "importance": 0.03647372126579285
+    },
+    {
+      "feature": "wordCountNorm",
+      "importance": 0.03476366773247719
+    },
+    {
+      "feature": "actionableScoreNorm",
+      "importance": 0.03130269795656204
+    }
+  ]
+}
