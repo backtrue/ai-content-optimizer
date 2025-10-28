@@ -11,6 +11,7 @@ import time
 import requests
 from typing import List, Dict, Optional
 from datetime import datetime
+from serp_manager import get_manager as get_serp_manager
 
 # Configuration
 SERPAPI_KEY = os.getenv('SERPAPI_KEY', '')
@@ -62,42 +63,17 @@ def rank_to_score(rank: int) -> int:
 
 
 def fetch_serp_results(keyword: str) -> List[Dict]:
-    """Fetch top 10 SERP results from SerpAPI."""
-    if not SERPAPI_KEY:
-        print("ERROR: SERPAPI_KEY not set. Set it via: export SERPAPI_KEY=<your_key>")
-        return []
+    """Fetch top 10 SERP results using multi-service manager with automatic failover."""
+    manager = get_serp_manager()
     
-    url = "https://serpapi.com/search"
-    params = {
-        'api_key': SERPAPI_KEY,
-        'q': keyword,
-        'gl': 'tw',
-        'hl': 'zh-TW',
-        'num': 10,
-        'engine': 'google'
-    }
+    print(f"  Fetching SERP for: {keyword}")
+    results, error, service = manager.fetch(keyword)
     
-    try:
-        print(f"  Fetching SERP for: {keyword}")
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
-        results = []
-        for idx, result in enumerate(data.get('organic_results', [])[:10], 1):
-            results.append({
-                'rank': idx,
-                'url': result.get('link', ''),
-                'title': result.get('title', ''),
-                'snippet': result.get('snippet', ''),
-                'position': result.get('position', idx)
-            })
-        
-        print(f"    ✓ Got {len(results)} results")
+    if results:
+        print(f"    ✓ Got {len(results)} results from {service}")
         return results
-    
-    except requests.exceptions.RequestException as e:
-        print(f"    ✗ Error fetching SERP: {e}")
+    else:
+        print(f"    ✗ Error: {error}")
         return []
 
 
@@ -242,8 +218,11 @@ def collect_training_data():
     print(f"Output files:")
     print(f"  - {OUTPUT_JSON}")
     print(f"  - {OUTPUT_CSV}")
-    print(f"{'='*60}\n")
-
+    print(f"{'='*60}")
+    
+    # Print SERP manager status
+    manager = get_serp_manager()
+    manager.print_status()
 
 if __name__ == '__main__':
     collect_training_data()
