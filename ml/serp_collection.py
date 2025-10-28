@@ -13,39 +13,34 @@ from typing import List, Dict, Optional
 from datetime import datetime
 
 # Configuration
-VALUESERP_API_KEY = os.getenv('VALUESERP_API_KEY', '')
+SERPAPI_KEY = os.getenv('SERPAPI_KEY', '')
 ANALYZE_API_URL = os.getenv('ANALYZE_API_URL', 'https://ragseo.thinkwithblack.com/api/analyze')
 OUTPUT_DIR = './ml'
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, 'training_data.csv')
 OUTPUT_JSON = os.path.join(OUTPUT_DIR, 'training_data.json')
 
-# Keywords to analyze
+# Keywords to analyze (100 keywords)
 KEYWORDS = [
-    "非洲豬瘟",
-    "張峻",
-    "水龍吟",
-    "mizkif",
-    "粉盒大王",
-    "玉山金",
-    "許紹雄",
-    "樂天",
-    "天地劍心",
-    "atlas",
-    "台中購物節",
-    "藍眼淚",
-    "炎亞綸",
-    "國寶",
-    "周孝安",
-    "中華職棒",
-    "肉肉大米",
-    "鄭智化",
-    "exo",
-    "mlb世界大賽",
-    "曾雅妮",
-    "林又立",
-    "詹江村",
-    "人浮於愛",
-    "馬傑森"
+    "非洲豬瘟", "張峻", "水龍吟", "mizkif", "粉盒大王",
+    "玉山金", "許紹雄", "樂天", "天地劍心", "atlas",
+    "台中購物節", "藍眼淚", "炎亞綸", "國寶", "周孝安",
+    "中華職棒", "肉肉大米", "鄭智化", "exo", "mlb世界大賽",
+    "曾雅妮", "林又立", "詹江村", "人浮於愛", "馬傑森",
+    "高通", "普發一萬登記", "伯恩安德森", "2025 mlb 球季", "易烊千璽",
+    "新竹停水", "洲美國小預定地", "曲德義", "明天的天氣", "宏泰集團",
+    "鄭浩均", "謝沛恩", "江和樹", "中華職棒直播", "平野惠一",
+    "高雄捷運", "國王 對 湖人", "高通股價", "蔡璧名", "萬聖節",
+    "巴黎大師賽", "cpbl直播", "坤達", "大榮貨運", "泰國國喪",
+    "高橋藍", "austin reaves", "qcom", "威能帝", "泰國",
+    "法國羽球公開賽", "阿信", "凱蒂佩芮", "白晝之夜", "yahoo",
+    "徐嶔煌", "好味小姐", "台南藍眼淚", "山豬", "同志大遊行2025",
+    "黃安", "桃園萬聖城", "余德龍", "黃金價格", "炸記",
+    "賴雅妍", "南海", "閃兵", "河北彩伽 ig", "江坤宇",
+    "女孩", "朱承洋", "光復節由來", "涼山特勤隊", "euphoria",
+    "nba戰績", "00878", "粘鑫", "錦秀社區", "馬刺 對 籃網",
+    "灰狼 對 溜馬", "陳以信", "persib bandung vs persis", "mlb fall classic 2025", "許基宏",
+    "光復節", "晚安小雞", "f1", "拓荒者 對 勇士", "小野田紀美",
+    "chatgpt atlas", "勇士 對 金塊", "牙買加"
 ]
 
 # SERP rank to score mapping
@@ -67,18 +62,19 @@ def rank_to_score(rank: int) -> int:
 
 
 def fetch_serp_results(keyword: str) -> List[Dict]:
-    """Fetch top 10 SERP results from ValueSerp."""
-    if not VALUESERP_API_KEY:
-        print("ERROR: VALUESERP_API_KEY not set. Set it via: export VALUESERP_API_KEY=<your_key>")
+    """Fetch top 10 SERP results from SerpAPI."""
+    if not SERPAPI_KEY:
+        print("ERROR: SERPAPI_KEY not set. Set it via: export SERPAPI_KEY=<your_key>")
         return []
     
-    url = "https://api.valueserp.com/search"
+    url = "https://serpapi.com/search"
     params = {
-        'api_key': VALUESERP_API_KEY,
+        'api_key': SERPAPI_KEY,
         'q': keyword,
-        'country': 'tw',
-        'language': 'zh-TW',
-        'num': 10
+        'gl': 'tw',
+        'hl': 'zh-TW',
+        'num': 10,
+        'engine': 'google'
     }
     
     try:
@@ -93,7 +89,8 @@ def fetch_serp_results(keyword: str) -> List[Dict]:
                 'rank': idx,
                 'url': result.get('link', ''),
                 'title': result.get('title', ''),
-                'snippet': result.get('snippet', '')
+                'snippet': result.get('snippet', ''),
+                'position': result.get('position', idx)
             })
         
         print(f"    ✓ Got {len(results)} results")
