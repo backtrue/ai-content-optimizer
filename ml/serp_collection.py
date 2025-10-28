@@ -12,6 +12,7 @@ import requests
 from typing import List, Dict, Optional
 from datetime import datetime
 from serp_manager import get_manager as get_serp_manager
+from cost_tracker import get_tracker as get_cost_tracker
 
 # Configuration
 SERPAPI_KEY = os.getenv('SERPAPI_KEY', '')
@@ -65,9 +66,14 @@ def rank_to_score(rank: int) -> int:
 def fetch_serp_results(keyword: str) -> List[Dict]:
     """Fetch top 10 SERP results using multi-service manager with automatic failover."""
     manager = get_serp_manager()
+    tracker = get_cost_tracker()
     
     print(f"  Fetching SERP for: {keyword}")
     results, error, service = manager.fetch(keyword)
+    
+    # Track API usage
+    service_name = service.lower().replace('api', '').replace('serp', '').strip() if service else 'unknown'
+    tracker.record_request(service_name, success=(results is not None))
     
     if results:
         print(f"    ✓ Got {len(results)} results from {service}")
@@ -223,6 +229,11 @@ def collect_training_data():
     # Print SERP manager status
     manager = get_serp_manager()
     manager.print_status()
+    
+    # Print cost summary
+    tracker = get_cost_tracker()
+    tracker.print_summary()
+    tracker.export_csv()
 
 if __name__ == '__main__':
     collect_training_data()
