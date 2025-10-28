@@ -1236,6 +1236,8 @@ function normalizeWhitespace(text) {
 }
 
 function computeContentSignals({ plain = '', html = '', markdown = '', targetKeywords = [], sourceUrl = null }) {
+  // 簡化版本：只計算基本信號以避免 Worker 超時
+  // 完整版本應在後端服務中計算
   const signal = {
     hasHtml: Boolean(html && html.trim()),
     hasMarkdown: Boolean(markdown && markdown.trim()),
@@ -1289,98 +1291,72 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
   const hasHtml = Boolean(sourceHtml.trim())
 
   try {
-    let document
-    let head = null
-    let body = null
-    let primaryH1 = ''
-    let paragraphTexts = []
-
+    // 簡化版：使用正則表達式而非 DOM 解析以避免超時
+    // 完整版應在後端計算
+    
     if (hasHtml) {
-      ({ document } = parseHTML(sourceHtml))
-      head = document.querySelector('head')
-      body = document.body
-    }
-
-    if (head) {
-      const titleEl = head.querySelector('title')
-      if (titleEl && titleEl.textContent) {
-        signal.hasUniqueTitle = titleEl.textContent.trim().length > 0
-      }
-      const metaDescription = head.querySelector('meta[name="description"]')
-      if (metaDescription && metaDescription.getAttribute('content')) {
-        signal.hasMetaDescription = metaDescription.getAttribute('content').trim().length > 30
-      }
-      const canonical = head.querySelector('link[rel="canonical"]')
-      signal.hasCanonical = Boolean(canonical && canonical.getAttribute('href'))
-    }
-
-    const scripts = hasHtml ? Array.from(document.querySelectorAll('script[type="application/ld+json"]')) : []
-    for (const script of scripts) {
-      try {
-        const json = JSON.parse(script.textContent || 'null')
-        const items = Array.isArray(json) ? json : [json]
-        for (const item of items) {
-          if (!item || typeof item !== 'object') continue
-          const type = Array.isArray(item['@type']) ? item['@type'] : [item['@type']]
+      // 快速檢查基本標籤
+      signal.hasUniqueTitle = /<title[^>]*>(.{1,}?)<\/title>/i.test(sourceHtml)
+      signal.hasMetaDescription = /name=["']description["']\s+content=["'](.{30,}?)["']/i.test(sourceHtml)
+      signal.hasCanonical = /rel=["']canonical["']/i.test(sourceHtml)
+      
+      // 計數基本標籤
+      const h1Matches = sourceHtml.match(/<h1[^>]*>/gi) || []
+      signal.h1Count = h1Matches.length
+      
+      const h2Matches = sourceHtml.match(/<h2[^>]*>/gi) || []
+      signal.h2Count = h2Matches.length
+      
+      signal.listCount = ((sourceHtml.match(/<ul[^>]*>/gi) || []).length + (sourceHtml.match(/<ol[^>]*>/gi) || []).length)
+      signal.tableCount = (sourceHtml.match(/<table[^>]*>/gi) || []).length
+      signal.imageCount = (sourceHtml.match(/<img[^>]*>/gi) || []).length
+      
+      // 檢查 Schema
+      const schemaMatches = sourceHtml.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || []
+      for (const match of schemaMatches) {
+        try {
+          const jsonStr = match.replace(/<script[^>]*>|<\/script>/gi, '')
+          const json = JSON.parse(jsonStr)
+          const type = json['@type'] || ''
+          if (type.includes('Article') || type.includes('BlogPosting')) signal.hasArticleSchema = true
           if (type.includes('FAQPage')) signal.hasFaqSchema = true
           if (type.includes('HowTo')) signal.hasHowToSchema = true
-          if (type.includes('Article') || type.includes('BlogPosting') || type.includes('NewsArticle')) {
-            signal.hasArticleSchema = true
-            if (item.author) signal.hasAuthorInfo = true
-            if (item.publisher) signal.hasPublisherInfo = true
-            if (item.datePublished) signal.hasPublishedDate = true
-            if (item.dateModified) signal.hasModifiedDate = true
-          }
-          if (type.includes('Organization') || type.includes('Brand')) {
-            signal.hasOrganizationSchema = true
-          }
+        } catch (e) {
+          // 忽略解析錯誤
         }
-      } catch (error) {
-        console.warn('Failed to parse schema JSON-LD', error);
+      }
+      
+      // 檢查日期
+      signal.hasVisibleDate = /\d{4}[年\/-]/.test(sourceHtml)
+    }
+
+    // 使用 plain text 計算字數和句子
+    if (plain && plain.trim()) {
+      const words = plain.split(/\s+/).filter(w => w.length > 0)
+      signal.wordCount = words.length
+      
+      const sentences = plain.split(/[。！？\n]+/).filter(s => s.trim().length > 0)
+      signal.sentenceCount = sentences.length
+      signal.avgSentenceLength = sentences.length > 0 ? Math.round(signal.wordCount / sentences.length) : 0
+      
+      const uniqueWords = new Set(words.map(w => w.toLowerCase()))
+      signal.uniqueWordRatio = uniqueWords.size > 0 ? (uniqueWords.size / words.length).toFixed(2) : 0
+    }
+
+    // 檢查關鍵字
+    if (plain && targetKeywords.length > 0) {
+      const plainLower = plain.toLowerCase()
+      for (const kw of targetKeywords) {
+        if (kw && plainLower.includes(kw.toLowerCase())) {
+          signal.h1ContainsKeyword = true
+          signal.referenceKeywordCount += 1
+        }
       }
     }
 
-    if (body) {
-      const textContent = body.textContent || ''
-      if (/\d{4}[年\/-]/.test(textContent)) {
-        signal.hasVisibleDate = true
-      }
-
-      const headings = Array.from(body.querySelectorAll('h1, h2, h3, h4'))
-      headings.forEach((heading) => {
-        const level = Number((heading.tagName || '').replace('H', ''))
-        const text = (heading.textContent || '').trim()
-        if (!text) return
-        if (level === 1) {
-          signal.h1Count += 1
-          signal.h1ContainsKeyword = signal.h1ContainsKeyword || targetKeywords.some((kw) => kw && text.includes(kw))
-          if (!primaryH1) primaryH1 = text
-        }
-        if (level === 2) {
-          signal.h2Count += 1
-          if (targetKeywords.some((kw) => kw && text.includes(kw))) {
-            signal.h2WithKeywordCount += 1
-          }
-        }
-      })
-
-      const paragraphs = Array.from(body.querySelectorAll('p')).map((p) => (p.textContent || '').trim()).filter(Boolean)
-      paragraphTexts = paragraphs
-      signal.paragraphCount = paragraphs.length
-      if (paragraphs.length) {
-        const totalLength = paragraphs.reduce((sum, paragraph) => sum + paragraph.length, 0)
-        signal.paragraphAverageLength = Math.round(totalLength / paragraphs.length)
-        signal.longParagraphCount = paragraphs.filter((paragraph) => paragraph.length > 380).length
-      }
-
-      signal.listCount = body.querySelectorAll('ul, ol').length
-      signal.tableCount = body.querySelectorAll('table').length
-
-      const images = Array.from(body.querySelectorAll('img'))
-      signal.imageCount = images.length
-      signal.imageWithAltCount = images.filter((img) => (img.getAttribute('alt') || '').trim().length > 3).length
-
-      const anchors = Array.from(body.querySelectorAll('a[href]'))
+    if (false) {
+      // 保留原始 DOM 解析邏輯以備後用（已禁用）
+      const anchors = []
       anchors.forEach((a) => {
         const href = (a.getAttribute('href') || '').trim()
         if (!href || href.startsWith('#')) return
