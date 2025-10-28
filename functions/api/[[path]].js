@@ -53,10 +53,10 @@ function formatHcuQuestions(questionSet = HCU_QUESTION_SET) {
     .join('\n')
 }
 
-const rateLimitStore = globalThis.__AEO_RATE_LIMIT_STORE__ || new Map()
-if (!globalThis.__AEO_RATE_LIMIT_STORE__) {
-  globalThis.__AEO_RATE_LIMIT_STORE__ = rateLimitStore
-}
+// 禁用全局速率限制以避免記憶體洩漏
+// 改由客戶端控制請求速率
+const rateLimitStore = new Map()
+const RATE_LIMIT_ENABLED = false
 
 function nowSeconds() {
   return Math.floor(Date.now() / 1000)
@@ -88,13 +88,25 @@ function rateLimitKey(prefix, id) {
 }
 
 function checkRateLimit(prefix, id, config) {
+  // 禁用速率限制以避免記憶體洩漏
+  // 改由客戶端（serp_collection.py）控制請求速率
+  if (!RATE_LIMIT_ENABLED) {
+    return { allowed: true, remaining: config.limit }
+  }
+  
   if (!id) return { allowed: true }
   const key = rateLimitKey(prefix, id)
   const entry = rateLimitStore.get(key)
   const now = nowSeconds()
 
-  if (!entry || entry.resetAt <= now) {
+  if (!entry) {
     rateLimitStore.set(key, { count: 1, resetAt: now + config.windowSeconds })
+    return { allowed: true, remaining: config.limit - 1 }
+  }
+
+  if (now >= entry.resetAt) {
+    entry.count = 1
+    entry.resetAt = now + config.windowSeconds
     return { allowed: true, remaining: config.limit - 1 }
   }
 
