@@ -20,16 +20,41 @@ class ServiceStatus(Enum):
     DISABLED = "disabled"
 
 class SerpService:
-    """Base class for SERP services"""
+    """SERP 服務基類"""
     
-    def __init__(self, name: str, api_key: str, enabled: bool = True):
+    def __init__(self, name: str, api_keys: list, enabled: bool = True):
         self.name = name
-        self.api_key = api_key
+        self.api_keys = api_keys if isinstance(api_keys, list) else [api_keys]
+        self.current_key_index = 0
         self.enabled = enabled
         self.status = ServiceStatus.ACTIVE if enabled else ServiceStatus.DISABLED
         self.last_error = None
         self.error_count = 0
         self.success_count = 0
+        self.key_stats = {key: {'success': 0, 'error': 0} for key in self.api_keys}
+    
+    @property
+    def api_key(self) -> str:
+        """取得目前的 API Key"""
+        if not self.api_keys:
+            return ""
+        return self.api_keys[self.current_key_index]
+    
+    def rotate_api_key(self):
+        """輪換到下一個 API Key"""
+        if len(self.api_keys) > 1:
+            self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
+            if os.getenv('SERP_LOG_API_KEY_ROTATION', 'false').lower() == 'true':
+                print(f"  [API Key 輪換] {self.name}: 切換到 API Key #{self.current_key_index + 1}")
+    
+    def record_key_result(self, success: bool):
+        """記錄目前 API Key 的結果"""
+        key = self.api_key
+        if key in self.key_stats:
+            if success:
+                self.key_stats[key]['success'] += 1
+            else:
+                self.key_stats[key]['error'] += 1
         
     def fetch(self, keyword: str, **kwargs) -> Tuple[Optional[List[Dict]], Optional[str]]:
         """
@@ -42,15 +67,22 @@ class SerpService:
         return self.enabled and self.status in [ServiceStatus.ACTIVE]
     
     def mark_error(self, error: str):
+        """標記錯誤並決定是否輪換 API Key"""
         self.error_count += 1
         self.last_error = error
+        self.record_key_result(False)
+        
         if "quota" in error.lower() or "429" in error or "403" in error:
+            # 配額超限，輪換 API Key
+            self.rotate_api_key()
             self.status = ServiceStatus.QUOTA_EXCEEDED
         else:
             self.status = ServiceStatus.ERROR
     
     def mark_success(self):
+        """標記成功"""
         self.success_count += 1
+        self.record_key_result(True)
         if self.status == ServiceStatus.ERROR:
             self.status = ServiceStatus.ACTIVE
 
@@ -253,24 +285,27 @@ class SerpManager:
         self._init_services()
     
     def _init_services(self):
-        """Initialize all available services"""
-        # SerpAPI
-        serpapi_key = os.getenv('SERPAPI_KEY', '')
+        """初始化所有可用的服務"""
+        # SerpAPI - 支援多個 API Key
+        serpapi_keys_str = os.getenv('SERPAPI_KEYS', '')
         serpapi_enabled = os.getenv('SERPAPI_ENABLED', 'true').lower() == 'true'
-        if serpapi_key:
-            self.services['serpapi'] = SerpAPIService('SerpAPI', serpapi_key, serpapi_enabled)
+        if serpapi_keys_str:
+            serpapi_keys = [k.strip() for k in serpapi_keys_str.split(',') if k.strip()]
+            self.services['serpapi'] = SerpAPIService('SerpAPI', serpapi_keys, serpapi_enabled)
         
-        # ValueSERP
-        valueserp_key = os.getenv('VALUESERP_KEY', '')
+        # ValueSERP - 支援多個 API Key
+        valueserp_keys_str = os.getenv('VALUESERP_KEYS', '')
         valueserp_enabled = os.getenv('VALUESERP_ENABLED', 'false').lower() == 'true'
-        if valueserp_key:
-            self.services['valueserp'] = ValueSERPService('ValueSERP', valueserp_key, valueserp_enabled)
+        if valueserp_keys_str:
+            valueserp_keys = [k.strip() for k in valueserp_keys_str.split(',') if k.strip()]
+            self.services['valueserp'] = ValueSERPService('ValueSERP', valueserp_keys, valueserp_enabled)
         
-        # ZenSERP
-        zenserp_key = os.getenv('ZENSERP_KEY', '')
+        # ZenSERP - 支援多個 API Key
+        zenserp_keys_str = os.getenv('ZENSERP_KEYS', '')
         zenserp_enabled = os.getenv('ZENSERP_ENABLED', 'false').lower() == 'true'
-        if zenserp_key:
-            self.services['zenserp'] = ZenSERPService('ZenSERP', zenserp_key, zenserp_enabled)
+        if zenserp_keys_str:
+            zenserp_keys = [k.strip() for k in zenserp_keys_str.split(',') if k.strip()]
+            self.services['zenserp'] = ZenSERPService('ZenSERP', zenserp_keys, zenserp_enabled)
     
     def _get_service_order(self) -> List[str]:
         """Get service order based on strategy"""
@@ -334,7 +369,7 @@ class SerpManager:
         return None, last_error or "All services exhausted", service_used or "none"
     
     def get_status(self) -> Dict:
-        """Get status of all services"""
+        """取得所有服務的狀態"""
         status = {
             'timestamp': datetime.now().isoformat(),
             'strategy': self.strategy,
@@ -348,27 +383,40 @@ class SerpManager:
                 'status': service.status.value,
                 'success_count': service.success_count,
                 'error_count': service.error_count,
-                'last_error': service.last_error
+                'last_error': service.last_error,
+                'api_key_count': len(service.api_keys),
+                'current_api_key_index': service.current_key_index,
+                'api_key_stats': service.key_stats
             }
         
         return status
     
     def print_status(self):
-        """Print formatted status"""
+        """列印格式化的狀態"""
         status = self.get_status()
         print(f"\n{'='*70}")
-        print(f"SERP Manager Status - {status['timestamp']}")
-        print(f"Strategy: {status['strategy']}")
+        print(f"SERP 管理器狀態 - {status['timestamp']}")
+        print(f"策略: {status['strategy']}")
         print(f"{'='*70}")
         
         for name, svc_status in status['services'].items():
             print(f"\n{svc_status['name']}:")
-            print(f"  Status: {svc_status['status']}")
-            print(f"  Enabled: {svc_status['enabled']}")
-            print(f"  Success: {svc_status['success_count']}")
-            print(f"  Errors: {svc_status['error_count']}")
+            print(f"  狀態: {svc_status['status']}")
+            print(f"  已啟用: {svc_status['enabled']}")
+            print(f"  成功: {svc_status['success_count']}")
+            print(f"  錯誤: {svc_status['error_count']}")
+            print(f"  API Key 數量: {svc_status['api_key_count']}")
+            print(f"  目前 API Key: #{svc_status['current_api_key_index'] + 1}")
+            
+            # 顯示每個 API Key 的統計
+            if svc_status['api_key_count'] > 1:
+                print(f"  API Key 統計:")
+                for i, (key, stats) in enumerate(svc_status['api_key_stats'].items(), 1):
+                    masked_key = key[:8] + '...' + key[-4:] if len(key) > 12 else key
+                    print(f"    #{i} ({masked_key}): 成功 {stats['success']}, 錯誤 {stats['error']}")
+            
             if svc_status['last_error']:
-                print(f"  Last Error: {svc_status['last_error']}")
+                print(f"  最後錯誤: {svc_status['last_error']}")
         
         print(f"\n{'='*70}\n")
 
