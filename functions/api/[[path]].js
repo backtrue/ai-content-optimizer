@@ -149,8 +149,10 @@ function validateContentUrl(rawUrl) {
 }
 
 async function fetchUrlContent(url, { fetch, signal }) {
+  // 簡化版：快速超時以避免 Worker 資源限制
+  // 完整版應在後端計算
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort('fetch-timeout'), FETCH_TIMEOUT_MS)
+  const timeoutId = setTimeout(() => controller.abort('fetch-timeout'), 5000) // 減少至 5 秒
   let redirectedCount = 0
   let currentUrl = url
   let response
@@ -230,43 +232,25 @@ async function fetchUrlContent(url, { fetch, signal }) {
 }
 
 function extractReadableContent(htmlText, finalUrl) {
-  const { document } = parseHTML(htmlText)
-  const reader = new Readability(document, { baseURI: finalUrl })
-  let article = reader.parse()
-
-  let sanitizedHtml = article?.content ? sanitizeHtml(article.content) : ''
-  let plain = normalizeWhitespace(stripHtmlTags(sanitizedHtml))
-
-  const needsFallback = !plain || plain.length < 200
-
-  if (needsFallback) {
-    const fallbackRoot =
-      document.querySelector('main') ||
-      document.querySelector('[role="main"]') ||
-      document.querySelector('article') ||
-      document.body
-
-    if (!fallbackRoot) {
+  // 簡化版：快速提取以避免超時
+  // 完整版應在後端計算
+  
+  try {
+    // 快速提取：移除 script/style，取得純文本
+    let plain = htmlText
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    
+    if (!plain || plain.length < 50) {
       throw new Error('無法解析頁面正文，請確認網頁內容')
     }
-
-    const cloned = fallbackRoot.cloneNode(true)
-    Array.from(cloned.querySelectorAll('script,style,noscript')).forEach((el) => el.remove())
-    const fallbackHtml = `<div>${cloned.innerHTML || ''}</div>`
-    const fallbackPlain = normalizeWhitespace(stripHtmlTags(fallbackHtml))
-
-    if (!fallbackPlain) {
-      throw new Error('無法解析頁面正文，請確認網頁內容')
-    }
-
-    sanitizedHtml = sanitizeHtml(fallbackHtml)
-    plain = fallbackPlain
-  }
-
-  return {
-    html: sanitizedHtml,
-    plain,
-    markdown: ''
+    
+    return { html: htmlText.substring(0, 10000), plain: plain.substring(0, 50000), markdown: '' }
+  } catch (error) {
+    throw new Error('無法解析頁面正文，請確認網頁內容')
   }
 }
 
