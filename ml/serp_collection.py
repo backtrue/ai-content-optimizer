@@ -14,6 +14,37 @@ from datetime import datetime
 from serp_manager import get_manager as get_serp_manager
 from cost_tracker import get_tracker as get_cost_tracker
 
+
+def load_env_variables() -> Optional[str]:
+    """嘗試載入本地環境檔，讓腳本可直接使用 .env 設定。"""
+    candidate_files = ['.env.serp', '.env', '.env.serp.local', '.env.serp.example']
+
+    def _parse_and_set(path: str) -> None:
+        with open(path, 'r', encoding='utf-8') as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '=' not in line:
+                    continue
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                if value and len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                    value = value[1:-1]
+                os.environ[key] = value
+
+    for filename in candidate_files:
+        if os.path.exists(filename):
+            _parse_and_set(filename)
+            print(f"⚙️ 已載入環境設定檔：{filename}")
+            return filename
+
+    return None
+
+
+load_env_variables()
+
 # Configuration
 SERPAPI_KEY = os.getenv('SERPAPI_KEY', '')
 ANALYZE_API_URL = os.getenv('ANALYZE_API_URL', 'https://ragseo.thinkwithblack.com/api/analyze')
@@ -79,7 +110,16 @@ def save_csv(records: List[Dict]) -> None:
             os.remove(OUTPUT_CSV)
         return
 
-    fieldnames = ['url', 'keyword', 'serp_rank', 'target_score', 'title'] + list(records[0]['features'].keys())
+    feature_fields: List[str] = []
+    for record in records:
+        features = record.get('features', {})
+        if not isinstance(features, dict):
+            continue
+        for key in features.keys():
+            if key not in feature_fields:
+                feature_fields.append(key)
+
+    fieldnames = ['url', 'keyword', 'serp_rank', 'target_score', 'title'] + feature_fields
     with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
@@ -91,7 +131,7 @@ def save_csv(records: List[Dict]) -> None:
                 'target_score': record['target_score'],
                 'title': record['title']
             }
-            row.update(record['features'])
+            row.update(record.get('features', {}))
             writer.writerow(row)
 
 
@@ -186,29 +226,89 @@ def analyze_url(url: str, keyword: str) -> Optional[Dict]:
             flags = data.get('scoreGuards', {}).get('contentQualityFlags', {})
             hcu_counts = data.get('scoreGuards', {}).get('hcuCounts', {})
             
-            # Build feature vector (matching scoring-model.js buildFeatureVector)
+            # 計算 HCU 相關特徵
             total_hcu = hcu_counts.get('yes', 0) + hcu_counts.get('partial', 0) + hcu_counts.get('no', 0)
             hcu_yes_ratio = hcu_counts.get('yes', 0) / total_hcu if total_hcu > 0 else 0
+            hcu_partial_ratio = hcu_counts.get('partial', 0) / total_hcu if total_hcu > 0 else 0
             hcu_no_ratio = hcu_counts.get('no', 0) / total_hcu if total_hcu > 0 else 0
+            hcu_content_helpfulness = (hcu_yes_ratio + hcu_partial_ratio * 0.5) if total_hcu > 0 else 0
             
+            # 內容結構特徵
+            qa_format_score = min(1.0, signals.get('qaFormatScore', 0))
+            first_para_answer_quality = min(1.0, signals.get('firstParagraphAnswerQuality', 0))
+            semantic_paragraph_focus = min(1.0, signals.get('semanticParagraphFocus', 0))
+            heading_hierarchy_quality = min(1.0, signals.get('headingHierarchyQuality', 0))
+            topic_cohesion = min(1.0, signals.get('topicCohesion', 0))
+            
+            # 技術與標記特徵
+            faq_schema_present = 1 if signals.get('faqSchemaPresent') else 0
+            howto_schema_present = 1 if signals.get('howtoSchemaPresent') else 0
+            article_schema_present = 1 if signals.get('articleSchemaPresent') else 0
+            organization_schema_present = 1 if signals.get('organizationSchemaPresent') else 0
+            og_tags_complete = min(1.0, signals.get('ogTagsComplete', 0))
+            meta_tags_quality = min(1.0, signals.get('metaTagsQuality', 0))
+            html_structure_validity = min(1.0, signals.get('htmlStructureValidity', 0))
+            
+            # 品牌實體與信任特徵
+            author_info_present = 1 if signals.get('authorInfoPresent') else 0
+            brand_entity_clarity = min(1.0, signals.get('brandEntityClarity', 0))
+            external_citation_count = min(1.0, signals.get('externalCitationCount', 0) / 10)
+            social_media_links_present = 1 if signals.get('socialMediaLinksPresent') else 0
+            review_rating_present = 1 if signals.get('reviewRatingPresent') else 0
+            
+            # AI 搜尋適配特徵
+            semantic_naturalness = min(1.0, signals.get('semanticNaturalness', 0))
+            paragraph_extractability = min(1.0, signals.get('paragraphExtractability', 0))
+            rich_snippet_format = min(1.0, signals.get('richSnippetFormat', 0))
+            citability_trust_score = min(1.0, signals.get('citabilityTrustScore', 0))
+            multimedia_support = min(1.0, signals.get('multimediaSupport', 0))
+            
+            # 保留既有的基礎特徵（向後相容）
             features = {
+                # HCU 特徵
+                'hcuYesRatio': hcu_yes_ratio,
+                'hcuPartialRatio': hcu_partial_ratio,
+                'hcuNoRatio': hcu_no_ratio,
+                'hcuContentHelpfulness': hcu_content_helpfulness,
+                
+                # 內容結構
+                'qaFormatScore': qa_format_score,
+                'firstParagraphAnswerQuality': first_para_answer_quality,
+                'semanticParagraphFocus': semantic_paragraph_focus,
+                'headingHierarchyQuality': heading_hierarchy_quality,
+                'topicCohesion': topic_cohesion,
+                
+                # 技術與標記
+                'faqSchemaPresent': faq_schema_present,
+                'howtoSchemaPresent': howto_schema_present,
+                'articleSchemaPresent': article_schema_present,
+                'organizationSchemaPresent': organization_schema_present,
+                'ogTagsComplete': og_tags_complete,
+                'metaTagsQuality': meta_tags_quality,
+                'htmlStructureValidity': html_structure_validity,
+                
+                # 品牌實體與信任
+                'authorInfoPresent': author_info_present,
+                'brandEntityClarity': brand_entity_clarity,
+                'externalCitationCount': external_citation_count,
+                'socialMediaLinksPresent': social_media_links_present,
+                'reviewRatingPresent': review_rating_present,
+                
+                # AI 搜尋適配
+                'semanticNaturalness': semantic_naturalness,
+                'paragraphExtractability': paragraph_extractability,
+                'richSnippetFormat': rich_snippet_format,
+                'citabilityTrustScore': citability_trust_score,
+                'multimediaSupport': multimedia_support,
+                
+                # 保留既有特徵（向後相容）
                 'wordCountNorm': min(1.0, signals.get('wordCount', 0) / 1500),
                 'paragraphCountNorm': min(1.0, signals.get('paragraphCount', 0) / 12),
                 'h2CountNorm': min(1.0, signals.get('h2Count', 0) / 8),
-                'actionableScoreNorm': min(1.0, signals.get('actionableScore', 0) / 4),
-                'evidenceCountNorm': min(1.0, signals.get('evidenceCount', 0) / 6),
-                'experienceCueNorm': min(1.0, signals.get('experienceCueCount', 0) / 4),
-                'recentYearNorm': min(1.0, signals.get('recentYearCount', 0) / 3),
                 'uniqueWordRatio': signals.get('uniqueWordRatio', 0),
-                'titleIntentMatch': signals.get('titleIntentMatch', 0),
                 'referenceKeywordNorm': min(1.0, signals.get('referenceKeywordCount', 0) / 6),
                 'hasH1Keyword': 1 if signals.get('h1ContainsKeyword') else 0,
                 'hasUniqueTitle': 1 if signals.get('hasUniqueTitle') else 0,
-                'hasAuthorInfo': 1 if signals.get('hasAuthorInfo') else 0,
-                'hasPublisherInfo': 1 if signals.get('hasPublisherInfo') else 0,
-                'hasArticleSchema': 1 if signals.get('hasArticleSchema') else 0,
-                'hasPublishedDate': 1 if signals.get('hasPublishedDate') else 0,
-                'hasModifiedDate': 1 if signals.get('hasModifiedDate') else 0,
                 'hasVisibleDate': 1 if signals.get('hasVisibleDate') else 0,
                 'metaDescriptionPresent': 1 if signals.get('hasMetaDescription') else 0,
                 'canonicalPresent': 1 if signals.get('hasCanonical') else 0,
@@ -223,8 +323,6 @@ def analyze_url(url: str, keyword: str) -> Optional[Dict]:
                 'actionableWeakFlag': 1 if flags.get('actionableWeak') else 0,
                 'freshnessWeakFlag': 1 if flags.get('freshnessWeak') else 0,
                 'titleMismatchFlag': 1 if flags.get('titleMismatch') else 0,
-                'hcuYesRatio': hcu_yes_ratio,
-                'hcuNoRatio': hcu_no_ratio
             }
             
             print(f"      ✓ Features extracted")

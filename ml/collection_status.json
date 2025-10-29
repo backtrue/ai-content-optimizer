@@ -1,9 +1,9 @@
 {
-  "timestamp": "2025-10-29T10:23:03.404416",
-  "total_records": 123,
-  "unique_keywords": 20,
-  "current_keyword": null,
-  "current_keyword_index": 98,
-  "progress_percent": 20.41,
-  "remaining_keywords": 78
+  "timestamp": "2025-10-30T02:33:30.620661",
+  "total_records": 231,
+  "unique_keywords": 29,
+  "current_keyword": "2025 mlb 球季",
+  "current_keyword_index": 28,
+  "progress_percent": 29.59,
+  "remaining_keywords": 69
 }

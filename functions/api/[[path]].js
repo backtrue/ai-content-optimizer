@@ -13,6 +13,66 @@ const FETCH_TIMEOUT_MS = 10_000
 const FETCH_MAX_REDIRECTS = 3
 const FETCH_USER_AGENT = 'AEO-GEO Analyzer/1.0 (+https://ragseo.thinkwithblack.com)'
 
+const EXCLUDED_SEMANTIC_TAGS = new Set([
+  'head',
+  'nav',
+  'menu',
+  'aside',
+  'header',
+  'footer',
+  'form',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'iframe',
+  'canvas',
+  'svg',
+  'video',
+  'audio',
+  'object',
+  'embed',
+  'picture',
+  'figure',
+  'figcaption',
+  'noscript',
+  'ins'
+])
+
+const EXCLUDED_CLASS_PATTERNS = [
+  'header',
+  'footer',
+  'navbar',
+  'nav-',
+  'menu',
+  'aside',
+  'sidebar',
+  'breadcrumb',
+  'comment',
+  'share',
+  'pagination',
+  'pager',
+  'advert',
+  'ad-',
+  'adsense',
+  'sponsored',
+  'newsletter',
+  'subscription',
+  'cookie',
+  'consent',
+  'popup',
+  'modal'
+]
+
+const EXCLUDED_ROLE_PATTERNS = new Set([
+  'banner',
+  'navigation',
+  'complementary',
+  'contentinfo',
+  'search',
+  'dialog'
+])
+
 const RATE_LIMIT_CONFIG = {
   session: { limit: 20, windowSeconds: 24 * 60 * 60 },
   ip: { limit: 40, windowSeconds: 60 * 60 }
@@ -234,21 +294,63 @@ async function fetchUrlContent(url, { fetch, signal }) {
 function extractReadableContent(htmlText, finalUrl) {
   // 簡化版：快速提取以避免超時
   // 完整版應在後端計算
-  
   try {
-    // 快速提取：移除 script/style，取得純文本
-    let plain = htmlText
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
+    const { document } = parseHTML(htmlText)
+
+    if (!document || !document.body) {
+      throw new Error('無法解析頁面正文，請確認網頁內容')
+    }
+
+    // 移除負面語意標籤
+    for (const tag of EXCLUDED_SEMANTIC_TAGS) {
+      const nodes = Array.from(document.getElementsByTagName(tag))
+      for (const node of nodes) {
+        node?.remove?.()
+      }
+    }
+
+    // 移除角色為導覽 / 橫幅等不相關內容
+    document.querySelectorAll('[role]').forEach(node => {
+      const role = (node.getAttribute('role') || '').toLowerCase()
+      if (role && EXCLUDED_ROLE_PATTERNS.has(role)) {
+        node.remove()
+      }
+    })
+
+    // 針對常見雜訊 class/id 進行排除
+    if (EXCLUDED_CLASS_PATTERNS.length) {
+      const selector = EXCLUDED_CLASS_PATTERNS
+        .map(pattern => `[class*="${pattern}"]`)
+        .join(', ')
+
+      if (selector) {
+        document.querySelectorAll(selector).forEach(node => node.remove())
+      }
+
+      const idSelector = EXCLUDED_CLASS_PATTERNS
+        .map(pattern => `[id*="${pattern}"]`)
+        .join(', ')
+
+      if (idSelector) {
+        document.querySelectorAll(idSelector).forEach(node => node.remove())
+      }
+    }
+
+    const body = document.body
+    const cleanedHtml = sanitizeHtml(body.innerHTML || '')
+    const plain = (body.textContent || '')
       .replace(/\s+/g, ' ')
       .trim()
-    
+
     if (!plain || plain.length < 50) {
       throw new Error('無法解析頁面正文，請確認網頁內容')
     }
-    
-    return { html: htmlText.substring(0, 10000), plain: plain.substring(0, 50000), markdown: '' }
+
+    return {
+      html: cleanedHtml.substring(0, 10000),
+      plain: plain.substring(0, 50000),
+      markdown: ''
+    }
   } catch (error) {
     throw new Error('無法解析頁面正文，請確認網頁內容')
   }

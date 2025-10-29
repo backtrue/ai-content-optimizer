@@ -72,10 +72,15 @@ class SerpService:
         self.last_error = error
         self.record_key_result(False)
         
-        if "quota" in error.lower() or "429" in error or "403" in error:
-            # 配額超限，輪換 API Key
+        if any(code in error for code in ["quota", "429", "403", "402"]):
+            # 配額或帳務相關錯誤，輪換 API Key
+            previous_index = self.current_key_index
             self.rotate_api_key()
-            self.status = ServiceStatus.QUOTA_EXCEEDED
+            # 若仍有其他金鑰可用，保持服務為可用狀態
+            if len(self.api_keys) > 1 and self.current_key_index != previous_index:
+                self.status = ServiceStatus.ACTIVE
+            else:
+                self.status = ServiceStatus.QUOTA_EXCEEDED
         else:
             self.status = ServiceStatus.ERROR
     
