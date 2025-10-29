@@ -290,6 +290,23 @@ async function fetchUrlContent(url, { fetch, signal }) {
     controller.abort()
   }
 }
+function quickExtractContent(htmlText) {
+  const cleanedHtml = sanitizeHtml(htmlText)
+  const plain = cleanedHtml
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!plain || plain.length < 20) {
+    throw new Error('無法解析頁面正文，請確認網頁內容')
+  }
+
+  return {
+    html: cleanedHtml.substring(0, 10000),
+    plain: plain.substring(0, 50000),
+    markdown: ''
+  }
+}
 
 function extractReadableContent(htmlText, finalUrl) {
   // 簡化版：快速提取以避免超時
@@ -343,16 +360,18 @@ function extractReadableContent(htmlText, finalUrl) {
       .trim()
 
     if (!plain || plain.length < 50) {
-      throw new Error('無法解析頁面正文，請確認網頁內容')
+      return quickExtractContent(htmlText)
     }
 
+    const htmlOutput = cleanedHtml || htmlText
+
     return {
-      html: cleanedHtml.substring(0, 10000),
+      html: htmlOutput.substring(0, 10000),
       plain: plain.substring(0, 50000),
       markdown: ''
     }
   } catch (error) {
-    throw new Error('無法解析頁面正文，請確認網頁內容')
+    return quickExtractContent(htmlText)
   }
 }
 
