@@ -86,22 +86,43 @@ KEYWORDS = [
 
 
 def load_existing_data() -> List[Dict]:
-    """載入既有訓練資料，若檔案不存在則回傳空陣列。"""
-    if not os.path.exists(OUTPUT_JSON):
+    """載入既有訓練資料，若本地檔案不存在則嘗試從 Google Sheets 讀取。"""
+    if os.path.exists(OUTPUT_JSON):
+        try:
+            with open(OUTPUT_JSON, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+                if isinstance(data, list):
+                    return data
+                print("⚠️ training_data.json 格式非陣列，將忽略既有資料。")
+        except json.JSONDecodeError:
+            print("⚠️ training_data.json 正在寫入或格式不完整，暫時忽略既有資料。")
+        except Exception as exc:
+            print(f"⚠️ 載入既有資料時發生錯誤：{exc}")
+
+    sheets_writer = get_sheets_writer()
+    if not sheets_writer:
         return []
 
     try:
-        with open(OUTPUT_JSON, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-            if isinstance(data, list):
-                return data
-            print("⚠️ training_data.json 格式非陣列，將忽略既有資料。")
-    except json.JSONDecodeError:
-        print("⚠️ training_data.json 正在寫入或格式不完整，暫時忽略既有資料。")
-    except Exception as exc:
-        print(f"⚠️ 載入既有資料時發生錯誤：{exc}")
-
-    return []
+        sheet_records = sheets_writer.fetch_all_records()
+        records: List[Dict] = []
+        for row in sheet_records:
+            features = {k: v for k, v in row.items() if k not in BASE_COLUMNS}
+            record = {
+                'url': row.get('url', ''),
+                'keyword': row.get('keyword', ''),
+                'serp_rank': row.get('serp_rank', ''),
+                'target_score': row.get('target_score', ''),
+                'title': row.get('title', ''),
+                'features': features
+            }
+            records.append(record)
+        if records:
+            print(f"🧾 已從 Google Sheets 讀入 {len(records)} 筆既有資料")
+        return records
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"⚠️ 從 Google Sheets 讀取資料時失敗：{exc}")
+        return []
 
 
 def save_csv(records: List[Dict]) -> None:

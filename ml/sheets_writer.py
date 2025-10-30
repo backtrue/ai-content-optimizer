@@ -63,6 +63,11 @@ class SheetsWriter:
         row = [flat.get(column, "") for column in self._header]
         self._worksheet.append_row(row, value_input_option="RAW")
 
+    def fetch_all_records(self) -> List[Dict[str, object]]:
+        """Return all rows (excluding header) as dicts keyed by header."""
+        self._ensure_header({})
+        return self._worksheet.get_all_records()
+
     def _ensure_header(self, features: Dict[str, object]) -> None:
         if self._header is None:
             existing = [value.strip() for value in self._worksheet.row_values(1) if value.strip()]
