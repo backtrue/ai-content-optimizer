@@ -398,9 +398,55 @@ git push origin main
 ## Support & Documentation
 
 - **Quick Start**: See `SERP_QUICK_START.md`
-- **Detailed Guide**: See `SERP_SETUP.md`
-- **Code**: See `ml/serp_manager.py`
-- **Examples**: See this file
+- **Detailed Setup**: See `SERP_SETUP.md`
+- **Cost Tracking**: See `ML_TRAINING_PROGRESS.md`
+- **佇列化流程**：參考下方新章節
+
+## Cloud Tasks 背景佇列流程（2025-10-30 新增）
+
+- 目的：避免 Cloud Run Job 的 600 秒限制，改以 Cloud Tasks + Cloud Run Service 逐批處理。
+- 架構：
+
+  | 元件 | 角色 | 主要檔案/服務 |
+  | --- | --- | --- |
+  | Enqueuer | 切批並投遞任務 | `ml/enqueue_serp_tasks.py` |
+  | Queue | 管理排程與重試 | Cloud Tasks（預設 queue `serp-collection`） |
+  | Worker | 接收批次並串接 `collect_keywords` | Cloud Run + `ml/serp_worker.py` |
+  | 核心邏輯 | SERP 抓取與分析 | `ml/serp_collection.py` |
+
+- 主要環境變數：
+  - `SERP_TASK_QUEUE`, `SERP_TASK_LOCATION`
+  - `SERP_WORKER_URL`
+  - `SERP_TASK_SERVICE_ACCOUNT`（需 Cloud Tasks Enqueuer + Cloud Run Invoker）
+  - `SERP_TASK_BATCH_SIZE`, `SERP_TASK_SPACING_SECONDS`
+  - `SERP_TASK_KEYWORD_DELAY`, `SERP_TASK_URL_DELAY`
+
+- 部署步驟摘要：
+  1. 建立佇列：
+     ```bash
+     gcloud tasks queues create serp-collection \
+       --location=asia-east1 \
+       --max-attempts=5 \
+       --max-dispatches-per-second=2 \
+       --max-concurrent-dispatches=3
+     ```
+  2. 部署 Worker：
+     ```bash
+     gcloud run deploy serp-worker \
+       --source ml \
+       --entry-point create_app \
+       --region asia-east1 \
+       --service-account serp-worker@ragseo-476701.iam.gserviceaccount.com \
+       --timeout 900s
+     ```
+  3. 於 `.env.serp` 內設定相關變數後，執行 `python ml/enqueue_serp_tasks.py` 投遞任務。
+
+- Worker 預設僅同步 Google Sheets，`persistLocal=False` 以避免 Cloud Run ephemeral filesystem。若需本地輸出，可在 payload 啟用 `persistLocal` 與 `updateStatus`。
+
+- 監控：
+  - Cloud Tasks console 檢視佇列與重試狀態。
+  - Cloud Run logs 觀察批次結果與錯誤。
+  - Google Sheets `collection_progress` 標籤同步批次進度。
 
 ## Summary
 

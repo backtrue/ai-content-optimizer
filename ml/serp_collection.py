@@ -10,7 +10,7 @@ import csv
 import time
 import requests
 from collections import Counter
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from datetime import datetime
 from serp_manager import get_manager as get_serp_manager
 from cost_tracker import get_tracker as get_cost_tracker
@@ -62,29 +62,41 @@ MIN_RESULTS_PER_KEYWORD = int(os.getenv('SERP_MIN_RESULTS_PER_KEYWORD', '10'))
 ANALYZE_RETRY_ATTEMPTS = int(os.getenv('SERP_ANALYZE_RETRIES', '3'))
 ANALYZE_RETRY_DELAY_SECONDS = float(os.getenv('SERP_ANALYZE_RETRY_DELAY_SECONDS', '20'))
 
-# Keywords to analyze (100 keywords)
-KEYWORDS = [
-    "非洲豬瘟", "張峻", "水龍吟", "mizkif", "粉盒大王",
-    "玉山金", "許紹雄", "樂天", "天地劍心", "atlas",
-    "台中購物節", "藍眼淚", "炎亞綸", "國寶", "周孝安",
-    "中華職棒", "肉肉大米", "鄭智化", "exo", "mlb世界大賽",
-    "曾雅妮", "林又立", "詹江村", "人浮於愛", "馬傑森",
-    "高通", "普發一萬登記", "伯恩安德森", "2025 mlb 球季", "易烊千璽",
-    "新竹停水", "洲美國小預定地", "曲德義", "明天的天氣", "宏泰集團",
-    "鄭浩均", "謝沛恩", "江和樹", "中華職棒直播", "平野惠一",
-    "高雄捷運", "國王 對 湖人", "高通股價", "蔡璧名", "萬聖節",
-    "巴黎大師賽", "cpbl直播", "坤達", "大榮貨運", "泰國國喪",
-    "高橋藍", "austin reaves", "qcom", "威能帝", "泰國",
-    "法國羽球公開賽", "阿信", "凱蒂佩芮", "白晝之夜", "yahoo",
-    "徐嶔煌", "好味小姐", "台南藍眼淚", "山豬", "同志大遊行2025",
-    "黃安", "桃園萬聖城", "余德龍", "黃金價格", "炸記",
-    "賴雅妍", "南海", "閃兵", "河北彩伽 ig", "江坤宇",
-    "女孩", "朱承洋", "光復節由來", "涼山特勤隊", "euphoria",
-    "nba戰績", "00878", "粘鑫", "錦秀社區", "馬刺 對 籃網",
-    "灰狼 對 溜馬", "陳以信", "persib bandung vs persis", "mlb fall classic 2025", "許基宏",
-    "光復節", "晚安小雞", "f1", "拓荒者 對 勇士", "小野田紀美",
-    "chatgpt atlas", "勇士 對 金塊", "牙買加"
-]
+# Keywords to analyze (可由環境變數覆寫)
+def _load_keywords() -> List[str]:
+    env_keywords = os.getenv('SERP_KEYWORDS_JSON')
+    if env_keywords:
+        try:
+            data = json.loads(env_keywords)
+            if isinstance(data, list):
+                return [str(item) for item in data if isinstance(item, str) and item.strip()]
+        except json.JSONDecodeError:
+            print('⚠️ SERP_KEYWORDS_JSON 解析失敗，改用預設關鍵字清單')
+    return [
+        "非洲豬瘟", "張峻", "水龍吟", "mizkif", "粉盒大王",
+        "玉山金", "許紹雄", "樂天", "天地劍心", "atlas",
+        "台中購物節", "藍眼淚", "炎亞綸", "國寶", "周孝安",
+        "中華職棒", "肉肉大米", "鄭智化", "exo", "mlb世界大賽",
+        "曾雅妮", "林又立", "詹江村", "人浮於愛", "馬傑森",
+        "高通", "普發一萬登記", "伯恩安德森", "2025 mlb 球季", "易烊千璽",
+        "新竹停水", "洲美國小預定地", "曲德義", "明天的天氣", "宏泰集團",
+        "鄭浩均", "謝沛恩", "江和樹", "中華職棒直播", "平野惠一",
+        "高雄捷運", "國王 對 湖人", "高通股價", "蔡璧名", "萬聖節",
+        "巴黎大師賽", "cpbl直播", "坤達", "大榮貨運", "泰國國喪",
+        "高橋藍", "austin reaves", "qcom", "威能帝", "泰國",
+        "法國羽球公開賽", "阿信", "凱蒂佩芮", "白晝之夜", "yahoo",
+        "徐嶔煌", "好味小姐", "台南藍眼淚", "山豬", "同志大遊行2025",
+        "黃安", "桃園萬聖城", "余德龍", "黃金價格", "炸記",
+        "賴雅妍", "南海", "閃兵", "河北彩伽 ig", "江坤宇",
+        "女孩", "朱承洋", "光復節由來", "涼山特勤隊", "euphoria",
+        "nba戰績", "00878", "粘鑫", "錦秀社區", "馬刺 對 籃網",
+        "灰狼 對 溜馬", "陳以信", "persib bandung vs persis", "mlb fall classic 2025", "許基宏",
+        "光復節", "晚安小雞", "f1", "拓荒者 對 勇士", "小野田紀美",
+        "chatgpt atlas", "勇士 對 金塊", "牙買加"
+    ]
+
+
+KEYWORDS = _load_keywords()
 
 
 def load_existing_data() -> List[Dict]:
@@ -159,8 +171,14 @@ def save_csv(records: List[Dict]) -> None:
             writer.writerow(row)
 
 
-def update_status_file(records: List[Dict], current_keyword: Optional[str], keyword_index: int) -> None:
+def update_status_file(
+    records: List[Dict],
+    current_keyword: Optional[str],
+    keyword_index: int,
+    keyword_total: Optional[int] = None
+) -> None:
     """輸出蒐集狀態 JSON，提供監控腳本與人工快速檢視。"""
+    keyword_total = keyword_total if keyword_total is not None else len(KEYWORDS)
     unique_keywords = {item['keyword'] for item in records}
     status_payload = {
         'timestamp': datetime.now().isoformat(),
@@ -168,31 +186,43 @@ def update_status_file(records: List[Dict], current_keyword: Optional[str], keyw
         'unique_keywords': len(unique_keywords),
         'current_keyword': current_keyword,
         'current_keyword_index': keyword_index,
-        'progress_percent': round(len(unique_keywords) / len(KEYWORDS) * 100, 2) if KEYWORDS else 0,
-        'remaining_keywords': max(0, len(KEYWORDS) - len(unique_keywords))
+        'progress_percent': round(len(unique_keywords) / keyword_total * 100, 2) if keyword_total else 0,
+        'remaining_keywords': max(0, keyword_total - len(unique_keywords)) if keyword_total else 0
     }
 
     with open(STATUS_JSON, 'w', encoding='utf-8') as status_file:
         json.dump(status_payload, status_file, ensure_ascii=False, indent=2)
 
 
-def persist_progress(records: List[Dict], current_keyword: Optional[str], keyword_index: int) -> None:
-    """即時寫入 JSON/CSV 並更新狀態檔，並嘗試同步至 Google Sheets。"""
-    with open(OUTPUT_JSON, 'w', encoding='utf-8') as json_file:
-        json.dump(records, json_file, ensure_ascii=False, indent=2)
+def persist_progress(
+    records: List[Dict],
+    current_keyword: Optional[str],
+    keyword_index: int,
+    *,
+    keyword_total: Optional[int] = None,
+    persist_local: bool = True,
+    update_status: bool = True,
+    sync_to_sheets: bool = True,
+    sheets_writer=None
+) -> None:
+    """根據設定寫入進度檔案、狀態與 Google Sheets。"""
+    if persist_local:
+        with open(OUTPUT_JSON, 'w', encoding='utf-8') as json_file:
+            json.dump(records, json_file, ensure_ascii=False, indent=2)
+        save_csv(records)
 
-    save_csv(records)
-    update_status_file(records, current_keyword, keyword_index)
+    if update_status:
+        update_status_file(records, current_keyword, keyword_index, keyword_total)
 
-    if current_keyword is None or not records:
+    if not sync_to_sheets or current_keyword is None or not records:
         return
 
-    sheets_writer = get_sheets_writer()
-    if not sheets_writer:
+    writer = sheets_writer or get_sheets_writer()
+    if not writer:
         return
 
     try:
-        sheets_writer.append_record(records[-1])
+        writer.append_record(records[-1])
         print("  ↻ 已同步最新紀錄至 Google Sheets")
     except Exception as exc:  # pylint: disable=broad-except
         print(f"⚠️ 寫入 Google Sheets 失敗：{exc}")
@@ -391,53 +421,86 @@ def analyze_url(url: str, keyword: str) -> Optional[Dict]:
     return None
 
 
-def collect_training_data():
-    """Main collection flow."""
+def collect_keywords(
+    keywords: List[str],
+    *,
+    keyword_offset: int = 0,
+    total_keywords: Optional[int] = None,
+    persist_local: bool = True,
+    sync_to_sheets: bool = True,
+    update_status: bool = True,
+    keyword_delay: Optional[float] = None,
+    url_delay: Optional[float] = None,
+    sheets_writer=None
+) -> Dict[str, Any]:
+    """針對指定關鍵字批次蒐集 SERP 資料並回傳摘要。"""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    total_keywords = total_keywords if total_keywords is not None else max(keyword_offset + len(keywords), len(KEYWORDS))
+    keyword_delay = KEYWORD_DELAY_SECONDS if keyword_delay is None else keyword_delay
+    url_delay = URL_DELAY_SECONDS if url_delay is None else url_delay
 
     training_data = load_existing_data()
     seen_records = {record_signature(item['keyword'], item['url']) for item in training_data}
     keyword_counts = Counter(item['keyword'] for item in training_data)
-    sheets_writer = get_sheets_writer()
-    processed_keywords = sheets_writer.get_processed_keywords() if sheets_writer else set()
-    if training_data:
+
+    writer = sheets_writer or get_sheets_writer()
+    processed_keywords = writer.get_processed_keywords() if writer else set()
+
+    if training_data and persist_local:
         print(f"  ↻ 已載入既有資料 {len(training_data)} 筆（{len({item['keyword'] for item in training_data})} 組關鍵字）")
-    else:
-        persist_progress(training_data, None, -1)
+    elif not training_data and persist_local:
+        persist_progress(training_data, None, -1, keyword_total=total_keywords, persist_local=persist_local, update_status=update_status, sync_to_sheets=False, sheets_writer=writer)
 
-    print(f"\n{'='*60}")
-    print(f"SERP Data Collection - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"{'='*60}\n")
+    start_time = time.time()
+    new_records = 0
+    skipped_existing = 0
+    errors: List[str] = []
 
-    for keyword_index, keyword in enumerate(KEYWORDS):
-        print(f"\n[{keyword_index + 1}/{len(KEYWORDS)}] Processing keyword: {keyword}")
+    if persist_local:
+        print(f"\n{'='*60}")
+        print(f"SERP Data Collection - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{'='*60}\n")
 
-        if sheets_writer and keyword in processed_keywords:
-            print("  ↻ 已標記完成，略過關鍵字")
-            update_status_file(training_data, keyword, keyword_index)
+    for batch_index, keyword in enumerate(keywords):
+        global_index = keyword_offset + batch_index
+        if persist_local:
+            print(f"\n[{global_index + 1}/{total_keywords}] Processing keyword: {keyword}")
+
+        if writer and keyword in processed_keywords:
+            if persist_local:
+                print("  ↻ 已標記完成，略過關鍵字")
+            if update_status:
+                update_status_file(training_data, keyword, global_index, total_keywords)
             continue
 
         if keyword_counts.get(keyword, 0) >= MIN_RESULTS_PER_KEYWORD:
-            print(f"  ↻ 已累積 {keyword_counts[keyword]} 筆結果，略過 SERP 叫用")
-            update_status_file(training_data, keyword, keyword_index)
-            if sheets_writer:
-                sheets_writer.mark_keyword_processed(keyword)
+            if persist_local:
+                print(f"  ↻ 已累積 {keyword_counts[keyword]} 筆結果，略過 SERP 叫用")
+            if update_status:
+                update_status_file(training_data, keyword, global_index, total_keywords)
+            if writer:
+                writer.mark_keyword_processed(keyword)
                 processed_keywords.add(keyword)
             continue
 
         serp_results = fetch_serp_results(keyword)
         if not serp_results:
-            update_status_file(training_data, keyword, keyword_index)
+            if update_status:
+                update_status_file(training_data, keyword, global_index, total_keywords)
+            errors.append(f"SERP fetch failed: {keyword}")
             continue
 
-        if KEYWORD_DELAY_SECONDS > 0 and keyword_index > 0:
-            time.sleep(KEYWORD_DELAY_SECONDS)  # Rate limiting between keywords
+        if keyword_delay and keyword_delay > 0 and batch_index > 0:
+            time.sleep(keyword_delay)
 
         for result in serp_results:
             url = result['url']
             signature = record_signature(keyword, url)
             if signature in seen_records:
-                print(f"      ↻ 已存在記錄，略過 {url[:60]}...")
+                skipped_existing += 1
+                if persist_local:
+                    print(f"      ↻ 已存在記錄，略過 {url[:60]}...")
                 continue
 
             rank = result['rank']
@@ -445,6 +508,7 @@ def collect_training_data():
 
             features = analyze_url(url, keyword)
             if not features:
+                errors.append(f"Analyze failed: {url}")
                 continue
 
             record = {
@@ -459,34 +523,74 @@ def collect_training_data():
             training_data.append(record)
             seen_records.add(signature)
             keyword_counts[keyword] += 1
-            persist_progress(training_data, keyword, keyword_index)
-            print(f"      ✓ 已儲存（累計 {len(training_data)} 筆）")
+            new_records += 1
 
-            if URL_DELAY_SECONDS > 0:
-                time.sleep(URL_DELAY_SECONDS)  # Rate limiting between URLs
+            persist_progress(
+                training_data,
+                keyword,
+                global_index,
+                keyword_total=total_keywords,
+                persist_local=persist_local,
+                update_status=update_status,
+                sync_to_sheets=sync_to_sheets,
+                sheets_writer=writer
+            )
 
-        if sheets_writer:
-            sheets_writer.mark_keyword_processed(keyword)
+            if persist_local:
+                print(f"      ✓ 已儲存（累計 {len(training_data)} 筆）")
+
+            if url_delay and url_delay > 0:
+                time.sleep(url_delay)
+
+        if writer:
+            writer.mark_keyword_processed(keyword)
             processed_keywords.add(keyword)
 
-    persist_progress(training_data, None, len(KEYWORDS))
+    if update_status:
+        persist_progress(
+            training_data,
+            None,
+            keyword_offset + len(keywords),
+            keyword_total=total_keywords,
+            persist_local=persist_local,
+            update_status=update_status,
+            sync_to_sheets=False,
+            sheets_writer=writer
+        )
 
-    print(f"\n{'='*60}")
-    print(f"Collection completed: {len(training_data)} records")
-    print(f"Output files:")
-    print(f"  - {OUTPUT_JSON}")
-    print(f"  - {OUTPUT_CSV}")
-    print(f"  - {STATUS_JSON}")
-    print(f"{'='*60}")
+    elapsed = time.time() - start_time
 
-    # Print SERP manager status
-    manager = get_serp_manager()
-    manager.print_status()
+    if persist_local:
+        print(f"\n{'='*60}")
+        print(f"Collection completed: {len(training_data)} records (新增 {new_records} 筆，略過 {skipped_existing} 筆)")
+        if persist_local:
+            print(f"Output files:")
+            print(f"  - {OUTPUT_JSON}")
+            print(f"  - {OUTPUT_CSV}")
+            print(f"  - {STATUS_JSON}")
+        print(f"耗時：{elapsed:.1f} 秒")
+        print(f"{'='*60}")
 
-    # Print cost summary
-    tracker = get_cost_tracker()
-    tracker.print_summary()
-    tracker.export_csv()
+        manager = get_serp_manager()
+        manager.print_status()
+
+        tracker = get_cost_tracker()
+        tracker.print_summary()
+        tracker.export_csv()
+
+    return {
+        'keywordsProcessed': len(keywords),
+        'newRecords': new_records,
+        'skippedExisting': skipped_existing,
+        'errors': errors,
+        'elapsedSeconds': elapsed,
+        'totalRecords': len(training_data)
+    }
+
+
+def collect_training_data():
+    return collect_keywords(KEYWORDS)
+
 
 if __name__ == '__main__':
     collect_training_data()
