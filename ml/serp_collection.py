@@ -9,6 +9,7 @@ import json
 import csv
 import time
 import requests
+from collections import Counter
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from serp_manager import get_manager as get_serp_manager
@@ -57,6 +58,7 @@ STATUS_JSON = os.path.join(OUTPUT_DIR, 'collection_status.json')
 # Rate limiting & retry configuration
 KEYWORD_DELAY_SECONDS = float(os.getenv('SERP_KEYWORD_DELAY_SECONDS', '15'))
 URL_DELAY_SECONDS = float(os.getenv('SERP_URL_DELAY_SECONDS', '12'))
+MIN_RESULTS_PER_KEYWORD = int(os.getenv('SERP_MIN_RESULTS_PER_KEYWORD', '10'))
 ANALYZE_RETRY_ATTEMPTS = int(os.getenv('SERP_ANALYZE_RETRIES', '3'))
 ANALYZE_RETRY_DELAY_SECONDS = float(os.getenv('SERP_ANALYZE_RETRY_DELAY_SECONDS', '20'))
 
@@ -395,6 +397,7 @@ def collect_training_data():
 
     training_data = load_existing_data()
     seen_records = {record_signature(item['keyword'], item['url']) for item in training_data}
+    keyword_counts = Counter(item['keyword'] for item in training_data)
     if training_data:
         print(f"  ↻ 已載入既有資料 {len(training_data)} 筆（{len({item['keyword'] for item in training_data})} 組關鍵字）")
     else:
@@ -406,6 +409,11 @@ def collect_training_data():
 
     for keyword_index, keyword in enumerate(KEYWORDS):
         print(f"\n[{keyword_index + 1}/{len(KEYWORDS)}] Processing keyword: {keyword}")
+
+        if keyword_counts.get(keyword, 0) >= MIN_RESULTS_PER_KEYWORD:
+            print(f"  ↻ 已累積 {keyword_counts[keyword]} 筆結果，略過 SERP 叫用")
+            update_status_file(training_data, keyword, keyword_index)
+            continue
 
         serp_results = fetch_serp_results(keyword)
         if not serp_results:
@@ -440,6 +448,7 @@ def collect_training_data():
 
             training_data.append(record)
             seen_records.add(signature)
+            keyword_counts[keyword] += 1
             persist_progress(training_data, keyword, keyword_index)
             print(f"      ✓ 已儲存（累計 {len(training_data)} 筆）")
 
