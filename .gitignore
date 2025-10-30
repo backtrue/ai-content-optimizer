@@ -40,3 +40,4 @@ wrangler.toml.backup
 coverage/
 .nyc_output/
 serp-sheet-writer-key.json
+serp-sheet-writer-key.json
