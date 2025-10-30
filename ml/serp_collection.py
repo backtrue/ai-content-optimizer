@@ -14,7 +14,7 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from serp_manager import get_manager as get_serp_manager
 from cost_tracker import get_tracker as get_cost_tracker
-from sheets_writer import get_sheets_writer
+from sheets_writer import get_sheets_writer, BASE_COLUMNS
 
 
 def load_env_variables() -> Optional[str]:
@@ -398,6 +398,8 @@ def collect_training_data():
     training_data = load_existing_data()
     seen_records = {record_signature(item['keyword'], item['url']) for item in training_data}
     keyword_counts = Counter(item['keyword'] for item in training_data)
+    sheets_writer = get_sheets_writer()
+    processed_keywords = sheets_writer.get_processed_keywords() if sheets_writer else set()
     if training_data:
         print(f"  ↻ 已載入既有資料 {len(training_data)} 筆（{len({item['keyword'] for item in training_data})} 組關鍵字）")
     else:
@@ -410,9 +412,17 @@ def collect_training_data():
     for keyword_index, keyword in enumerate(KEYWORDS):
         print(f"\n[{keyword_index + 1}/{len(KEYWORDS)}] Processing keyword: {keyword}")
 
+        if sheets_writer and keyword in processed_keywords:
+            print("  ↻ 已標記完成，略過關鍵字")
+            update_status_file(training_data, keyword, keyword_index)
+            continue
+
         if keyword_counts.get(keyword, 0) >= MIN_RESULTS_PER_KEYWORD:
             print(f"  ↻ 已累積 {keyword_counts[keyword]} 筆結果，略過 SERP 叫用")
             update_status_file(training_data, keyword, keyword_index)
+            if sheets_writer:
+                sheets_writer.mark_keyword_processed(keyword)
+                processed_keywords.add(keyword)
             continue
 
         serp_results = fetch_serp_results(keyword)
@@ -454,6 +464,10 @@ def collect_training_data():
 
             if URL_DELAY_SECONDS > 0:
                 time.sleep(URL_DELAY_SECONDS)  # Rate limiting between URLs
+
+        if sheets_writer:
+            sheets_writer.mark_keyword_processed(keyword)
+            processed_keywords.add(keyword)
 
     persist_progress(training_data, None, len(KEYWORDS))
 

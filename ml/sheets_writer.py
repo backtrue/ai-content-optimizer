@@ -5,13 +5,15 @@ from __future__ import annotations
 import json
 import os
 import threading
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Dict, List, Optional, Set
 
 import gspread
 from google.oauth2.service_account import Credentials
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 BASE_COLUMNS = ["url", "keyword", "serp_rank", "target_score", "title"]
+PROGRESS_COLUMNS = ["keyword", "processed_at"]
 
 
 class SheetsWriterConfigError(RuntimeError):
@@ -19,11 +21,15 @@ class SheetsWriterConfigError(RuntimeError):
 
 
 class SheetsWriter:
-    """Append training data rows to a Google Sheets worksheet."""
+    """Append training data rows to a Google Sheets worksheet and track progress."""
 
-    def __init__(self, worksheet: gspread.Worksheet) -> None:
+    def __init__(self, spreadsheet: gspread.Spreadsheet, worksheet: gspread.Worksheet, progress_title: Optional[str]) -> None:
+        self._spreadsheet = spreadsheet
         self._worksheet = worksheet
+        self._progress_title = progress_title or None
+        self._progress_sheet: Optional[gspread.Worksheet] = None
         self._header: Optional[List[str]] = None
+        self._processed_cache: Optional[Set[str]] = None
 
     @classmethod
     def from_env(cls) -> "SheetsWriter":
@@ -32,6 +38,7 @@ class SheetsWriter:
             raise SheetsWriterConfigError("Missing SHEETS_TRAINING_DATA_ID env variable")
 
         worksheet_title = os.getenv("SHEETS_TRAINING_DATA_TAB")
+        progress_title = os.getenv("SHEETS_PROGRESS_TAB", "collection_progress")
         credentials = _load_credentials()
 
         client = gspread.authorize(credentials)
@@ -41,7 +48,7 @@ class SheetsWriter:
         else:
             worksheet = spreadsheet.sheet1
 
-        return cls(worksheet)
+        return cls(spreadsheet, worksheet, progress_title)
 
     def append_record(self, record: Dict) -> None:
         if not record:
@@ -68,6 +75,36 @@ class SheetsWriter:
         self._ensure_header({})
         return self._worksheet.get_all_records()
 
+    def get_processed_keywords(self) -> Set[str]:
+        sheet = self._get_or_create_progress_sheet()
+        if sheet is None:
+            return set()
+
+        if self._processed_cache is not None:
+            return set(self._processed_cache)
+
+        records = sheet.get_all_records()
+        keywords = {row.get("keyword") for row in records if row.get("keyword")}
+        self._processed_cache = keywords
+        return set(keywords)
+
+    def mark_keyword_processed(self, keyword: str) -> None:
+        if not keyword:
+            return
+
+        sheet = self._get_or_create_progress_sheet()
+        if sheet is None:
+            return
+
+        keywords = self.get_processed_keywords()
+        if keyword in keywords:
+            return
+
+        timestamp = datetime.utcnow().isoformat()
+        sheet.append_row([keyword, timestamp], value_input_option="RAW")
+        keywords.add(keyword)
+        self._processed_cache = keywords
+
     def _ensure_header(self, features: Dict[str, object]) -> None:
         if self._header is None:
             existing = [value.strip() for value in self._worksheet.row_values(1) if value.strip()]
@@ -84,6 +121,22 @@ class SheetsWriter:
         if missing:
             self._header.extend(missing)
             self._worksheet.update("A1", [self._header])
+
+    def _get_or_create_progress_sheet(self) -> Optional[gspread.Worksheet]:
+        if not self._progress_title:
+            return None
+
+        if self._progress_sheet is not None:
+            return self._progress_sheet
+
+        try:
+            sheet = self._spreadsheet.worksheet(self._progress_title)
+        except gspread.WorksheetNotFound:
+            sheet = self._spreadsheet.add_worksheet(title=self._progress_title, rows=200, cols=len(PROGRESS_COLUMNS))
+            sheet.update("A1", [PROGRESS_COLUMNS])
+
+        self._progress_sheet = sheet
+        return sheet
 
 
 _writer_lock = threading.Lock()
