@@ -39,3 +39,4 @@ wrangler.toml.backup
 # Testing
 coverage/
 .nyc_output/
+serp-sheet-writer-key.json

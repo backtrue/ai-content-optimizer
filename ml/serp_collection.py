@@ -13,6 +13,7 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from serp_manager import get_manager as get_serp_manager
 from cost_tracker import get_tracker as get_cost_tracker
+from sheets_writer import get_sheets_writer
 
 
 def load_env_variables() -> Optional[str]:
@@ -153,12 +154,25 @@ def update_status_file(records: List[Dict], current_keyword: Optional[str], keyw
 
 
 def persist_progress(records: List[Dict], current_keyword: Optional[str], keyword_index: int) -> None:
-    """即時寫入 JSON/CSV 並更新狀態檔。"""
+    """即時寫入 JSON/CSV 並更新狀態檔，並嘗試同步至 Google Sheets。"""
     with open(OUTPUT_JSON, 'w', encoding='utf-8') as json_file:
         json.dump(records, json_file, ensure_ascii=False, indent=2)
 
     save_csv(records)
     update_status_file(records, current_keyword, keyword_index)
+
+    if current_keyword is None or not records:
+        return
+
+    sheets_writer = get_sheets_writer()
+    if not sheets_writer:
+        return
+
+    try:
+        sheets_writer.append_record(records[-1])
+        print("  ↻ 已同步最新紀錄至 Google Sheets")
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"⚠️ 寫入 Google Sheets 失敗：{exc}")
 
 
 def record_signature(keyword: str, url: str) -> Tuple[str, str]:
