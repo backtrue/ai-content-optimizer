@@ -78,6 +78,161 @@ const RATE_LIMIT_CONFIG = {
   ip: { limit: 40, windowSeconds: 60 * 60 }
 }
 
+async function evaluateHelpfulContentWithOpenAI({ content, targetKeywords, payload, apiKey }) {
+  if (!content || typeof content !== 'string') {
+    return {}
+  }
+
+  const keywordsList = Array.isArray(targetKeywords) ? targetKeywords.filter(Boolean).join(', ') : ''
+  const prompt = `你是一位熟悉 Google Helpful Content Update 與生成式搜尋（AEO/GEO）的資深顧問。請基於以下資訊重新校準評分並產出改善清單：
+
+=== 現有評分概要 ===
+${JSON.stringify({
+    overallScore: payload?.overallScore ?? null,
+    aeoScore: payload?.aeoScore ?? null,
+    seoScore: payload?.seoScore ?? null,
+    metrics: payload?.metrics ?? null,
+    hcuReview: payload?.hcuReview ?? null,
+    scoreGuards: payload?.scoreGuards ?? null
+  }, null, 2)}
+
+=== 目標關鍵字 ===
+${keywordsList || '（未提供）'}
+
+=== 頁面內容（必要時可引用） ===
+${content.slice(0, 6000)}
+
+請產出 JSON，格式如下：
+{
+  "scores": {
+    "overallScore": 0-100,
+    "aeoScore": 0-100,
+    "seoScore": 0-100
+  },
+  "hcuReview": [
+    { "id": "H1", "answer": "yes|partial|no", "explanation": "40 字內" }
+  ],
+  "recommendations": [
+    {
+      "priority": "critical|high|medium|low",
+      "category": "內容|結構|E-E-A-T|技術|風險",
+      "issue": "簡述當前缺口",
+      "action": "具體改善步驟（60 字內）",
+      "expectedScoreGain": "約略提升分數（+5 分）"
+    }
+  ]
+}
+
+原則：
+- 若資料不足，以 "partial" 或 "no" 回答並說明不足原因。
+- 建議至少 4 條（若缺少改善空間可寫 2-3 條）。
+- 所有描述請用繁體中文。
+- 僅輸出 JSON，不要加任何說明或 Markdown。
+`
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-5-nano',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert SEO/AEO auditor who outputs concise JSON diagnostics.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.35,
+      response_format: { type: 'json_object' }
+    })
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`OpenAI API error (${response.status} ${response.statusText}): ${text}`)
+  }
+
+  const data = await response.json()
+  const contentText = data?.choices?.[0]?.message?.content
+  if (!contentText) {
+    return {}
+  }
+
+  try {
+    return JSON.parse(contentText)
+  } catch (error) {
+    console.error('Failed to parse OpenAI augmentation response:', contentText, error)
+    return {}
+  }
+}
+
+function mergeAugmentedInsights(basePayload, augmentation) {
+  if (!augmentation || typeof augmentation !== 'object') {
+    return basePayload
+  }
+
+  const merged = { ...basePayload }
+
+  if (augmentation.scores && typeof augmentation.scores === 'object') {
+    const { overallScore, aeoScore, seoScore } = augmentation.scores
+    if (isFiniteNumber(overallScore)) merged.overallScore = clampScore(overallScore)
+    if (isFiniteNumber(aeoScore)) merged.aeoScore = clampScore(aeoScore)
+    if (isFiniteNumber(seoScore)) merged.seoScore = clampScore(seoScore)
+  }
+
+  if (Array.isArray(augmentation.hcuReview) && augmentation.hcuReview.length) {
+    merged.hcuReview = augmentation.hcuReview.map(normalizeHcuEntry)
+  }
+
+  if (Array.isArray(augmentation.recommendations) && augmentation.recommendations.length) {
+    merged.recommendations = augmentation.recommendations.map(normalizeRecommendation)
+  }
+
+  return merged
+}
+
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function clampScore(value) {
+  if (!isFiniteNumber(value)) return value
+  return Math.min(100, Math.max(0, Math.round(value)))
+}
+
+function normalizeHcuEntry(entry = {}) {
+  const id = typeof entry.id === 'string' ? entry.id.trim() : ''
+  const answer = typeof entry.answer === 'string' ? entry.answer.trim().toLowerCase() : 'no'
+  const explanation = typeof entry.explanation === 'string' ? entry.explanation.trim() : ''
+  const allowed = ['yes', 'partial', 'no']
+  const normalizedAnswer = allowed.includes(answer) ? answer : 'no'
+  return {
+    id: id || 'UNKNOWN',
+    answer: normalizedAnswer,
+    explanation: explanation.slice(0, 80)
+  }
+}
+
+function normalizeRecommendation(entry = {}) {
+  const allowedPriority = ['critical', 'high', 'medium', 'low']
+  const allowedCategory = ['內容', '結構', 'E-E-A-T', '技術', '風險']
+  const priority = typeof entry.priority === 'string' ? entry.priority.trim().toLowerCase() : 'medium'
+  const category = typeof entry.category === 'string' ? entry.category.trim() : '內容'
+  return {
+    priority: allowedPriority.includes(priority) ? priority : 'medium',
+    category: allowedCategory.includes(category) ? category : '內容',
+    issue: coerceString(entry.issue).slice(0, 120),
+    action: coerceString(entry.action).slice(0, 160),
+    expectedScoreGain: coerceString(entry.expectedScoreGain).slice(0, 40)
+  }
+}
+
 const HCU_QUESTION_SET = [
   { id: 'H1', category: 'helpfulness', question: '內容是否以協助人類讀者為主，而非僅為搜尋引擎打造？' },
   { id: 'H2', category: 'helpfulness', question: '內容是否真實回答標題或開頭承諾的問題？' },
@@ -953,6 +1108,22 @@ async function handleAnalyzePost(context, corsHeaders) {
 
     let payload = normalizeAnalysisResult(analysisResult, contentSignals)
     payload = applyScoreGuards(payload, contentSignals, targetKeywords)
+
+    const openaiKey = env.OPENAI_API_KEY || null
+    if (openaiKey) {
+      try {
+        const augmentation = await evaluateHelpfulContentWithOpenAI({
+          content: normalizedContentVariants.plain,
+          targetKeywords,
+          payload,
+          apiKey: openaiKey
+        })
+        payload = mergeAugmentedInsights(payload, augmentation)
+      } catch (error) {
+        console.error('OpenAI augmentation failed:', error)
+      }
+    }
+
     if (returnChunks && chunkSourceText) {
       const chunks = chunkContent(chunkSourceText, {
         format: chunkSourceFormat,
