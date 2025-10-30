@@ -233,6 +233,90 @@ function normalizeRecommendation(entry = {}) {
   }
 }
 
+function generateHeuristicRecommendations(payload = {}, contentSignals = {}) {
+  const recommendations = []
+  const scoreGuards = payload.scoreGuards || {}
+  const missing = scoreGuards.missingCritical || {}
+  const seoMetrics = Array.isArray(payload.metrics?.seo) ? payload.metrics.seo : []
+
+  function add(priority, category, issue, action, expectedScoreGain) {
+    recommendations.push({
+      priority,
+      category,
+      issue,
+      action,
+      expectedScoreGain
+    })
+  }
+
+  const eatScore = seoMetrics.find((metric) => metric?.name === 'E-E-A-T 信任線索')?.score ?? null
+  if (missing.author || missing.publisher || (isFiniteNumber(eatScore) && eatScore <= 4)) {
+    add(
+      'critical',
+      'E-E-A-T',
+      '缺少作者與品牌信任信號',
+      '補充作者/品牌介紹、加入客服或社群管道，並於段落內引用可靠來源。',
+      '+8 分'
+    )
+  }
+
+  if (missing.metaDescription || missing.canonical) {
+    add(
+      'high',
+      '技術',
+      'Meta 與 Canonical 缺失降低搜尋信號',
+      '撰寫 120 字以內的精準 Meta Description 並補上 rel="canonical"。',
+      '+5 分'
+    )
+  }
+
+  const depthFlags = scoreGuards.contentQualityFlags || {}
+  if (depthFlags.depthLow || depthFlags.actionableZero || depthFlags.evidenceNone) {
+    add(
+      'high',
+      '內容',
+      '內容深度與佐證不足',
+      '為三個產地各補充 2~3 個量化數據或評測經驗，並加入 1-2 個外部權威連結。',
+      '+10 分'
+    )
+  }
+
+  if (missing.faq || missing.howto) {
+    add(
+      'medium',
+      '結構',
+      '缺乏可被 AI 直接引用的 FAQ/HowTo 結構',
+      '新增 FAQ 或沖煮步驟段落並套用 FAQPage/HowTo Schema。',
+      '+6 分'
+    )
+  }
+
+  if (!contentSignals.externalLinkCount || contentSignals.externalLinkCount === 0) {
+    add(
+      'medium',
+      'E-E-A-T',
+      '無外部權威引用',
+      '連結到產地莊園、比賽或認證的官方頁面，強化可信度。',
+      '+4 分'
+    )
+  }
+
+  if (Array.isArray(payload.metrics?.seo)) {
+    const readabilityScore = seoMetrics.find((metric) => metric?.name === '結構與可讀性')?.score ?? null
+    if (isFiniteNumber(readabilityScore) && readabilityScore < 6 && contentSignals.h2Count < 4) {
+      add(
+        'medium',
+        '結構',
+        '段落與標題結構可再優化',
+        '將「運送/訂閱/莊園故事」各拆為問句式 H2，並增設段落摘要。',
+        '+3 分'
+      )
+    }
+  }
+
+  return recommendations
+}
+
 const HCU_QUESTION_SET = [
   { id: 'H1', category: 'helpfulness', question: '內容是否以協助人類讀者為主，而非僅為搜尋引擎打造？' },
   { id: 'H2', category: 'helpfulness', question: '內容是否真實回答標題或開頭承諾的問題？' },
@@ -1122,6 +1206,23 @@ async function handleAnalyzePost(context, corsHeaders) {
       } catch (error) {
         console.error('OpenAI augmentation failed:', error)
       }
+    }
+
+    const heuristicRecommendations = generateHeuristicRecommendations(payload, contentSignals)
+    if ((!Array.isArray(payload.recommendations) || payload.recommendations.length === 0) && heuristicRecommendations.length) {
+      payload.recommendations = heuristicRecommendations
+    } else if (heuristicRecommendations.length) {
+      const existingIssues = new Set(
+        payload.recommendations.map((item) => `${item.category}-${item.issue}`)
+      )
+      const merged = [...payload.recommendations]
+      heuristicRecommendations.forEach((item) => {
+        const key = `${item.category}-${item.issue}`
+        if (!existingIssues.has(key)) {
+          merged.push(item)
+        }
+      })
+      payload.recommendations = merged
     }
 
     if (returnChunks && chunkSourceText) {
