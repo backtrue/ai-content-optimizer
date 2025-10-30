@@ -78,55 +78,84 @@ const RATE_LIMIT_CONFIG = {
   ip: { limit: 40, windowSeconds: 60 * 60 }
 }
 
-async function evaluateHelpfulContentWithOpenAI({ content, targetKeywords, payload, apiKey }) {
+async function evaluateHelpfulContentWithOpenAI({ content, targetKeywords, payload, contentSignals, apiKey }) {
   if (!content || typeof content !== 'string') {
     return {}
   }
 
   const keywordsList = Array.isArray(targetKeywords) ? targetKeywords.filter(Boolean).join(', ') : ''
-  const prompt = `你是一位熟悉 Google Helpful Content Update 與生成式搜尋（AEO/GEO）的資深顧問。請基於以下資訊重新校準評分並產出改善清單：
+  const promptContext = {
+    currentScores: {
+      overallScore: payload?.overallScore ?? null,
+      aeoScore: payload?.aeoScore ?? null,
+      seoScore: payload?.seoScore ?? null
+    },
+    currentMetrics: payload?.metrics ?? null,
+    currentHcuReview: payload?.hcuReview ?? null,
+    scoreGuards: payload?.scoreGuards ?? null,
+    contentSignals: contentSignals ?? null,
+    targetKeywords,
+    keywordSummary: keywordsList || '（未提供）'
+  }
 
-=== 現有評分概要 ===
-${JSON.stringify({
-    overallScore: payload?.overallScore ?? null,
-    aeoScore: payload?.aeoScore ?? null,
-    seoScore: payload?.seoScore ?? null,
-    metrics: payload?.metrics ?? null,
-    hcuReview: payload?.hcuReview ?? null,
-    scoreGuards: payload?.scoreGuards ?? null
-  }, null, 2)}
+  const prompt = `你是一位熟悉 Google Helpful Content Update、E-E-A-T 與生成式搜尋（AEO/GEO）的資深顧問。請基於以下資訊重新校準各項分數、補強 E-E-A-T 判讀，並產出改善清單：
 
-=== 目標關鍵字 ===
-${keywordsList || '（未提供）'}
+=== 目前評分與訊號 ===
+${JSON.stringify(promptContext, null, 2)}
 
-=== 頁面內容（必要時可引用） ===
+=== 頁面內容（如需引用請擷取重點） ===
 ${content.slice(0, 6000)}
 
-請產出 JSON，格式如下：
+請輸出 JSON，格式如下：
 {
   "scores": {
     "overallScore": 0-100,
     "aeoScore": 0-100,
     "seoScore": 0-100
   },
-  "hcuReview": [
-    { "id": "H1", "answer": "yes|partial|no", "explanation": "40 字內" }
+  "metrics": {
+    "seo": [
+      { "name": "E-E-A-T 信任線索", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "內容品質與原創性", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "人本與主題一致性", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "標題與承諾落實", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "搜尋意圖契合度", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "新鮮度與時效性", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "使用者安全與風險", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" }
+    ],
+    "aeo": [
+      { "name": "段落獨立性", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "語言清晰度", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "實體辨識", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "邏輯流暢度", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "可信度信號", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" }
+    ]
+  },
+  "eeatBreakdown": {
+    "experience": { "score": 0-10, "notes": "20 字內" },
+    "expertise": { "score": 0-10, "notes": "20 字內" },
+    "authoritativeness": { "score": 0-10, "notes": "20 字內" },
+    "trust": { "score": 0-10, "notes": "20 字內" }
+  },
+  "highRiskFlags": [
+    { "type": "harm|deception|spam|compliance", "severity": "critical|warning", "summary": "40 字內", "action": "建議對應處置 40 字內" }
   ],
   "recommendations": [
     {
       "priority": "critical|high|medium|low",
       "category": "內容|結構|E-E-A-T|技術|風險",
-      "issue": "簡述當前缺口",
-      "action": "具體改善步驟（60 字內）",
-      "expectedScoreGain": "約略提升分數（+5 分）"
+      "issue": "簡述當前缺口 (<=40 字)",
+      "action": "具體改善步驟 (<=60 字)",
+      "expectedScoreGain": "以「+5 分」格式估算"
     }
   ]
 }
 
 原則：
-- 若資料不足，以 "partial" 或 "no" 回答並說明不足原因。
-- 建議至少 4 條（若缺少改善空間可寫 2-3 條）。
-- 所有描述請用繁體中文。
+- 請先參考 scoreGuards 與 contentSignals，如資料不足請選擇較低分並在 notes 標註原因。
+- 每項 notes、summary、action 均使用繁體中文，避免 Markdown。
+- 若無風險則輸出空陣列。
+- 建議建議清單至少 4 條（若改善空間有限可 2-3 條）。
 - 僅輸出 JSON，不要加任何說明或 Markdown。
 `
 
@@ -186,12 +215,42 @@ function mergeAugmentedInsights(basePayload, augmentation) {
     if (isFiniteNumber(seoScore)) merged.seoScore = clampScore(seoScore)
   }
 
+  if (augmentation.metrics && typeof augmentation.metrics === 'object') {
+    merged.metrics = merged.metrics || {}
+    merged.metrics.seo = blendMetricArrays(merged.metrics.seo, augmentation.metrics.seo)
+    merged.metrics.aeo = blendMetricArrays(merged.metrics.aeo, augmentation.metrics.aeo)
+  }
+
   if (Array.isArray(augmentation.hcuReview) && augmentation.hcuReview.length) {
     merged.hcuReview = augmentation.hcuReview.map(normalizeHcuEntry)
   }
 
+  if (Array.isArray(augmentation.highRiskFlags)) {
+    const normalizedFlags = augmentation.highRiskFlags.map(normalizeHighRiskFlag)
+    merged.highRiskFlags = Array.isArray(merged.highRiskFlags)
+      ? mergeUniqueFlags(merged.highRiskFlags, normalizedFlags)
+      : normalizedFlags
+  }
+
+  if (augmentation.eeatBreakdown && typeof augmentation.eeatBreakdown === 'object') {
+    merged.eeatBreakdown = normalizeEeatBreakdown(augmentation.eeatBreakdown)
+  }
+
   if (Array.isArray(augmentation.recommendations) && augmentation.recommendations.length) {
     merged.recommendations = augmentation.recommendations.map(normalizeRecommendation)
+  }
+
+  if (!merged.llmInsights) {
+    merged.llmInsights = {}
+  }
+  merged.llmInsights.openai = {
+    ...(merged.llmInsights.openai || {}),
+    scores: augmentation.scores || null,
+    metrics: augmentation.metrics || null,
+    eeatBreakdown: augmentation.eeatBreakdown || null,
+    hcuReview: augmentation.hcuReview || null,
+    highRiskFlags: augmentation.highRiskFlags || null,
+    recommendations: augmentation.recommendations || null
   }
 
   return merged
@@ -204,6 +263,72 @@ function isFiniteNumber(value) {
 function clampScore(value) {
   if (!isFiniteNumber(value)) return value
   return Math.min(100, Math.max(0, Math.round(value)))
+}
+
+function clamp0to10(value) {
+  if (!Number.isFinite(value)) return null
+  if (value < 0) return 0
+  if (value > 10) return 10
+  return Math.round(value * 10) / 10
+}
+
+function normalizeAugmentedMetric(entry = {}) {
+  const name = typeof entry.name === 'string' ? entry.name.trim() : ''
+  const score = isFiniteNumber(entry.score) ? clampScore(entry.score) : null
+  const confidence = typeof entry.confidence === 'string' ? entry.confidence.trim().toLowerCase() : ''
+  const allowedConfidence = new Set(['high', 'medium', 'low'])
+  const notes = coerceString(entry.notes).slice(0, 120)
+  return {
+    name,
+    score,
+    confidence: allowedConfidence.has(confidence) ? confidence : undefined,
+    notes
+  }
+}
+
+function blendMetricArrays(base = [], augmented = []) {
+  if (!Array.isArray(base) && !Array.isArray(augmented)) return []
+  const map = new Map()
+  if (Array.isArray(base)) {
+    base.forEach(metric => {
+      if (metric?.name) {
+        map.set(metric.name, { ...metric })
+      }
+    })
+  }
+  if (Array.isArray(augmented)) {
+    augmented.forEach(metric => {
+      const normalized = normalizeAugmentedMetric(metric)
+      if (!normalized.name) return
+      const existing = map.get(normalized.name) || {}
+      const blended = blendMetric(existing, normalized)
+      map.set(normalized.name, blended)
+    })
+  }
+  return Array.from(map.values())
+}
+
+function blendMetric(baseMetric = {}, llmMetric = {}) {
+  const weightBase = typeof baseMetric.weight === 'number' ? baseMetric.weight : llmMetric.weight
+  const baseScore = Number.isFinite(baseMetric.score) ? clamp0to10(baseMetric.score) : null
+  const llmScore = Number.isFinite(llmMetric.score) ? clamp0to10(llmMetric.score) : null
+  let score = baseScore
+  if (llmScore !== null && baseScore !== null) {
+    const blendRatio = llmMetric.confidence === 'high' ? 0.7
+      : llmMetric.confidence === 'medium' ? 0.6
+      : 0.5
+    score = Math.round((llmScore * blendRatio + baseScore * (1 - blendRatio)) * 10) / 10
+  } else if (llmScore !== null) {
+    score = llmScore
+  }
+  return {
+    ...baseMetric,
+    ...llmMetric,
+    score,
+    weight: weightBase,
+    description: baseMetric.description || llmMetric.notes || '',
+    notes: llmMetric.notes || baseMetric.notes || undefined
+  }
 }
 
 function normalizeHcuEntry(entry = {}) {
@@ -231,6 +356,46 @@ function normalizeRecommendation(entry = {}) {
     action: coerceString(entry.action).slice(0, 160),
     expectedScoreGain: coerceString(entry.expectedScoreGain).slice(0, 40)
   }
+}
+
+function normalizeHighRiskFlag(entry = {}) {
+  const allowedTypes = ['harm', 'deception', 'spam', 'compliance']
+  const allowedSeverity = ['critical', 'warning']
+  const type = typeof entry.type === 'string' ? entry.type.trim().toLowerCase() : ''
+  const severity = typeof entry.severity === 'string' ? entry.severity.trim().toLowerCase() : ''
+  return {
+    type: allowedTypes.includes(type) ? type : 'harm',
+    severity: allowedSeverity.includes(severity) ? severity : 'warning',
+    summary: coerceString(entry.summary).slice(0, 120),
+    action: coerceString(entry.action).slice(0, 120)
+  }
+}
+
+function normalizeEeatBreakdown(entry = {}) {
+  const keys = ['experience', 'expertise', 'authoritativeness', 'trust']
+  const normalized = {}
+  keys.forEach((key) => {
+    const value = entry[key] || {}
+    normalized[key] = {
+      score: isFiniteNumber(value.score) ? clampScore(value.score) : null,
+      notes: coerceString(value.notes).slice(0, 60)
+    }
+  })
+  return normalized
+}
+
+function mergeUniqueFlags(baseFlags = [], newFlags = []) {
+  const keyOf = (flag) => `${flag.type || ''}-${flag.summary || ''}-${flag.severity || ''}`
+  const seen = new Set(baseFlags.map((flag) => keyOf(flag)))
+  const merged = [...baseFlags]
+  newFlags.forEach((flag) => {
+    const key = keyOf(flag)
+    if (!seen.has(key)) {
+      merged.push(flag)
+      seen.add(key)
+    }
+  })
+  return merged
 }
 
 function generateHeuristicRecommendations(payload = {}, contentSignals = {}) {
@@ -1191,21 +1356,38 @@ async function handleAnalyzePost(context, corsHeaders) {
     }
 
     let payload = normalizeAnalysisResult(analysisResult, contentSignals)
-    payload = applyScoreGuards(payload, contentSignals, targetKeywords)
 
     const openaiKey = env.OPENAI_API_KEY || null
+    let openAiAugmentation = null
     if (openaiKey) {
       try {
-        const augmentation = await evaluateHelpfulContentWithOpenAI({
+        openAiAugmentation = await evaluateHelpfulContentWithOpenAI({
           content: normalizedContentVariants.plain,
           targetKeywords,
           payload,
+          contentSignals,
           apiKey: openaiKey
         })
-        payload = mergeAugmentedInsights(payload, augmentation)
+        payload = mergeAugmentedInsights(payload, openAiAugmentation)
       } catch (error) {
         console.error('OpenAI augmentation failed:', error)
       }
+    }
+
+    payload = applyScoreGuards(payload, contentSignals, targetKeywords)
+
+    if (payload.metrics?.seo && openAiAugmentation?.metrics?.seo) {
+      payload.metrics.seo = blendMetricArrays(payload.metrics.seo, openAiAugmentation.metrics.seo)
+    }
+    if (payload.metrics?.aeo && openAiAugmentation?.metrics?.aeo) {
+      payload.metrics.aeo = blendMetricArrays(payload.metrics.aeo, openAiAugmentation.metrics.aeo)
+    }
+
+    if (openAiAugmentation?.highRiskFlags?.length) {
+      payload.highRiskFlags = mergeUniqueFlags(payload.highRiskFlags || [], openAiAugmentation.highRiskFlags.map(normalizeHighRiskFlag))
+    }
+    if (openAiAugmentation?.eeatBreakdown) {
+      payload.eeatBreakdown = normalizeEeatBreakdown(openAiAugmentation.eeatBreakdown)
     }
 
     const heuristicRecommendations = generateHeuristicRecommendations(payload, contentSignals)
@@ -2383,6 +2565,8 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
     missingCritical,
     hcuCounts,
     contentQualityFlags,
+    eeatBreakdown: clone.eeatBreakdown || null,
+    highRiskFlags: Array.isArray(clone.highRiskFlags) ? clone.highRiskFlags : [],
     appliedAt: new Date().toISOString()
   }
 
