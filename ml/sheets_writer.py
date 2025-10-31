@@ -55,7 +55,11 @@ class SheetsWriter:
             return
 
         features = record.get("features", {}) or {}
-        self._ensure_header(features)
+        try:
+            self._ensure_header(features)
+        except Exception as e:
+            print(f"⚠️ 更新 Sheets 表頭失敗：{e}")
+            return
 
         flat: Dict[str, object] = {
             "url": record.get("url", ""),
@@ -68,7 +72,10 @@ class SheetsWriter:
 
         assert self._header is not None  # defensive: ensured in _ensure_header
         row = [flat.get(column, "") for column in self._header]
-        self._worksheet.append_row(row, value_input_option="RAW")
+        try:
+            self._worksheet.append_row(row, value_input_option="RAW")
+        except Exception as e:
+            print(f"⚠️ 追加列至 Google Sheets 失敗（非致命）：{e}")
 
     def fetch_all_records(self) -> List[Dict[str, object]]:
         """Return all rows (excluding header) as dicts keyed by header."""

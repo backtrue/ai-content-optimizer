@@ -9,12 +9,21 @@ from typing import Any, Dict
 from flask import Flask, jsonify, request
 
 from serp_collection import (
-    KEYWORDS,
     collect_keywords,
     load_env_variables,
 )
 
 load_env_variables()
+
+_KEYWORDS_CACHE = None
+
+def get_keywords():
+    """延遲載入 KEYWORDS 以避免啟動時失敗。"""
+    global _KEYWORDS_CACHE
+    if _KEYWORDS_CACHE is None:
+        from serp_collection import KEYWORDS
+        _KEYWORDS_CACHE = KEYWORDS
+    return _KEYWORDS_CACHE
 
 logging.basicConfig(level=os.getenv("SERP_WORKER_LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
@@ -22,9 +31,29 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 
+@app.route("/", methods=["GET"])
+def root() -> Any:
+    """Cloud Run 預設健康檢查路徑，回傳基本狀態。"""
+    try:
+        keywords_count = len(get_keywords())
+    except Exception:
+        keywords_count = 0
+    return jsonify({"status": "ok", "service": "serp-worker", "keywords": keywords_count})
+
+
 @app.route("/healthz", methods=["GET"])
 def healthz() -> Any:
-    return jsonify({"status": "ok", "keywords": len(KEYWORDS)})
+    try:
+        keywords_count = len(get_keywords())
+    except Exception:
+        keywords_count = 0
+    return jsonify({"status": "ok", "keywords": keywords_count})
+
+
+@app.route("/_ah/warmup", methods=["GET"])
+def warmup() -> Any:
+    """支援 Cloud Run/GAE 的 warmup probing。"""
+    return ("", 204)
 
 
 @app.route("/collect", methods=["POST"])

@@ -13,19 +13,47 @@ from google.cloud import tasks_v2
 from serp_collection import KEYWORDS, load_env_variables
 
 
+def ensure_credentials() -> str:
+    """確保 GOOGLE_APPLICATION_CREDENTIALS 指向可用的 service account JSON。"""
+    adc_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    candidate_paths = []
+
+    explicit_path = os.getenv("SHEETS_CREDENTIALS_PATH")
+    if explicit_path:
+        candidate_paths.append(explicit_path)
+
+    project_default = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "serp-sheet-writer-key.json"))
+    candidate_paths.append(project_default)
+
+    for path in candidate_paths:
+        if path and os.path.exists(path):
+            resolved = os.path.abspath(path)
+            if adc_path != resolved:
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = resolved
+            return resolved
+
+    if adc_path and os.path.exists(adc_path):
+        return adc_path
+
+    raise RuntimeError(
+        "找不到可用的 Google service account JSON，請設定 SHEETS_CREDENTIALS_PATH 或將檔案存放於 serp-sheet-writer-key.json"
+    )
+
+
 def chunk_keywords(keywords: List[str], batch_size: int) -> List[List[str]]:
     return [keywords[i : i + batch_size] for i in range(0, len(keywords), batch_size)]
 
 
 def build_task_payload(batch_keywords: List[str], batch_index: int, total_batches: int, total_keywords: int) -> Dict:
     offset = batch_index * len(batch_keywords)
+    sync_to_sheets = os.getenv("SERP_TASK_SYNC_TO_SHEETS", "false").lower() in {"1", "true", "yes", "on"}
     return {
         "keywords": batch_keywords,
         "keywordOffset": offset,
         "totalKeywords": total_keywords,
         "persistLocal": False,
         "updateStatus": False,
-        "syncToSheets": True,
+        "syncToSheets": sync_to_sheets,
         "keywordDelay": float(os.getenv("SERP_TASK_KEYWORD_DELAY", "0")),
         "urlDelay": float(os.getenv("SERP_TASK_URL_DELAY", os.getenv("SERP_URL_DELAY_SECONDS", "12"))),
         "meta": {
@@ -38,11 +66,20 @@ def build_task_payload(batch_keywords: List[str], batch_index: int, total_batche
 
 def main() -> None:
     load_env_variables()
+    credential_path = ensure_credentials()
+
+    print(f"🔐 使用憑證：{credential_path}")
 
     project_id = os.getenv("SERP_GCP_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT")
     queue_name = os.getenv("SERP_TASK_QUEUE", "serp-collection")
     location = os.getenv("SERP_TASK_LOCATION", "asia-east1")
     worker_url = os.getenv("SERP_WORKER_URL")
+
+    if worker_url and not worker_url.rstrip("/").endswith("/collect"):
+        worker_url = worker_url.rstrip("/") + "/collect"
+        print(f"🔄 自動將 worker URL 調整為 {worker_url}")
+        os.environ["SERP_WORKER_URL"] = worker_url
+
     service_account = os.getenv("SERP_TASK_SERVICE_ACCOUNT")
     audience = os.getenv("SERP_TASK_AUDIENCE", worker_url)
     batch_size = int(os.getenv("SERP_TASK_BATCH_SIZE", "5"))

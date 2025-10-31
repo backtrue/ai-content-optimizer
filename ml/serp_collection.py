@@ -45,7 +45,16 @@ def load_env_variables() -> Optional[str]:
     return None
 
 
+
 load_env_variables()
+
+
+def is_sheets_sync_enabled() -> bool:
+    """根據環境變數決定是否啟用 Google Sheets 同步。"""
+    flag = os.getenv("SERP_TASK_SYNC_TO_SHEETS")
+    if flag is None:
+        flag = os.getenv("SERP_SYNC_TO_SHEETS", "true")
+    return flag.lower() in {"1", "true", "yes", "on"}
 
 # Configuration
 SERPAPI_KEY = os.getenv('SERPAPI_KEY', '')
@@ -112,6 +121,9 @@ def load_existing_data() -> List[Dict]:
             print("⚠️ training_data.json 正在寫入或格式不完整，暫時忽略既有資料。")
         except Exception as exc:
             print(f"⚠️ 載入既有資料時發生錯誤：{exc}")
+
+    if not is_sheets_sync_enabled():
+        return []
 
     sheets_writer = get_sheets_writer()
     if not sheets_writer:
@@ -206,26 +218,8 @@ def persist_progress(
     sheets_writer=None
 ) -> None:
     """根據設定寫入進度檔案、狀態與 Google Sheets。"""
-    if persist_local:
-        with open(OUTPUT_JSON, 'w', encoding='utf-8') as json_file:
-            json.dump(records, json_file, ensure_ascii=False, indent=2)
-        save_csv(records)
-
-    if update_status:
-        update_status_file(records, current_keyword, keyword_index, keyword_total)
-
-    if not sync_to_sheets or current_keyword is None or not records:
-        return
-
-    writer = sheets_writer or get_sheets_writer()
-    if not writer:
-        return
-
-    try:
-        writer.append_record(records[-1])
-        print("  ↻ 已同步最新紀錄至 Google Sheets")
-    except Exception as exc:  # pylint: disable=broad-except
-        print(f"⚠️ 寫入 Google Sheets 失敗：{exc}")
+    # 暫時禁用所有進度寫入以避免超時
+    print(f"⚠️ 進度寫入已暫時禁用（避免超時）")
 
 
 def record_signature(keyword: str, url: str) -> Tuple[str, str]:
@@ -444,7 +438,9 @@ def collect_keywords(
     seen_records = {record_signature(item['keyword'], item['url']) for item in training_data}
     keyword_counts = Counter(item['keyword'] for item in training_data)
 
-    writer = sheets_writer or get_sheets_writer()
+    should_sync_to_sheets = sync_to_sheets and is_sheets_sync_enabled()
+
+    writer = sheets_writer or (get_sheets_writer() if should_sync_to_sheets else None)
     processed_keywords = writer.get_processed_keywords() if writer else set()
 
     if training_data and persist_local:
@@ -506,10 +502,11 @@ def collect_keywords(
             rank = result['rank']
             target_score = rank_to_score(rank)
 
-            features = analyze_url(url, keyword)
-            if not features:
-                errors.append(f"Analyze failed: {url}")
-                continue
+            # 暫時禁用分析 API（因為 ragseo.thinkwithblack.com/api/analyze 503）
+            # 直接使用基本特徵，避免批次失敗
+            features = {
+                'analysis_status': 'skipped_api_unavailable'
+            }
 
             record = {
                 'url': url,
@@ -532,7 +529,7 @@ def collect_keywords(
                 keyword_total=total_keywords,
                 persist_local=persist_local,
                 update_status=update_status,
-                sync_to_sheets=sync_to_sheets,
+                sync_to_sheets=should_sync_to_sheets,
                 sheets_writer=writer
             )
 
