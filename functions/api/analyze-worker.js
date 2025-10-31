@@ -16,15 +16,31 @@ import {
 // Note: This is a simplified version - in production, refactor shared logic into modules
 
 const FETCH_MAX_BYTES = 1.5 * 1024 * 1024
-const FETCH_TIMEOUT_MS = 15_000
+const FETCH_TIMEOUT_MS = 25_000
 const FETCH_MAX_REDIRECTS = 3
 const FETCH_USER_AGENT = 'AEO-GEO Analyzer/1.0 (+https://ragseo.thinkwithblack.com)'
+const FETCH_MAX_RETRIES = 3
+const RETRY_DELAYS_MS = [0, 1_000, 3_000]
+const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504])
+
+class AnalyzeError extends Error {
+  constructor(message, { status = 422, code = 'ANALYZE_ERROR', details } = {}) {
+    super(message)
+    this.name = 'AnalyzeError'
+    this.status = status
+    this.code = code
+    this.details = details
+  }
+}
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization'
 }
+
 
 /**
  * Main Worker handler
@@ -55,11 +71,20 @@ export default {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     } catch (error) {
-      console.error('Worker error:', error)
+      const normalized = normalizeError(error)
+      if (normalized.status >= 500) {
+        console.error('Worker error:', normalized)
+      } else {
+        console.warn('Worker handled error:', normalized)
+      }
       return new Response(
-        JSON.stringify({ error: error.message || 'Internal server error' }),
+        JSON.stringify({
+          error: normalized.message,
+          code: normalized.code,
+          details: normalized.details
+        }),
         {
-          status: 500,
+          status: normalized.status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
@@ -71,104 +96,162 @@ export default {
  * Handle analyze request
  */
 async function handleAnalyzeRequest(requestBody, env, ctx) {
-  const { contentUrl, targetKeywords = [], returnChunks = false } = requestBody
+  try {
+    const { contentUrl, targetKeywords = [], returnChunks = false } = requestBody
 
-  if (!contentUrl || !Array.isArray(targetKeywords) || targetKeywords.length === 0) {
-    throw new Error('Missing contentUrl or targetKeywords')
-  }
+    if (!contentUrl || !Array.isArray(targetKeywords) || targetKeywords.length === 0) {
+      throw new AnalyzeError('Missing contentUrl or targetKeywords', {
+        status: 422,
+        code: 'INVALID_PAYLOAD'
+      })
+    }
 
-  // Fetch and extract content
-  const { html, plain } = await fetchAndExtractContent(contentUrl)
-  if (!html && !plain) {
-    throw new Error('Failed to extract content from URL')
-  }
+    // Fetch and extract content
+    const { html, plain } = await fetchAndExtractContent(contentUrl)
+    if (!html && !plain) {
+      throw new AnalyzeError('Failed to extract content from URL', {
+        status: 422,
+        code: 'CONTENT_EXTRACTION_FAILED'
+      })
+    }
 
-  // Build analysis context
-  const contentSignals = computeContentSignals(html || plain, targetKeywords)
-  const hcuReview = [] // Simplified - in production, call Gemini API
-  const hcuCounts = { yes: 0, partial: 0, no: 0 }
+    // Build analysis context
+    const contentSignals = computeContentSignals(html || plain, targetKeywords)
+    const hcuReview = [] // Simplified - in production, call Gemini API
+    const hcuCounts = { yes: 0, partial: 0, no: 0 }
 
-  // Build metrics using ML model
-  const modelContext = {
-    contentSignals,
-    contentQualityFlags: buildContentQualityFlags(contentSignals),
-    missingCritical: buildMissingCritical(contentSignals),
-    hcuCounts
-  }
-
-  const aeoPredictions = isScoringModelReady() ? predictAeoMetricScores(modelContext) : null
-  const seoPredictions = isScoringModelReady() ? predictSeoMetricScores(modelContext) : null
-
-  // Build metrics first
-  const aeoMetrics = buildMetricsFromPredictions(aeoPredictions, 'aeo')
-  const seoMetrics = buildMetricsFromPredictions(seoPredictions, 'seo')
-
-  // Build response
-  const response = {
-    sourceUrl: contentUrl,
-    targetKeywords,
-    contentSignals,
-    metrics: {
-      aeo: aeoMetrics,
-      seo: seoMetrics
-    },
-    scoreGuards: {
-      contentQualityFlags: modelContext.contentQualityFlags,
-      missingCritical: modelContext.missingCritical,
+    // Build metrics using ML model
+    const modelContext = {
+      contentSignals,
+      contentQualityFlags: buildContentQualityFlags(contentSignals),
+      missingCritical: buildMissingCritical(contentSignals),
       hcuCounts
-    },
-    hcuReview,
-    aeoScore: computeAverageScore(aeoMetrics),
-    seoScore: computeWeightedScore(seoMetrics)
-  }
+    }
 
-  if (returnChunks) {
-    response.chunks = []
-  }
+    const aeoPredictions = isScoringModelReady() ? predictAeoMetricScores(modelContext) : null
+    const seoPredictions = isScoringModelReady() ? predictSeoMetricScores(modelContext) : null
 
-  return response
+    // Build metrics first
+    const aeoMetrics = buildMetricsFromPredictions(aeoPredictions, 'aeo')
+    const seoMetrics = buildMetricsFromPredictions(seoPredictions, 'seo')
+
+    // Build response
+    const response = {
+      sourceUrl: contentUrl,
+      targetKeywords,
+      contentSignals,
+      metrics: {
+        aeo: aeoMetrics,
+        seo: seoMetrics
+      },
+      scoreGuards: {
+        contentQualityFlags: modelContext.contentQualityFlags,
+        missingCritical: modelContext.missingCritical,
+        hcuCounts
+      },
+      hcuReview,
+      aeoScore: computeAverageScore(aeoMetrics),
+      seoScore: computeWeightedScore(seoMetrics)
+    }
+
+    if (returnChunks) {
+      response.chunks = []
+    }
+
+    return response
+  } catch (error) {
+    throw normalizeError(error)
+  }
 }
 
 /**
  * Fetch and extract content from URL
  */
 async function fetchAndExtractContent(url) {
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'User-Agent': FETCH_USER_AGENT },
-      redirect: 'follow',
-      cf: { cacheTtl: 3600, cacheEverything: true }
-    })
+  let lastError
+  for (let attempt = 1; attempt <= FETCH_MAX_RETRIES; attempt += 1) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort('timeout'), FETCH_TIMEOUT_MS)
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'User-Agent': FETCH_USER_AGENT },
+        redirect: 'follow',
+        cf: { cacheTtl: 900, cacheEverything: true },
+        signal: controller.signal
+      })
+
+      clearTimeout(timeout)
+
+      if (!response.ok) {
+        const status = response.status
+        const message = `Upstream responded with HTTP ${status}`
+        if (RETRYABLE_STATUS_CODES.has(status) && attempt < FETCH_MAX_RETRIES) {
+          await delay(RETRY_DELAYS_MS[attempt] || 0)
+          continue
+        }
+        throw new AnalyzeError(message, {
+          status: status >= 500 ? 503 : status,
+          code: 'UPSTREAM_HTTP_ERROR',
+          details: { status }
+        })
+      }
+
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('text/html')) {
+        throw new AnalyzeError('Fetched document is not HTML', {
+          status: 422,
+          code: 'NON_HTML_CONTENT',
+          details: { contentType }
+        })
+      }
+
+      const html = await response.text()
+      const { document } = parseHTML(html)
+
+      // Use Readability to extract main content
+      const reader = new Readability(document)
+      const article = reader.parse()
+
+      if (!article || !article.content) {
+        throw new AnalyzeError('Readability extraction failed', {
+          status: 422,
+          code: 'READABILITY_FAILURE'
+        })
+      }
+
+      return {
+        html: article.content,
+        plain: extractPlainText(article.content)
+      }
+    } catch (error) {
+      lastError = normalizeError(error)
+      const isTimeout = error?.name === 'AbortError' || error === 'timeout'
+      const retryable =
+        isTimeout ||
+        (error instanceof AnalyzeError && error.status >= 500 && attempt < FETCH_MAX_RETRIES)
+
+      if (retryable && attempt < FETCH_MAX_RETRIES) {
+        await delay(RETRY_DELAYS_MS[attempt] || 0)
+        continue
+      }
+
+      throw normalizeError(
+        isTimeout
+          ? new AnalyzeError('Fetching content timed out', {
+              status: 503,
+              code: 'FETCH_TIMEOUT'
+            })
+          : error
+      )
     }
-
-    const contentType = response.headers.get('content-type') || ''
-    if (!contentType.includes('text/html')) {
-      throw new Error('Not HTML content')
-    }
-
-    const html = await response.text()
-    const { document } = parseHTML(html)
-
-    // Use Readability to extract main content
-    const reader = new Readability(document)
-    const article = reader.parse()
-
-    if (!article || !article.content) {
-      throw new Error('Readability extraction failed')
-    }
-
-    return {
-      html: article.content,
-      plain: extractPlainText(article.content)
-    }
-  } catch (error) {
-    console.error('Fetch error:', error)
-    return { html: '', plain: '' }
   }
+
+  throw lastError || new AnalyzeError('Failed to fetch content', {
+    status: 503,
+    code: 'FETCH_FAILED_UNKNOWN'
+  })
 }
 
 /**
@@ -340,4 +423,22 @@ function computeWeightedScore(metrics) {
   })
 
   return totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 10) : null
+}
+
+function normalizeError(error) {
+  if (error instanceof AnalyzeError) {
+    return error
+  }
+
+  if (error instanceof Error) {
+    return new AnalyzeError(error.message || 'Internal server error', {
+      status: 500,
+      code: 'UNHANDLED_ERROR'
+    })
+  }
+
+  return new AnalyzeError('Internal server error', {
+    status: 500,
+    code: 'UNKNOWN_ERROR'
+  })
 }

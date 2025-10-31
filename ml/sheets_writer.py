@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 from datetime import datetime
 from typing import Dict, List, Optional, Set
 
@@ -72,10 +73,8 @@ class SheetsWriter:
 
         assert self._header is not None  # defensive: ensured in _ensure_header
         row = [flat.get(column, "") for column in self._header]
-        try:
-            self._worksheet.append_row(row, value_input_option="RAW")
-        except Exception as e:
-            print(f"⚠️ 追加列至 Google Sheets 失敗（非致命）：{e}")
+        if not self._append_row_with_retry(self._worksheet, row):
+            print("⚠️ 追加列至 Google Sheets 失敗（非致命）：超出重試次數")
 
     def fetch_all_records(self) -> List[Dict[str, object]]:
         """Return all rows (excluding header) as dicts keyed by header."""
@@ -108,9 +107,30 @@ class SheetsWriter:
             return
 
         timestamp = datetime.utcnow().isoformat()
-        sheet.append_row([keyword, timestamp], value_input_option="RAW")
-        keywords.add(keyword)
-        self._processed_cache = keywords
+        if self._append_row_with_retry(sheet, [keyword, timestamp]):
+            keywords.add(keyword)
+            self._processed_cache = keywords
+
+    def _append_row_with_retry(self, sheet: gspread.Worksheet, row: List[object], retries: int = 3, base_delay: float = 1.5) -> bool:
+        for attempt in range(1, retries + 1):
+            try:
+                sheet.append_row(row, value_input_option="RAW")
+                return True
+            except gspread.exceptions.APIError as exc:
+                status = getattr(exc.response, "status_code", None)
+                print(
+                    f"⚠️ append_row APIError (attempt {attempt}/{retries}) 狀態={status} 訊息={exc}"
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                print(
+                    f"⚠️ append_row 發生非預期錯誤 (attempt {attempt}/{retries}): {exc}"
+                )
+
+            if attempt < retries:
+                sleep_seconds = base_delay * attempt
+                time.sleep(sleep_seconds)
+
+        return False
 
     def _ensure_header(self, features: Dict[str, object]) -> None:
         if self._header is None:

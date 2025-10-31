@@ -283,43 +283,49 @@ def fetch_serp_results(keyword: str) -> List[Dict]:
         return []
 
 
-def analyze_url(url: str, keyword: str) -> Optional[Dict]:
-    """Call our /analyze API to extract features for a URL, with retry support."""
+def analyze_url(url: str, keyword: str) -> Dict:
+    """Call our /analyze API to extract features for a URL, with retry support and failure metadata."""
     if not url:
-        return None
-    
+        return {
+            'analysis_status': 'failed',
+            'analysis_error_kind': 'invalid_url',
+            'analysis_error_message': 'Empty URL'
+        }
+
     payload = {
         'contentUrl': url,
         'targetKeywords': [keyword],
         'returnChunks': False
     }
-    
+
+    last_error: Optional[Dict[str, Any]] = None
+
     for attempt in range(1, ANALYZE_RETRY_ATTEMPTS + 1):
         try:
             print(f"    Analyzing: {url[:60]}... (attempt {attempt}/{ANALYZE_RETRY_ATTEMPTS})")
             response = requests.post(ANALYZE_API_URL, json=payload, timeout=60)
             response.raise_for_status()
             data = response.json()
-            
+
             # Extract features from response
             signals = data.get('contentSignals', {})
             flags = data.get('scoreGuards', {}).get('contentQualityFlags', {})
             hcu_counts = data.get('scoreGuards', {}).get('hcuCounts', {})
-            
+
             # 計算 HCU 相關特徵
             total_hcu = hcu_counts.get('yes', 0) + hcu_counts.get('partial', 0) + hcu_counts.get('no', 0)
             hcu_yes_ratio = hcu_counts.get('yes', 0) / total_hcu if total_hcu > 0 else 0
             hcu_partial_ratio = hcu_counts.get('partial', 0) / total_hcu if total_hcu > 0 else 0
             hcu_no_ratio = hcu_counts.get('no', 0) / total_hcu if total_hcu > 0 else 0
             hcu_content_helpfulness = (hcu_yes_ratio + hcu_partial_ratio * 0.5) if total_hcu > 0 else 0
-            
+
             # 內容結構特徵
             qa_format_score = min(1.0, signals.get('qaFormatScore', 0))
             first_para_answer_quality = min(1.0, signals.get('firstParagraphAnswerQuality', 0))
             semantic_paragraph_focus = min(1.0, signals.get('semanticParagraphFocus', 0))
             heading_hierarchy_quality = min(1.0, signals.get('headingHierarchyQuality', 0))
             topic_cohesion = min(1.0, signals.get('topicCohesion', 0))
-            
+
             # 技術與標記特徵
             faq_schema_present = 1 if signals.get('faqSchemaPresent') else 0
             howto_schema_present = 1 if signals.get('howtoSchemaPresent') else 0
@@ -328,36 +334,36 @@ def analyze_url(url: str, keyword: str) -> Optional[Dict]:
             og_tags_complete = min(1.0, signals.get('ogTagsComplete', 0))
             meta_tags_quality = min(1.0, signals.get('metaTagsQuality', 0))
             html_structure_validity = min(1.0, signals.get('htmlStructureValidity', 0))
-            
+
             # 品牌實體與信任特徵
             author_info_present = 1 if signals.get('authorInfoPresent') else 0
             brand_entity_clarity = min(1.0, signals.get('brandEntityClarity', 0))
             external_citation_count = min(1.0, signals.get('externalCitationCount', 0) / 10)
             social_media_links_present = 1 if signals.get('socialMediaLinksPresent') else 0
             review_rating_present = 1 if signals.get('reviewRatingPresent') else 0
-            
+
             # AI 搜尋適配特徵
             semantic_naturalness = min(1.0, signals.get('semanticNaturalness', 0))
             paragraph_extractability = min(1.0, signals.get('paragraphExtractability', 0))
             rich_snippet_format = min(1.0, signals.get('richSnippetFormat', 0))
             citability_trust_score = min(1.0, signals.get('citabilityTrustScore', 0))
             multimedia_support = min(1.0, signals.get('multimediaSupport', 0))
-            
-            # 保留既有的基礎特徵（向後相容）
+
+            # 保留既有特徵（向後相容）
             features = {
                 # HCU 特徵
                 'hcuYesRatio': hcu_yes_ratio,
                 'hcuPartialRatio': hcu_partial_ratio,
                 'hcuNoRatio': hcu_no_ratio,
                 'hcuContentHelpfulness': hcu_content_helpfulness,
-                
+
                 # 內容結構
                 'qaFormatScore': qa_format_score,
                 'firstParagraphAnswerQuality': first_para_answer_quality,
                 'semanticParagraphFocus': semantic_paragraph_focus,
                 'headingHierarchyQuality': heading_hierarchy_quality,
                 'topicCohesion': topic_cohesion,
-                
+
                 # 技術與標記
                 'faqSchemaPresent': faq_schema_present,
                 'howtoSchemaPresent': howto_schema_present,
@@ -366,21 +372,21 @@ def analyze_url(url: str, keyword: str) -> Optional[Dict]:
                 'ogTagsComplete': og_tags_complete,
                 'metaTagsQuality': meta_tags_quality,
                 'htmlStructureValidity': html_structure_validity,
-                
+
                 # 品牌實體與信任
                 'authorInfoPresent': author_info_present,
                 'brandEntityClarity': brand_entity_clarity,
                 'externalCitationCount': external_citation_count,
                 'socialMediaLinksPresent': social_media_links_present,
                 'reviewRatingPresent': review_rating_present,
-                
+
                 # AI 搜尋適配
                 'semanticNaturalness': semantic_naturalness,
                 'paragraphExtractability': paragraph_extractability,
                 'richSnippetFormat': rich_snippet_format,
                 'citabilityTrustScore': citability_trust_score,
                 'multimediaSupport': multimedia_support,
-                
+
                 # 保留既有特徵（向後相容）
                 'wordCountNorm': min(1.0, signals.get('wordCount', 0) / 1500),
                 'paragraphCountNorm': min(1.0, signals.get('paragraphCount', 0) / 12),
@@ -403,14 +409,38 @@ def analyze_url(url: str, keyword: str) -> Optional[Dict]:
                 'actionableWeakFlag': 1 if flags.get('actionableWeak') else 0,
                 'freshnessWeakFlag': 1 if flags.get('freshnessWeak') else 0,
                 'titleMismatchFlag': 1 if flags.get('titleMismatch') else 0,
+
+                'analysis_status': 'completed',
+                'analysis_attempts': attempt,
             }
-            
+
             print(f"      ✓ Features extracted")
             return features
-        
-        except requests.exceptions.HTTPError as e:
-            status_code = e.response.status_code if e.response else None
-            print(f"      ✗ HTTP error analyzing URL: {e} (status {status_code})")
+
+        except requests.exceptions.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response else None
+            error_payload: Dict[str, Any] = {}
+            error_message = str(exc)
+            error_code = None
+            if exc.response is not None:
+                try:
+                    error_payload = exc.response.json()
+                    error_message = error_payload.get('error', error_message)
+                    error_code = error_payload.get('code')
+                except ValueError:
+                    error_message = exc.response.text[:200]
+
+            print(f"      ✗ HTTP error analyzing URL: {error_message} (status {status_code})")
+
+            last_error = {
+                'analysis_status': 'failed',
+                'analysis_error_kind': 'http_error',
+                'analysis_http_status': status_code,
+                'analysis_error_message': error_message,
+                'analysis_error_code': error_code,
+                'analysis_attempts': attempt,
+            }
+
             if status_code == 429 and attempt < ANALYZE_RETRY_ATTEMPTS:
                 wait_seconds = ANALYZE_RETRY_DELAY_SECONDS * attempt
                 print(f"        → 等待 {wait_seconds:.0f} 秒後重試 (避免限流)")
@@ -421,17 +451,33 @@ def analyze_url(url: str, keyword: str) -> Optional[Dict]:
                 print(f"        → 等待 {wait_seconds:.0f} 秒後重試 (伺服器錯誤)")
                 time.sleep(wait_seconds)
                 continue
-            return None
-        except requests.exceptions.RequestException as e:
-            print(f"      ✗ Error analyzing URL: {e}")
+            break
+        except requests.exceptions.RequestException as exc:
+            error_message = str(exc)
+            print(f"      ✗ Error analyzing URL: {error_message}")
+            last_error = {
+                'analysis_status': 'failed',
+                'analysis_error_kind': 'request_exception',
+                'analysis_error_message': error_message,
+                'analysis_attempts': attempt,
+            }
+
             if attempt < ANALYZE_RETRY_ATTEMPTS:
                 wait_seconds = ANALYZE_RETRY_DELAY_SECONDS * attempt
                 print(f"        → 等待 {wait_seconds:.0f} 秒後重試")
                 time.sleep(wait_seconds)
                 continue
-            return None
-    
-    return None
+            break
+
+    if not last_error:
+        last_error = {
+            'analysis_status': 'failed',
+            'analysis_error_kind': 'unknown',
+            'analysis_error_message': '分析失敗（未知原因）',
+            'analysis_attempts': ANALYZE_RETRY_ATTEMPTS,
+        }
+
+    return last_error
 
 
 def collect_keywords(
@@ -522,10 +568,11 @@ def collect_keywords(
             target_score = rank_to_score(rank)
 
             features = analyze_url(url, keyword)
-            if features:
-                features['analysis_status'] = 'completed'
-            else:
-                features = {'analysis_status': 'analyze_failed'}
+            if not isinstance(features, dict):
+                features = {
+                    'analysis_status': 'failed',
+                    'analysis_error_kind': 'invalid_response'
+                }
 
             record = {
                 'url': url,
