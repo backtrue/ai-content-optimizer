@@ -192,3 +192,11 @@ def _load_credentials() -> Credentials:
             credentials_info = json.load(handle)
 
     return Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
+
+
+def reset_sheets_writer_cache() -> None:
+    """重置 SheetsWriter 的單例快取，讓環境變數變更後可重新初始化。"""
+    global _writer_instance, _writer_disabled
+    with _writer_lock:
+        _writer_instance = None
+        _writer_disabled = False

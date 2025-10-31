@@ -82,26 +82,26 @@ def _load_keywords() -> List[str]:
         except json.JSONDecodeError:
             print('⚠️ SERP_KEYWORDS_JSON 解析失敗，改用預設關鍵字清單')
     return [
-        "非洲豬瘟", "張峻", "水龍吟", "mizkif", "粉盒大王",
-        "玉山金", "許紹雄", "樂天", "天地劍心", "atlas",
-        "台中購物節", "藍眼淚", "炎亞綸", "國寶", "周孝安",
-        "中華職棒", "肉肉大米", "鄭智化", "exo", "mlb世界大賽",
-        "曾雅妮", "林又立", "詹江村", "人浮於愛", "馬傑森",
-        "高通", "普發一萬登記", "伯恩安德森", "2025 mlb 球季", "易烊千璽",
-        "新竹停水", "洲美國小預定地", "曲德義", "明天的天氣", "宏泰集團",
-        "鄭浩均", "謝沛恩", "江和樹", "中華職棒直播", "平野惠一",
-        "高雄捷運", "國王 對 湖人", "高通股價", "蔡璧名", "萬聖節",
-        "巴黎大師賽", "cpbl直播", "坤達", "大榮貨運", "泰國國喪",
-        "高橋藍", "austin reaves", "qcom", "威能帝", "泰國",
-        "法國羽球公開賽", "阿信", "凱蒂佩芮", "白晝之夜", "yahoo",
-        "徐嶔煌", "好味小姐", "台南藍眼淚", "山豬", "同志大遊行2025",
-        "黃安", "桃園萬聖城", "余德龍", "黃金價格", "炸記",
-        "賴雅妍", "南海", "閃兵", "河北彩伽 ig", "江坤宇",
-        "女孩", "朱承洋", "光復節由來", "涼山特勤隊", "euphoria",
-        "nba戰績", "00878", "粘鑫", "錦秀社區", "馬刺 對 籃網",
-        "灰狼 對 溜馬", "陳以信", "persib bandung vs persis", "mlb fall classic 2025", "許基宏",
-        "光復節", "晚安小雞", "f1", "拓荒者 對 勇士", "小野田紀美",
-        "chatgpt atlas", "勇士 對 金塊", "牙買加"
+        "iPhone 17 Pro Max", "momo 購物網", "蝦皮", "藍芽耳機 推薦", "Coupang 酷澎",
+        "除濕機 推薦", "Costco 必買", "氣炸鍋 推薦", "筆電 推薦 2025", "全聯 必買",
+        "Dyson 吸塵器", "AirPods Pro 3", "PS5 Pro", "Switch 遊戲 推薦", "iHerb 推薦",
+        "Uniqlo", "Nike 官網", "Adidas Samba", "Lululemon", "聖誕 交換 禮物 500元",
+        "手機 推薦 PTT", "保濕 精華液 推薦", "貓砂 推薦", "PChome 24h", "博客來",
+        "生日 禮物 推薦", "SOGO 週年慶", "新光三越 週年慶", "過年 禮盒 推薦", "露營 用品 清單",
+        "Sony WH-1000XM6", "Samsung S25 Ultra", "無印良品 必買", "特斯拉 Model Y 評價", "Gogoro 評價",
+        "衛生紙 特價", "星巴克 買一送一", "麥當勞 優惠券", "Uber Eats 優惠碼", "Foodpanda 免運",
+        "電競椅 推薦", "RTX 5080 價格", "Macbook M4 評價", "行動電源 推薦", "筋膜槍 推薦",
+        "台北 餐廳 推薦", "洗髮精 推薦 Dcard", "空氣清淨機 推薦", "膠原蛋白 推薦", "益生菌 推薦",
+        "SK-II 青春露", "Jo Malone", "寶寶 奶粉 推薦", "尿布 S", "母親節 禮物 排行",
+        "父親節 禮物", "情人節 禮物", "iPhone 17 價格", "便宜 機票", "Stanley 保溫杯",
+        "Nespresso 膠囊", "寵物 飲水機", "Dyson 吹風機", "iPhone 17 vs Pixel 10", "Nintendo Switch 2",
+        "雙 11 優惠", "Black Friday 優惠", "國泰 CUBE 卡 優惠", "momo 折價券", "蝦皮 免運",
+        "辦公室 團購 零食", "水餃 團購", "瑜珈墊 推薦", "Patagonia", "The North Face 外套",
+        "樂高 推薦", "Netflix 推薦", "電影票 優惠", "Apple Watch 11", "彌月 禮盒",
+        "搬家 禮物", "Rimowa", "汽車 隔熱紙 推薦", "美容儀 推薦", "永續 品牌",
+        "AI 課程", "燕窩 推薦", "滴雞精 推薦", "林聰明 砂鍋魚頭 泡麵", "青花驕 麻辣牛肉麵",
+        "演唱會 門票", "誠品 線上", "淘寶", "SHEIN", "薩爾達傳說",
+        "內衣 推薦", "跑鞋 推薦", "刮鬍刀 推薦", "IKEA 必買", "濾掛 咖啡 推薦"
     ]
 
 
@@ -218,8 +218,27 @@ def persist_progress(
     sheets_writer=None
 ) -> None:
     """根據設定寫入進度檔案、狀態與 Google Sheets。"""
-    # 暫時禁用所有進度寫入以避免超時
-    print(f"⚠️ 進度寫入已暫時禁用（避免超時）")
+    if persist_local:
+        with open(OUTPUT_JSON, 'w', encoding='utf-8') as json_file:
+            json.dump(records, json_file, ensure_ascii=False, indent=2)
+        save_csv(records)
+
+    if update_status:
+        update_status_file(records, current_keyword, keyword_index, keyword_total)
+
+    if not sync_to_sheets or current_keyword is None or not records:
+        return
+
+    # Sheets 寫入已在 sheets_writer.append_record 中加上錯誤保護
+    writer = sheets_writer or get_sheets_writer()
+    if not writer:
+        return
+
+    try:
+        writer.append_record(records[-1])
+        print("  ↻ 已同步最新紀錄至 Google Sheets")
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"⚠️ 寫入 Google Sheets 失敗：{exc}")
 
 
 def record_signature(keyword: str, url: str) -> Tuple[str, str]:
@@ -502,11 +521,11 @@ def collect_keywords(
             rank = result['rank']
             target_score = rank_to_score(rank)
 
-            # 暫時禁用分析 API（因為 ragseo.thinkwithblack.com/api/analyze 503）
-            # 直接使用基本特徵，避免批次失敗
-            features = {
-                'analysis_status': 'skipped_api_unavailable'
-            }
+            features = analyze_url(url, keyword)
+            if features:
+                features['analysis_status'] = 'completed'
+            else:
+                features = {'analysis_status': 'analyze_failed'}
 
             record = {
                 'url': url,
