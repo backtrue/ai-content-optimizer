@@ -410,7 +410,9 @@ function generateHeuristicRecommendations(payload = {}, contentSignals = {}) {
       category,
       issue,
       action,
-      expectedScoreGain
+      expectedScoreGain,
+      title: issue,
+      description: action
     })
   }
 
@@ -480,6 +482,269 @@ function generateHeuristicRecommendations(payload = {}, contentSignals = {}) {
   }
 
   return recommendations
+}
+
+const FEATURE_RECOMMENDATION_MAP = {
+  metaDescriptionPresent: {
+    category: '技術',
+    priority: 'high',
+    issue: '缺少 Meta Description 與摘要訊號',
+    action: '撰寫 120 字內、含主要關鍵字的 Meta Description，確保描述涵蓋使用者意圖。',
+    expectedScoreGain: '+4 分',
+    condition: ({ missingCritical }) => missingCritical?.metaDescription === true
+  },
+  canonicalPresent: {
+    category: '技術',
+    priority: 'high',
+    issue: '缺少 Canonical 導致搜尋辨識困難',
+    action: '補上 rel="canonical" 指向原始頁面，避免複製內容稀釋權重。',
+    expectedScoreGain: '+4 分',
+    condition: ({ missingCritical }) => missingCritical?.canonical === true
+  },
+  hasAuthorInfo: {
+    category: 'E-E-A-T',
+    priority: 'high',
+    issue: '頁面缺少作者資訊削弱信任度',
+    action: '在頁首或文末加入作者介紹與專業授權連結，補充聯絡方式。',
+    expectedScoreGain: '+6 分',
+    condition: ({ missingCritical }) => missingCritical?.author === true
+  },
+  hasPublisherInfo: {
+    category: 'E-E-A-T',
+    priority: 'high',
+    issue: '頁面缺少品牌／出版者資訊',
+    action: '補充品牌或組織資訊、社群連結，並維護公司頁面 Schema。',
+    expectedScoreGain: '+5 分',
+    condition: ({ missingCritical }) => missingCritical?.publisher === true
+  },
+  hasArticleSchema: {
+    category: '結構',
+    priority: 'medium',
+    issue: '缺乏 Article/BlogPosting Schema',
+    action: '加入 Article 結構化資料，標註作者、發布時間與主題，使搜尋更易理解內容。',
+    expectedScoreGain: '+4 分',
+    condition: ({ contentSignals }) => contentSignals?.hasArticleSchema === false
+  },
+  listPresent: {
+    category: '結構',
+    priority: 'medium',
+    issue: '缺少條列整理降低可掃讀性',
+    action: '整理重點段落為條列式（清單或步驟），對應使用者操作或比較需求。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentSignals }) => (contentSignals?.listCount || 0) === 0
+  },
+  tablePresent: {
+    category: '結構',
+    priority: 'medium',
+    issue: '缺乏表格整理數據或比較',
+    action: '將規格、價格、差異重點轉換為表格呈現，強化決策效率。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentSignals }) => (contentSignals?.tableCount || 0) === 0
+  },
+  actionableScoreNorm: {
+    category: '內容',
+    priority: 'high',
+    issue: '操作指引不足，難以轉化為實際行動',
+    action: '補充步驟化教學、清單或案例成果，至少新增 3 個具體行動建議。',
+    expectedScoreGain: '+6 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.actionableWeak
+  },
+  experienceCueNorm: {
+    category: 'E-E-A-T',
+    priority: 'medium',
+    issue: '缺少經驗案例或第一手實證',
+    action: '新增實測心得、客戶引用或案例證言，提高體驗與可信度。',
+    expectedScoreGain: '+4 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.experienceWeak
+  },
+  evidenceCountNorm: {
+    category: 'E-E-A-T',
+    priority: 'high',
+    issue: '缺少外部佐證與權威來源',
+    action: '引用並連結 2~3 個可信的統計或專家研究，並標註來源年份。',
+    expectedScoreGain: '+5 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.evidenceWeak
+  },
+  recentYearNorm: {
+    category: '新鮮度',
+    priority: 'medium',
+    issue: '內容缺乏近期年份更新',
+    action: '補充近三年內的統計或政策動態，更新頁面發布／修改時間。',
+    expectedScoreGain: '+4 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.freshnessWeak
+  },
+  titleIntentMatch: {
+    category: '內容',
+    priority: 'medium',
+    issue: '標題與主題關鍵字對應度不足',
+    action: '重新撰寫標題與前導段落，明確涵蓋主關鍵字與使用者意圖。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.titleMismatch
+  },
+  uniqueWordRatio: {
+    category: '內容',
+    priority: 'medium',
+    issue: '字詞多樣性不足，內容顯得重複',
+    action: '補充專業名詞、使用情境與差異化觀點，降低重複句型。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.uniqueWordLow
+  },
+  avgSentenceLengthNorm: {
+    category: '結構',
+    priority: 'low',
+    issue: '句子偏長導致閱讀負擔',
+    action: '拆分冗長句子、加上過場語與小標，讓每句平均不超過 24 個字。',
+    expectedScoreGain: '+2 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.readabilityWeak
+  },
+  depthLowFlag: {
+    category: '內容',
+    priority: 'high',
+    issue: '內容深度與段落數不足',
+    action: '延伸常見問題、比較表與使用案例，補足至少 3 個段落與 500 字以上內容。',
+    expectedScoreGain: '+6 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.depthLow
+  },
+  readabilityWeakFlag: {
+    category: '結構',
+    priority: 'medium',
+    issue: '可讀性不足，需要優化排版',
+    action: '加入 H2/H3 標題、條列與段落摘要，確保段落平均長度低於 350 字。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.readabilityWeak
+  },
+  actionableWeakFlag: {
+    category: '內容',
+    priority: 'high',
+    issue: '缺乏可立即執行的建議',
+    action: '提供逐步操作、檢核清單或工具下載，引導使用者下一步。',
+    expectedScoreGain: '+5 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.actionableWeak
+  },
+  freshnessWeakFlag: {
+    category: '新鮮度',
+    priority: 'medium',
+    issue: '缺少近期更新與維護訊號',
+    action: '補上最新趨勢、調整發布/更新日期，並新增 2023 年後的統計或政策。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.freshnessWeak
+  },
+  titleMismatchFlag: {
+    category: '內容',
+    priority: 'high',
+    issue: '標題承諾與內文落差過大',
+    action: '校對標題與主段落是否對應，必要時重寫標題或補充對應內容。',
+    expectedScoreGain: '+5 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.titleMismatch
+  },
+  externalLinkPresent: {
+    category: 'E-E-A-T',
+    priority: 'medium',
+    issue: '缺乏外部引用降低可信度',
+    action: '補上至少 2 個外部權威出處（官方統計、專家評論），並標註連結。',
+    expectedScoreGain: '+4 分',
+    condition: ({ missingCritical }) => missingCritical?.externalLinksMissing === true
+  },
+  authorityLinkPresent: {
+    category: 'E-E-A-T',
+    priority: 'medium',
+    issue: '未引用權威來源或機構',
+    action: '連結到政府、學術或知名媒體等高可信度來源，補強權威度。',
+    expectedScoreGain: '+4 分',
+    condition: ({ missingCritical }) => missingCritical?.authorityLinksMissing === true
+  },
+  hasPublishedDate: {
+    category: '新鮮度',
+    priority: 'medium',
+    issue: '頁面缺少發布日期標記',
+    action: '在頁首或文末補上發布／更新日期，並以 Schema 標記時間。',
+    expectedScoreGain: '+3 分',
+    condition: ({ missingCritical }) => missingCritical?.publishedDate === true
+  },
+  hasVisibleDate: {
+    category: '新鮮度',
+    priority: 'medium',
+    issue: '缺乏可見的內容時間資訊',
+    action: '在文章中顯示最新更新日期與資訊來源年份，提升時效信任。',
+    expectedScoreGain: '+3 分',
+    condition: ({ missingCritical }) => missingCritical?.visibleDate === true
+  }
+}
+
+const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 }
+
+function generateModelRecommendations(seoPredictions, aeoPredictions, modelContext) {
+  const recommendations = []
+  const featureScores = new Map()
+
+  const accumulate = (predictionMap) => {
+    if (!predictionMap) return
+    predictionMap.forEach((entry) => {
+      if (!entry?.contributions) return
+      Object.entries(entry.contributions).forEach(([feature, delta]) => {
+        if (typeof delta !== 'number' || delta >= 0) return
+        const current = featureScores.get(feature) || { total: 0, min: 0 }
+        const total = current.total + delta
+        const min = Math.min(current.min, delta)
+        featureScores.set(feature, { total, min })
+      })
+    })
+  }
+
+  accumulate(seoPredictions)
+  accumulate(aeoPredictions)
+
+  featureScores.forEach((scoreMeta, feature) => {
+    const config = FEATURE_RECOMMENDATION_MAP[feature]
+    if (!config) return
+    if (typeof config.condition === 'function' && !config.condition(modelContext)) return
+
+    const magnitude = Math.abs(scoreMeta.min)
+    const autoPriority = magnitude >= 2 ? 'high' : magnitude >= 1 ? 'medium' : 'low'
+    const priority = config.priority || autoPriority
+    const expectedScoreGain = config.expectedScoreGain || `+${Math.max(2, Math.round(magnitude * 3))} 分`
+
+    recommendations.push({
+      priority,
+      category: config.category,
+      issue: config.issue,
+      action: config.action,
+      expectedScoreGain,
+      title: config.issue,
+      description: config.action,
+      featureKey: feature,
+      impactScore: magnitude
+    })
+  })
+
+  recommendations.sort((a, b) => {
+    const pa = PRIORITY_ORDER[a.priority] ?? 99
+    const pb = PRIORITY_ORDER[b.priority] ?? 99
+    if (pa !== pb) return pa - pb
+    return (b.impactScore || 0) - (a.impactScore || 0)
+  })
+
+  return recommendations
+}
+
+function mergeRecommendations(primary = [], secondary = []) {
+  const result = []
+  const seen = new Set()
+
+  const append = (list) => {
+    if (!Array.isArray(list)) return
+    list.forEach((item) => {
+      if (!item || typeof item !== 'object') return
+      const key = `${item.category || ''}-${item.issue || item.title || ''}`
+      if (seen.has(key)) return
+      seen.add(key)
+      result.push({ ...item })
+    })
+  }
+
+  append(primary)
+  append(secondary)
+  return result
 }
 
 const HCU_QUESTION_SET = [
@@ -1390,21 +1655,14 @@ async function handleAnalyzePost(context, corsHeaders) {
       payload.eeatBreakdown = normalizeEeatBreakdown(openAiAugmentation.eeatBreakdown)
     }
 
+    const modelRecommendations = generateModelRecommendations(seoPredictions, aeoPredictions, modelContext)
     const heuristicRecommendations = generateHeuristicRecommendations(payload, contentSignals)
-    if ((!Array.isArray(payload.recommendations) || payload.recommendations.length === 0) && heuristicRecommendations.length) {
-      payload.recommendations = heuristicRecommendations
-    } else if (heuristicRecommendations.length) {
-      const existingIssues = new Set(
-        payload.recommendations.map((item) => `${item.category}-${item.issue}`)
-      )
-      const merged = [...payload.recommendations]
-      heuristicRecommendations.forEach((item) => {
-        const key = `${item.category}-${item.issue}`
-        if (!existingIssues.has(key)) {
-          merged.push(item)
-        }
-      })
-      payload.recommendations = merged
+    const combinedRecommendations = mergeRecommendations(modelRecommendations, heuristicRecommendations)
+
+    if (!Array.isArray(payload.recommendations) || payload.recommendations.length === 0) {
+      payload.recommendations = combinedRecommendations
+    } else {
+      payload.recommendations = mergeRecommendations(payload.recommendations, combinedRecommendations)
     }
 
     if (returnChunks && chunkSourceText) {
