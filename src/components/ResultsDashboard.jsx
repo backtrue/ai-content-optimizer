@@ -2,9 +2,10 @@ import { useState } from 'react'
 import ScoreGauge from './ScoreGauge'
 import MetricsBreakdown from './MetricsBreakdown'
 import Recommendations from './Recommendations'
+import ScoreHistoryPanel from './ScoreHistoryPanel'
 import { Trophy } from 'lucide-react'
 
-export default function ResultsDashboard({ results, feedbackContext, apiBaseUrl }) {
+export default function ResultsDashboard({ results, feedbackContext, apiBaseUrl, history = [], onExportHistory, onClearHistory }) {
   const { overallScore, aeoScore, seoScore, metrics, recommendations, chunks = [] } = results
   const [selectedChunkIds, setSelectedChunkIds] = useState([])
 
@@ -132,6 +133,9 @@ export default function ResultsDashboard({ results, feedbackContext, apiBaseUrl 
         apiBaseUrl={apiBaseUrl}
         selectedChunkIds={selectedChunkIds}
       />
+
+      {/* Score History Panel */}
+      <ScoreHistoryPanel history={history} onExport={onExportHistory} onClear={onClearHistory} />
     </div>
   )
 }

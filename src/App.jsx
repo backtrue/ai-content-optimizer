@@ -6,6 +6,7 @@ import LoadingSpinner from './components/LoadingSpinner'
 
 function App() {
   const [analysisResults, setAnalysisResults] = useState(null)
+  const [analysisHistory, setAnalysisHistory] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -118,6 +119,23 @@ function App() {
 
       const data = await response.json()
       setAnalysisResults(data)
+      const timestamp = new Date().toISOString()
+      setAnalysisHistory((prev) => {
+        const next = [
+          {
+            id: `${timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+            timestamp,
+            targetKeywords,
+            overallScore: data?.overallScore ?? null,
+            aeoScore: data?.aeoScore ?? null,
+            seoScore: data?.seoScore ?? null,
+            missingCritical: data?.scoreGuards?.missingCritical || data?.missingCritical || null,
+            contentQualityFlags: data?.scoreGuards?.contentQualityFlags || data?.contentQualityFlags || null
+          },
+          ...prev
+        ]
+        return next.slice(0, 200)
+      })
     } catch (err) {
       setError(err.message)
       console.error('Analysis error:', err)
@@ -156,6 +174,39 @@ function App() {
     return response.json()
   }
 
+  const handleExportHistory = () => {
+    if (!analysisHistory.length) return
+    const headers = ['timestamp', 'keywords', 'overall', 'aeo', 'seo', 'missingCritical', 'contentQualityFlags']
+    const rows = analysisHistory.map((item) => {
+      const keywords = Array.isArray(item.targetKeywords) ? item.targetKeywords.join('|') : ''
+      const missing = item.missingCritical ? Object.entries(item.missingCritical).filter(([, v]) => v === true).map(([k]) => k).join('|') : ''
+      const flags = item.contentQualityFlags ? Object.entries(item.contentQualityFlags).filter(([, v]) => v === true).map(([k]) => k).join('|') : ''
+      return [item.timestamp, keywords, item.overallScore ?? '', item.aeoScore ?? '', item.seoScore ?? '', missing, flags]
+    })
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => {
+        if (cell === null || cell === undefined) return ''
+        const value = String(cell)
+        if (value.includes(',') || value.includes('\"') || value.includes('\n')) {
+          return `"${value.replace(/"/g, '""')}"`
+        }
+        return value
+      }).join(','))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `analysis-history-${Date.now()}.csv`)
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleClearHistory = () => {
+    if (!window.confirm('確定要清除所有分析歷史紀錄嗎？')) return
+    setAnalysisHistory([])
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header />
@@ -188,7 +239,14 @@ function App() {
         
         {analysisResults && !isLoading && (
           <div className="mt-8">
-            <ResultsDashboard results={analysisResults} feedbackContext={feedbackContext} apiBaseUrl={apiUrl} />
+            <ResultsDashboard
+              results={analysisResults}
+              feedbackContext={feedbackContext}
+              apiBaseUrl={apiUrl}
+              history={analysisHistory}
+              onExportHistory={handleExportHistory}
+              onClearHistory={handleClearHistory}
+            />
           </div>
         )}
       </main>

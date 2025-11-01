@@ -78,6 +78,141 @@ const RATE_LIMIT_CONFIG = {
   ip: { limit: 40, windowSeconds: 60 * 60 }
 }
 
+function buildFallbackHcuAnswers(contentSignals = {}, contentFlags = {}, missingCritical = {}) {
+  const fallback = new Map()
+  const set = (id, answer, explanation) => {
+    fallback.set(id, {
+      id,
+      answer,
+      explanation: constrainLength(explanation, 120)
+    })
+  }
+
+  const wordCount = Number(contentSignals.wordCount || 0)
+  const paragraphCount = Number(contentSignals.paragraphCount || 0)
+  const actionableStepCount = Number(contentSignals.actionableStepCount || 0)
+  const actionableScore = Number(contentSignals.actionableScore || 0)
+  const evidenceCount = Number(contentSignals.evidenceCount || 0)
+  const externalAuthorityLinkCount = Number(contentSignals.externalAuthorityLinkCount || 0)
+  const recentYearCount = Number(contentSignals.recentYearCount || 0)
+  const uniqueWordRatio = Number(contentSignals.uniqueWordRatio || 0)
+  const experienceCueCount = Number(contentSignals.experienceCueCount || 0)
+  const caseStudyCount = Number(contentSignals.caseStudyCount || 0)
+  const titleIntentMatch = Number(contentSignals.titleIntentMatch || 0)
+  const hasAuthorInfo = Boolean(contentSignals.hasAuthorInfo)
+  const hasPublisherInfo = Boolean(contentSignals.hasPublisherInfo)
+  const hasFirstPersonNarrative = Boolean(contentSignals.hasFirstPersonNarrative)
+  const hasPublishedDate = Boolean(contentSignals.hasPublishedDate)
+  const hasModifiedDate = Boolean(contentSignals.hasModifiedDate)
+
+  const depthLow = Boolean(contentFlags.depthLow)
+  const depthVeryLow = Boolean(contentFlags.depthVeryLow)
+  const readabilityWeak = Boolean(contentFlags.readabilityWeak)
+  const evidenceWeak = Boolean(contentFlags.evidenceWeak)
+  const actionableWeak = Boolean(contentFlags.actionableWeak)
+  const freshnessWeak = Boolean(contentFlags.freshnessWeak)
+
+  const deepContent = wordCount >= 650 || paragraphCount >= 8
+  const enoughContent = wordCount >= 350 || paragraphCount >= 5
+  const actionableStrong = actionableStepCount >= 3 || actionableScore >= 2
+  const actionableSome = actionableStepCount >= 1 || actionableScore >= 1 || !actionableWeak
+  const evidenceStrong = evidenceCount >= 2 || externalAuthorityLinkCount >= 2
+  const evidenceSome = evidenceCount >= 1 || externalAuthorityLinkCount >= 1 || !evidenceWeak
+  const uniquenessStrong = uniqueWordRatio >= 0.28 || experienceCueCount >= 2 || caseStudyCount >= 1
+  const uniquenessSome = uniqueWordRatio >= 0.22 || experienceCueCount >= 1
+  const freshnessGood = recentYearCount >= 1 || hasPublishedDate || hasModifiedDate
+  const structureStrong = !readabilityWeak && !depthVeryLow
+  const safetySignals = evidenceSome && !missingCritical.metaDescription && !missingCritical.canonical
+
+  if (deepContent && actionableStrong) {
+    set('H1', 'yes', '篇幅充足並提供具體操作步驟。')
+  } else if (wordCount < 160) {
+    set('H1', 'no', '篇幅過短，難以支援實際行動。')
+  } else if (enoughContent && actionableSome) {
+    set('H1', 'partial', '具備協助資訊，但仍可補充更明確步驟。')
+  } else {
+    set('H1', 'partial', '內容有限，建議增加實務指引。')
+  }
+
+  if (titleIntentMatch >= 0.5 && !missingCritical.h1Count) {
+    set('H2', 'yes', '標題與開頭內容對應良好。')
+  } else if (titleIntentMatch < 0.15) {
+    set('H2', 'no', '標題意圖尚未在開頭清楚兌現。')
+  } else {
+    set('H2', 'partial', '主題大致符合，但仍可強化開頭承諾。')
+  }
+
+  if (deepContent && (actionableStrong || evidenceStrong)) {
+    set('H3', 'yes', '資訊深度足夠，可協助讀者完成任務。')
+  } else if (wordCount < 180) {
+    set('H3', 'no', '資訊量不足，仍需補充關鍵步驟。')
+  } else {
+    set('H3', 'partial', '提供部分指引，建議補充操作細節。')
+  }
+
+  if (uniquenessStrong) {
+    set('Q1', 'yes', '包含案例或獨特觀點，具原創性。')
+  } else if (uniquenessSome) {
+    set('Q1', 'partial', '展現部分自家觀點，可再增加細節。')
+  } else {
+    set('Q1', 'partial', '仍以整理資訊為主，建議補充自家洞察。')
+  }
+
+  if (!depthLow && deepContent) {
+    set('Q2', 'yes', '篇幅與段落覆蓋完整主題。')
+  } else if (depthVeryLow) {
+    set('Q2', 'no', '內容深度不足，需補齊主要段落。')
+  } else {
+    set('Q2', 'partial', '資訊尚可，但仍可擴充主題面向。')
+  }
+
+  if (caseStudyCount > 0 || experienceCueCount >= 2) {
+    set('Q3', 'yes', '提供案例或經驗，具洞察力。')
+  } else if (uniquenessSome) {
+    set('Q3', 'partial', '有初步案例提及，可再深化洞察。')
+  } else {
+    set('Q3', 'partial', '缺少案例與具體洞察，建議補充。')
+  }
+
+  if (hasAuthorInfo || hasPublisherInfo || hasFirstPersonNarrative) {
+    set('E1', 'yes', '呈現作者或品牌背景，可信度良好。')
+  } else if (experienceCueCount > 0) {
+    set('E1', 'partial', '有經驗線索，但缺少作者／品牌揭露。')
+  } else {
+    set('E1', 'no', '未偵測到作者或品牌資訊。')
+  }
+
+  if (evidenceStrong) {
+    set('E2', 'yes', '含外部引用或多筆佐證資料。')
+  } else if (evidenceSome || freshnessGood) {
+    set('E2', 'partial', '有部分資料來源，建議補充更多引用。')
+  } else {
+    set('E2', 'no', '缺少外部引用與年份佐證。')
+  }
+
+  if (structureStrong) {
+    set('P1', 'yes', '段落結構與可讀性良好。')
+  } else {
+    set('P1', 'partial', '排版可再優化，避免長段落。')
+  }
+
+  if (safetySignals && !freshnessWeak) {
+    set('P2', 'yes', '未偵測高風險元素，語氣穩健。')
+  } else {
+    set('P2', 'partial', '建議補充免責或引用，以降低風險。')
+  }
+
+  if (uniquenessStrong && evidenceSome) {
+    set('C1', 'yes', '展現差異化案例或數據，具競品優勢。')
+  } else if (depthVeryLow || uniqueWordRatio < 0.14) {
+    set('C1', 'no', '缺乏差異化內容，競品優勢不足。')
+  } else {
+    set('C1', 'partial', '需補強差異化案例或專屬觀點。')
+  }
+
+  return fallback
+}
+
 async function evaluateHelpfulContentWithOpenAI({ content, targetKeywords, payload, contentSignals, apiKey }) {
   if (!content || typeof content !== 'string') {
     return {}
@@ -2053,6 +2188,17 @@ function normalizeWhitespace(text) {
     .trim();
 }
 
+function harmonizeParagraphBreaks(text) {
+  if (typeof text !== 'string') return ''
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/<br\s*\/?>(?=\s*\n?)/gi, '\n')
+    .replace(/([。！？!?])(?!\s*\n)/g, '$1\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim()
+}
+
 function computeContentSignals({ plain = '', html = '', markdown = '', targetKeywords = [], sourceUrl = null }) {
   // 簡化版本：只計算基本信號以避免 Worker 超時
   // 完整版本應在後端服務中計算
@@ -2107,6 +2253,10 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
 
   const sourceHtml = html || ''
   const hasHtml = Boolean(sourceHtml.trim())
+  const htmlPlainFallback = hasHtml ? htmlToStructuredText(sourceHtml) : ''
+
+  const paragraphSegments = []
+  let primaryH1 = ''
 
   try {
     // 簡化版：使用正則表達式而非 DOM 解析以避免超時
@@ -2117,11 +2267,31 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
       signal.hasUniqueTitle = /<title[^>]*>(.{1,}?)<\/title>/i.test(sourceHtml)
       signal.hasMetaDescription = /name=["']description["']\s+content=["'](.{30,}?)["']/i.test(sourceHtml)
       signal.hasCanonical = /rel=["']canonical["']/i.test(sourceHtml)
+
+      const authorMatches = /<(?:meta|span|div)[^>]*(?:name|itemprop|class|id)=["'](?:author|byline|writer)["'][^>]*>(.*?)<\//gi
+      signal.hasAuthorInfo = authorMatches.test(sourceHtml)
+
+      const publisherMatches = /<(?:meta|span|div)[^>]*(?:name|itemprop|class|id)=["'](?:publisher|organization|brand)["'][^>]*>/gi
+      signal.hasPublisherInfo = publisherMatches.test(sourceHtml)
+
+      if (!signal.hasPublishedDate) {
+        signal.hasPublishedDate = /(?:datePublished|pubdate|published_time)["']?\s*[:=]\s*["']?\d{4}/i.test(sourceHtml)
+      }
+      if (!signal.hasModifiedDate) {
+        signal.hasModifiedDate = /(?:dateModified|updated_time|modified_time)["']?\s*[:=]\s*["']?\d{4}/i.test(sourceHtml)
+      }
       
       // 計數基本標籤
-      const h1Matches = sourceHtml.match(/<h1[^>]*>/gi) || []
+      const h1Matches = sourceHtml.match(/<h1[^>]*>(.*?)<\/h1>/gi) || []
       signal.h1Count = h1Matches.length
-      
+      if (h1Matches.length && !primaryH1) {
+        primaryH1 = stripHtmlTags(h1Matches[0]).trim()
+      }
+      if (!signal.h1ContainsKeyword && primaryH1 && targetKeywords.length) {
+        const h1Lower = primaryH1.toLowerCase()
+        signal.h1ContainsKeyword = targetKeywords.some((kw) => kw && h1Lower.includes(String(kw).toLowerCase()))
+      }
+
       const h2Matches = sourceHtml.match(/<h2[^>]*>/gi) || []
       signal.h2Count = h2Matches.length
       
@@ -2146,6 +2316,7 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
       
       // 檢查日期
       signal.hasVisibleDate = /\d{4}[年\/-]/.test(sourceHtml)
+      signal.hasVisibleDate ||= /(?:發佈|發布|更新)[^\n]*\d{4}[年\/-]\d{1,2}[月\/-]\d{1,2}/.test(sourceHtml)
     }
 
     // 使用 plain text 計算字數和句子
@@ -2194,33 +2365,47 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
 
     const plainCandidate = typeof plain === 'string' ? plain : ''
     const plainHasText = plainCandidate.trim().length > 0
+    const htmlHasText = htmlPlainFallback.trim().length > 0
 
-    if ((signal.paragraphCount === 0 || !paragraphTexts.length) && plainHasText) {
-      paragraphTexts = plainCandidate
+    if (plainHasText) {
+      const normalized = harmonizeParagraphBreaks(plainCandidate)
+      paragraphSegments.push(...normalized
         .split(/\n{2,}/)
         .map((chunk) => chunk.trim())
-        .filter(Boolean)
-      signal.paragraphCount = paragraphTexts.length
-      if (paragraphTexts.length) {
-        const totalLength = paragraphTexts.reduce((sum, paragraph) => sum + paragraph.length, 0)
-        signal.paragraphAverageLength = Math.round(totalLength / paragraphTexts.length)
-        signal.longParagraphCount = paragraphTexts.filter((paragraph) => paragraph.length > 380).length
-      }
+        .filter(Boolean))
     }
 
-    if (signal.listCount === 0 && plainHasText) {
-      const bulletMatches = plainCandidate.match(/^\s*(?:[-*+]|[0-9]{1,2}[\.)]|[一二三四五六七八九十]{1,3}[、．.])\s+/gm) || []
+    if (!paragraphSegments.length && htmlHasText) {
+      const normalizedHtml = harmonizeParagraphBreaks(htmlPlainFallback)
+      paragraphSegments.push(...normalizedHtml
+        .split(/\n{2,}/)
+        .map((chunk) => chunk.trim())
+        .filter(Boolean))
+    }
+
+    if (paragraphSegments.length) {
+      signal.paragraphCount = paragraphSegments.length
+      const totalLength = paragraphSegments.reduce((sum, paragraph) => sum + paragraph.length, 0)
+      signal.paragraphAverageLength = Math.round(totalLength / paragraphSegments.length)
+      signal.longParagraphCount = paragraphSegments.filter((paragraph) => paragraph.length > 380).length
+    }
+
+    const listSource = plainHasText ? plainCandidate : htmlPlainFallback
+    if (signal.listCount === 0 && listSource.trim()) {
+      const bulletMatches = listSource.match(/^\s*(?:[-*+]|[0-9]{1,2}[\.)]|[一二三四五六七八九十]{1,3}[、．.])\s+/gm) || []
       signal.listCount = bulletMatches.length ? Math.max(1, Math.round(bulletMatches.length / 2)) : signal.listCount
     }
 
-    if (signal.tableCount === 0 && plainHasText) {
-      const tableMatches = plainCandidate.match(/\|[^\n]+\|/g) || []
+    const tableSource = plainHasText ? plainCandidate : htmlPlainFallback
+    if (signal.tableCount === 0 && tableSource.trim()) {
+      const tableMatches = tableSource.match(/\|[^\n]+\|/g) || []
       signal.tableCount = tableMatches.length ? Math.max(1, Math.round(tableMatches.length / 4)) : signal.tableCount
     }
 
-    if (plainHasText) {
+    if (plainHasText || htmlHasText) {
+      const headingSource = plainHasText ? plainCandidate : htmlPlainFallback
       if (signal.h1Count === 0) {
-        const h1Matches = plainCandidate.match(/^#\s+.+/gm) || []
+        const h1Matches = headingSource.match(/^#\s+.+/gm) || []
         signal.h1Count = h1Matches.length
         if (h1Matches.length) {
           const firstHeading = h1Matches[0].replace(/^#\s+/, '').trim()
@@ -2232,7 +2417,7 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
           }
         }
         if (!h1Matches.length) {
-          const firstLine = plainCandidate
+          const firstLine = paragraphSegments[0] || headingSource
             .split('\n')
             .map((line) => line.trim())
             .find((line) => line.length > 0)
@@ -2247,8 +2432,8 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
       }
 
       if (signal.h2Count === 0) {
-        const markdownH2 = plainCandidate.match(/^##\s+.+/gm) || []
-        const enumeratedH2 = plainCandidate.match(/^[一二三四五六七八九十]{1,3}[、．.]+\s*.+/gm) || []
+        const markdownH2 = headingSource.match(/^##\s+.+/gm) || []
+        const enumeratedH2 = headingSource.match(/^[一二三四五六七八九十]{1,3}[、．.]+\s*.+/gm) || []
         const h2Texts = []
         markdownH2.forEach((heading) => {
           const text = heading.replace(/^##\s+/, '').trim()
@@ -2267,10 +2452,9 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
 
     const plainTextSource = normalizeWhitespace(firstNonEmpty(
       plain,
-      paragraphTexts.join('\n'),
-      body?.textContent || '',
-      markdown,
-      html
+      paragraphSegments.join('\n'),
+      htmlPlainFallback,
+      markdown
     ))
     const sentences = extractSentences(plainTextSource)
     const words = extractWords(plainTextSource)
@@ -2306,7 +2490,7 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
     signal.caseStudyCount = plainTextSource.match(/案例|case study/gi)?.length || 0
 
     const titleKeywords = extractKeywordSet(primaryH1)
-    const bodyLead = paragraphTexts.slice(0, 3).join(' ') || plainTextSource.slice(0, 600)
+    const bodyLead = paragraphSegments.slice(0, 3).join(' ') || plainTextSource.slice(0, 600)
     const bodyKeywords = extractKeywordSet(bodyLead)
     if (titleKeywords.size > 0 && bodyKeywords.size > 0) {
       let overlap = 0
@@ -2420,7 +2604,7 @@ function buildContentQualityFlags(contentSignals = {}) {
   }
 }
 
-function normalizeHcuReview(review) {
+function normalizeHcuReview(review, fallbackMap = null) {
   const answered = new Map()
   if (Array.isArray(review)) {
     review.forEach((item) => {
@@ -2434,11 +2618,15 @@ function normalizeHcuReview(review) {
     })
   }
 
+  const fallback = fallbackMap instanceof Map ? fallbackMap : new Map()
+
   return HCU_QUESTION_SET.map((question) => {
-    return answered.get(question.id) || {
+    if (answered.has(question.id)) return answered.get(question.id)
+    if (fallback.has(question.id)) return fallback.get(question.id)
+    return {
       id: question.id,
-      answer: 'no',
-      explanation: '模型未提供說明，預設視為未達標。'
+      answer: 'partial',
+      explanation: '系統預設：尚待人工補充說明。'
     }
   })
 }
@@ -2564,6 +2752,30 @@ function deriveFallbackMetricScore(metricName, scope, context = {}) {
   }
 }
 
+function deriveMissingCriticalSignals(contentSignals = {}) {
+  return {
+    faq: !contentSignals.hasFaqSchema,
+    howto: !contentSignals.hasHowToSchema,
+    article: !contentSignals.hasArticleSchema,
+    author: !contentSignals.hasAuthorInfo,
+    publisher: !contentSignals.hasPublisherInfo,
+    publishedDate: !contentSignals.hasPublishedDate,
+    modifiedDate: !contentSignals.hasModifiedDate,
+    visibleDate: !contentSignals.hasVisibleDate,
+    metaDescription: !contentSignals.hasMetaDescription,
+    canonical: !contentSignals.hasCanonical,
+    h1Keyword: !contentSignals.h1ContainsKeyword,
+    h1Count: Number(contentSignals.h1Count || 0) !== 1,
+    h2Coverage: Number(contentSignals.h2Count || 0) < 2,
+    paragraphsLong: Number(contentSignals.paragraphAverageLength || 0) > 420,
+    listMissing: Number(contentSignals.listCount || 0) === 0,
+    tableMissing: Number(contentSignals.tableCount || 0) === 0,
+    imageAltMissing: Number(contentSignals.imageCount || 0) > 0 && Number(contentSignals.imageWithAltCount || 0) < Number(contentSignals.imageCount || 0),
+    externalLinksMissing: Number(contentSignals.externalLinkCount || 0) < 1,
+    authorityLinksMissing: Number(contentSignals.externalAuthorityLinkCount || 0) < 1
+  }
+}
+
 function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
   if (!payload || typeof payload !== 'object') return payload || {}
   const clone = structuredClone ? structuredClone(payload) : JSON.parse(JSON.stringify(payload))
@@ -2603,27 +2815,7 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
     return score
   }
 
-  const missingCritical = {
-    faq: !contentSignals.hasFaqSchema,
-    howto: !contentSignals.hasHowToSchema,
-    article: !contentSignals.hasArticleSchema,
-    author: !contentSignals.hasAuthorInfo,
-    publisher: !contentSignals.hasPublisherInfo,
-    publishedDate: !contentSignals.hasPublishedDate,
-    modifiedDate: !contentSignals.hasModifiedDate,
-    visibleDate: !contentSignals.hasVisibleDate,
-    metaDescription: !contentSignals.hasMetaDescription,
-    canonical: !contentSignals.hasCanonical,
-    h1Keyword: !contentSignals.h1ContainsKeyword,
-    h1Count: contentSignals.h1Count !== 1,
-    h2Coverage: contentSignals.h2Count < 2,
-    paragraphsLong: contentSignals.paragraphAverageLength > 420,
-    listMissing: contentSignals.listCount === 0,
-    tableMissing: contentSignals.tableCount === 0,
-    imageAltMissing: contentSignals.imageCount > 0 && contentSignals.imageWithAltCount < contentSignals.imageCount,
-    externalLinksMissing: contentSignals.externalLinkCount < 1,
-    authorityLinksMissing: contentSignals.externalAuthorityLinkCount < 1
-  }
+  const missingCritical = deriveMissingCriticalSignals(contentSignals)
 
   const contentQualityFlags = buildContentQualityFlags(contentSignals)
   const fallbackContext = {
@@ -3435,9 +3627,10 @@ function normalizeAnalysisResult(result, contentSignals = {}) {
     result.seoScore = averageSeo;
   }
 
-  result.hcuReview = normalizeHcuReview(result.hcuReview)
-
   const contentFlags = buildContentQualityFlags(contentSignals)
+  const missingCritical = deriveMissingCriticalSignals(contentSignals)
+  const fallbackHcuAnswers = buildFallbackHcuAnswers(contentSignals, contentFlags, missingCritical)
+  result.hcuReview = normalizeHcuReview(result.hcuReview, fallbackHcuAnswers)
 
   result.recommendations = Array.isArray(result.recommendations)
     ? result.recommendations.filter((item) => item && typeof item === 'object')
