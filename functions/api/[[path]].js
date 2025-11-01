@@ -1775,6 +1775,9 @@ async function handleAnalyzePost(context, corsHeaders) {
     }
 
     payload = applyScoreGuards(payload, contentSignals, targetKeywords)
+    const seoPredictions = payload?.scoreGuards?.seoPredictions || null
+    const aeoPredictions = payload?.scoreGuards?.aeoPredictions || null
+    const modelContext = payload?.scoreGuards?.modelContext || null
 
     if (payload.metrics?.seo && openAiAugmentation?.metrics?.seo) {
       payload.metrics.seo = blendMetricArrays(payload.metrics.seo, openAiAugmentation.metrics.seo)
@@ -3017,7 +3020,10 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
     contentQualityFlags,
     eeatBreakdown: clone.eeatBreakdown || null,
     highRiskFlags: Array.isArray(clone.highRiskFlags) ? clone.highRiskFlags : [],
-    appliedAt: new Date().toISOString()
+    appliedAt: new Date().toISOString(),
+    seoPredictions,
+    aeoPredictions,
+    modelContext
   }
 
   return clone
@@ -3690,14 +3696,6 @@ function sanitizeSeoMetricEntry(metric) {
     ...base,
     weight
   };
-}
-
-function clampScore(score) {
-  const value = Number(score);
-  if (!Number.isFinite(value)) return 0;
-  if (value < 0) return 0;
-  if (value > 10) return 10;
-  return value;
 }
 
 function computeAverageScore(metrics) {
