@@ -8,6 +8,7 @@ Automatically switches services when quota is exceeded or errors occur
 import os
 import json
 import time
+import random
 import requests
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
@@ -20,76 +21,153 @@ class ServiceStatus(Enum):
     DISABLED = "disabled"
 
 class SerpService:
-    """SERP 服務基類"""
-    
-    def __init__(self, name: str, api_keys: list, enabled: bool = True):
+    """SERP 服務基類，支援多個 API Key 輪換與冷卻。"""
+
+    def __init__(
+        self,
+        name: str,
+        api_keys: list,
+        enabled: bool = True,
+        rotation_strategy: str = "priority",
+        cooldown_seconds: int = 60,
+        log_rotation: bool = False,
+    ):
         self.name = name
         self.api_keys = api_keys if isinstance(api_keys, list) else [api_keys]
         self.current_key_index = 0
-        self.enabled = enabled
-        self.status = ServiceStatus.ACTIVE if enabled else ServiceStatus.DISABLED
+        self.enabled = enabled and bool(self.api_keys)
+        self.rotation_strategy = (rotation_strategy or "priority").lower()
+        if self.rotation_strategy not in {"priority", "round-robin", "random"}:
+            self.rotation_strategy = "priority"
+        self.cooldown_seconds = max(0, cooldown_seconds)
+        self.log_rotation = log_rotation
+        self.status = ServiceStatus.ACTIVE if self.enabled else ServiceStatus.DISABLED
         self.last_error = None
         self.error_count = 0
         self.success_count = 0
         self.key_stats = {key: {'success': 0, 'error': 0} for key in self.api_keys}
-    
+        self.key_states = [{'cooldown_until': 0.0} for _ in self.api_keys]
+
     @property
     def api_key(self) -> str:
-        """取得目前的 API Key"""
+        """取得目前的 API Key。"""
         if not self.api_keys:
             return ""
         return self.api_keys[self.current_key_index]
-    
-    def rotate_api_key(self):
-        """輪換到下一個 API Key"""
-        if len(self.api_keys) > 1:
-            self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
-            if os.getenv('SERP_LOG_API_KEY_ROTATION', 'false').lower() == 'true':
-                print(f"  [API Key 輪換] {self.name}: 切換到 API Key #{self.current_key_index + 1}")
-    
+
+    def _is_key_available(self, index: int, *, now: Optional[float] = None) -> bool:
+        if index < 0 or index >= len(self.api_keys):
+            return False
+        now = time.time() if now is None else now
+        state = self.key_states[index]
+        return state.get('cooldown_until', 0.0) <= now
+
+    def _available_indices(self, exclude_current: bool = False) -> List[int]:
+        now = time.time()
+        indices: List[int] = []
+        for idx in range(len(self.api_keys)):
+            if exclude_current and idx == self.current_key_index:
+                continue
+            if self._is_key_available(idx, now=now):
+                indices.append(idx)
+        return indices
+
+    def _log_key_rotation(self, new_index: int) -> None:
+        if not self.log_rotation:
+            return
+        print(f"  [API Key 輪換] {self.name}: 切換到 API Key #{new_index + 1}")
+
+    def _select_next_index(self, *, reason: str = "error") -> int:
+        if len(self.api_keys) <= 1:
+            return self.current_key_index
+
+        available = self._available_indices(exclude_current=True)
+        if not available:
+            return self.current_key_index
+
+        if self.rotation_strategy == "random":
+            return random.choice(available)
+
+        if self.rotation_strategy == "round-robin":
+            total = len(self.api_keys)
+            for offset in range(1, total + 1):
+                candidate = (self.current_key_index + offset) % total
+                if candidate in available:
+                    return candidate
+            return self.current_key_index
+
+        # priority: 選擇最前面可用的 key
+        for idx in range(len(self.api_keys)):
+            if idx in available:
+                return idx
+        return self.current_key_index
+
+    def _ensure_active_key(self) -> bool:
+        if not self.api_keys:
+            return False
+        if self._is_key_available(self.current_key_index):
+            return True
+        rotated = self.rotate_api_key(reason="cooldown")
+        return rotated and self._is_key_available(self.current_key_index)
+
+    def rotate_api_key(self, *, reason: str = "error") -> bool:
+        if len(self.api_keys) <= 1:
+            return False
+        next_index = self._select_next_index(reason=reason)
+        if next_index == self.current_key_index:
+            return False
+        self.current_key_index = next_index
+        self._log_key_rotation(next_index)
+        return True
+
     def record_key_result(self, success: bool):
-        """記錄目前 API Key 的結果"""
         key = self.api_key
-        if key in self.key_stats:
-            if success:
-                self.key_stats[key]['success'] += 1
-            else:
-                self.key_stats[key]['error'] += 1
-        
+        stats = self.key_stats.get(key)
+        if not stats:
+            return
+        if success:
+            stats['success'] += 1
+        else:
+            stats['error'] += 1
+
     def fetch(self, keyword: str, **kwargs) -> Tuple[Optional[List[Dict]], Optional[str]]:
-        """
-        Fetch SERP results
-        Returns: (results, error_message)
-        """
         raise NotImplementedError
-    
+
     def is_available(self) -> bool:
-        return self.enabled and self.status in [ServiceStatus.ACTIVE]
-    
+        if not self.enabled:
+            return False
+        if not self.api_keys:
+            self.status = ServiceStatus.ERROR
+            return False
+        if not any(self._is_key_available(idx) for idx in range(len(self.api_keys))):
+            self.status = ServiceStatus.QUOTA_EXCEEDED
+            return False
+        return self.status in {ServiceStatus.ACTIVE, ServiceStatus.ERROR, ServiceStatus.QUOTA_EXCEEDED}
+
     def mark_error(self, error: str):
-        """標記錯誤並決定是否輪換 API Key"""
         self.error_count += 1
         self.last_error = error
         self.record_key_result(False)
-        
-        if any(code in error for code in ["quota", "429", "403", "402"]):
-            # 配額或帳務相關錯誤，輪換 API Key
-            previous_index = self.current_key_index
-            self.rotate_api_key()
-            # 若仍有其他金鑰可用，保持服務為可用狀態
-            if len(self.api_keys) > 1 and self.current_key_index != previous_index:
+
+        quota_error = any(code in error.lower() for code in ["quota", "429", "403", "402"])
+
+        if quota_error and self.api_keys:
+            self.key_states[self.current_key_index]['cooldown_until'] = time.time() + self.cooldown_seconds
+            rotated = self.rotate_api_key(reason="quota")
+            if rotated:
                 self.status = ServiceStatus.ACTIVE
-            else:
-                self.status = ServiceStatus.QUOTA_EXCEEDED
+                return
+            self.status = ServiceStatus.QUOTA_EXCEEDED
         else:
             self.status = ServiceStatus.ERROR
-    
+
     def mark_success(self):
-        """標記成功"""
         self.success_count += 1
         self.record_key_result(True)
-        if self.status == ServiceStatus.ERROR:
-            self.status = ServiceStatus.ACTIVE
+        # 成功即表示目前 key 有效，解除冷卻狀態
+        if self.api_keys:
+            self.key_states[self.current_key_index]['cooldown_until'] = 0.0
+        self.status = ServiceStatus.ACTIVE
 
 class SerpAPIService(SerpService):
     """SerpAPI service implementation"""
@@ -221,7 +299,7 @@ class ZenSERPService(SerpService):
         if not self.is_available():
             return None, f"Service {self.name} is not available"
         
-        url = "https://api.zenserp.com/search"
+        url = "https://app.zenserp.com/api/v2/search"
         params = {
             'apikey': self.api_key,
             'q': keyword,
@@ -291,26 +369,51 @@ class SerpManager:
     
     def _init_services(self):
         """初始化所有可用的服務"""
+        rotation_strategy = os.getenv('SERP_API_KEY_ROTATION', 'priority')
+        cooldown_seconds = int(os.getenv('SERP_API_KEY_COOLDOWN_SECONDS', '120'))
+        log_rotation = os.getenv('SERP_LOG_API_KEY_ROTATION', 'false').lower() == 'true'
+
         # SerpAPI - 支援多個 API Key
         serpapi_keys_str = os.getenv('SERPAPI_KEYS', '')
         serpapi_enabled = os.getenv('SERPAPI_ENABLED', 'true').lower() == 'true'
         if serpapi_keys_str:
             serpapi_keys = [k.strip() for k in serpapi_keys_str.split(',') if k.strip()]
-            self.services['serpapi'] = SerpAPIService('SerpAPI', serpapi_keys, serpapi_enabled)
-        
+            self.services['serpapi'] = SerpAPIService(
+                'SerpAPI',
+                serpapi_keys,
+                serpapi_enabled,
+                rotation_strategy=rotation_strategy,
+                cooldown_seconds=cooldown_seconds,
+                log_rotation=log_rotation,
+            )
+
         # ValueSERP - 支援多個 API Key
         valueserp_keys_str = os.getenv('VALUESERP_KEYS', '')
         valueserp_enabled = os.getenv('VALUESERP_ENABLED', 'false').lower() == 'true'
         if valueserp_keys_str:
             valueserp_keys = [k.strip() for k in valueserp_keys_str.split(',') if k.strip()]
-            self.services['valueserp'] = ValueSERPService('ValueSERP', valueserp_keys, valueserp_enabled)
-        
+            self.services['valueserp'] = ValueSERPService(
+                'ValueSERP',
+                valueserp_keys,
+                valueserp_enabled,
+                rotation_strategy=rotation_strategy,
+                cooldown_seconds=cooldown_seconds,
+                log_rotation=log_rotation,
+            )
+
         # ZenSERP - 支援多個 API Key
         zenserp_keys_str = os.getenv('ZENSERP_KEYS', '')
         zenserp_enabled = os.getenv('ZENSERP_ENABLED', 'false').lower() == 'true'
         if zenserp_keys_str:
             zenserp_keys = [k.strip() for k in zenserp_keys_str.split(',') if k.strip()]
-            self.services['zenserp'] = ZenSERPService('ZenSERP', zenserp_keys, zenserp_enabled)
+            self.services['zenserp'] = ZenSERPService(
+                'ZenSERP',
+                zenserp_keys,
+                zenserp_enabled,
+                rotation_strategy=rotation_strategy,
+                cooldown_seconds=cooldown_seconds,
+                log_rotation=log_rotation,
+            )
     
     def _get_service_order(self) -> List[str]:
         """Get service order based on strategy"""
