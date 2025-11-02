@@ -6,6 +6,8 @@ import LoadingSpinner from './components/LoadingSpinner'
 
 function App() {
   const [analysisResults, setAnalysisResults] = useState(null)
+  const [recommendations, setRecommendations] = useState([])
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
   const [analysisHistory, setAnalysisHistory] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -71,9 +73,11 @@ function App() {
   }
 
   const handleAnalyze = async (contentPayload, targetKeywords, meta = {}) => {
-    setIsLoading(true);
-    setError(null);
-    setAnalysisResults(null);
+    setIsLoading(true)
+    setError(null)
+    setAnalysisResults(null)
+    setRecommendations([])
+    setIsLoadingRecommendations(false)
 
     try {
       const plainText = typeof contentPayload?.plain === 'string' ? contentPayload.plain : ''
@@ -109,6 +113,7 @@ function App() {
             mode: meta.mode,
             contentUrl: meta.contentUrl,
             fetchedUrl: meta.fetchedUrl || meta.contentUrl,
+            includeRecommendations: false,
           }),
         },
         2, // 重試次數
@@ -118,7 +123,20 @@ function App() {
       // 如果代碼執行到這裡，表示請求成功
 
       const data = await response.json()
-      setAnalysisResults(data)
+      const initialResults = {
+        ...data,
+        rawInput: {
+          content: plainText,
+          contentPlain: plainText,
+          contentHtml: htmlText || null,
+          contentMarkdown: markdownText || null,
+          contentFormatHint: formatHint
+        },
+        targetKeywords,
+        recommendationsStatus: data?.recommendationsStatus || 'not_requested'
+      }
+      setAnalysisResults(initialResults)
+      setRecommendations(Array.isArray(data?.recommendations) ? data.recommendations : [])
       const timestamp = new Date().toISOString()
       setAnalysisHistory((prev) => {
         const next = [
@@ -141,6 +159,64 @@ function App() {
       console.error('Analysis error:', err)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleGenerateRecommendations = async () => {
+    if (!analysisResults) return
+    setIsLoadingRecommendations(true)
+    setError(null)
+    setRecommendations([])
+    setAnalysisResults((prev) => (prev ? { ...prev, recommendationsStatus: 'loading' } : prev))
+    try {
+      const {
+        rawInput = {},
+        targetKeywords = [],
+        scoreGuards,
+        contentSignals,
+        chunks
+      } = analysisResults || {}
+      const response = await fetchWithRetry(
+        `${apiUrl}/api/analyze`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          mode: 'cors',
+          credentials: 'include',
+          body: JSON.stringify({
+            content: rawInput?.content ?? null,
+            contentPlain: rawInput?.contentPlain ?? null,
+            contentHtml: rawInput?.contentHtml ?? null,
+            contentMarkdown: rawInput?.contentMarkdown ?? null,
+            contentFormatHint: rawInput?.contentFormatHint ?? null,
+            targetKeywords,
+            sessionId,
+            includeRecommendations: true,
+            returnChunks: Boolean(chunks?.length),
+            scoreGuards,
+            contentSignals
+          })
+        },
+        2,
+        1000
+      )
+
+      const data = await response.json()
+      setAnalysisResults((prev) => ({
+        ...prev,
+        ...data,
+        recommendationsStatus: data?.recommendationsStatus || 'ready'
+      }))
+      setRecommendations(Array.isArray(data?.recommendations) ? data.recommendations : [])
+    } catch (err) {
+      setError(err.message)
+      console.error('Generate recommendations error:', err)
+      setAnalysisResults((prev) => (prev ? { ...prev, recommendationsStatus: 'failed' } : prev))
+    } finally {
+      setIsLoadingRecommendations(false)
     }
   }
 
@@ -241,11 +317,11 @@ function App() {
           <div className="mt-8">
             <ResultsDashboard
               results={analysisResults}
+              recommendations={recommendations}
+              onGenerateRecommendations={handleGenerateRecommendations}
+              generatingRecommendations={isLoadingRecommendations}
               feedbackContext={feedbackContext}
               apiBaseUrl={apiUrl}
-              history={analysisHistory}
-              onExportHistory={handleExportHistory}
-              onClearHistory={handleClearHistory}
             />
           </div>
         )}

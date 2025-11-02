@@ -5,44 +5,68 @@ Converts model to simplified linear approximation for scoring-model.js
 """
 
 import json
+from pathlib import Path
+
 import pandas as pd
-import numpy as np
-import xgboost as xgb
 
-print("Exporting model to JavaScript format...")
+print('Exporting model to JavaScript format...')
 
-# Load training data and model
-df = pd.read_csv('./ml/training_data.csv')
-feature_cols = [col for col in df.columns if col not in ['url', 'keyword', 'serp_rank', 'target_score', 'title']]
+CONFIG_PATH = Path('./ml/trained_model_config.json')
 
-# Load model config
-with open('./ml/trained_model_config.json', 'r', encoding='utf-8') as f:
+if not CONFIG_PATH.exists():
+    raise SystemExit('找不到訓練後的模型組態，請先執行 train_baseline.py')
+
+with CONFIG_PATH.open('r', encoding='utf-8') as f:
     model_config = json.load(f)
 
-# Create JavaScript export
-js_export = {
-    'version': model_config['version'],
-    'createdAt': model_config['createdAt'],
-    'description': model_config['description'],
-    'metrics': model_config['metrics'],
-    'features': feature_cols,
-    'featureImportance': {item['feature']: item['importance'] for item in model_config['top_features']},
-    'trainingMetadata': {
-        'samples': model_config['training_samples'],
-        'featureCount': model_config['feature_count'],
-        'modelType': model_config['model_type'],
-        'hyperparameters': model_config['hyperparameters']
+dataset_meta = model_config.get('dataset', {})
+dataset_path = Path(dataset_meta.get('path', './ml/training_prepared.csv'))
+
+if not dataset_path.exists():
+    raise SystemExit(f'找不到資料集：{dataset_path}')
+
+df = pd.read_csv(dataset_path)
+
+exclude_columns = {
+    'url',
+    'keyword',
+    'title',
+}
+exclude_columns.update(set(model_config.get('targets', {}).keys()))
+
+feature_cols = [col for col in df.columns if col not in exclude_columns]
+
+targets = {}
+for target_name, payload in model_config.get('targets', {}).items():
+    feature_importance = {
+        item['feature']: item['importance']
+        for item in payload.get('feature_importance_top20', [])
+        if isinstance(item, dict) and 'feature' in item and 'importance' in item
     }
+
+    targets[target_name] = {
+        'metrics': payload.get('metrics', {}),
+        'featureImportance': feature_importance,
+        'modelPath': payload.get('model_path')
+    }
+
+js_export = {
+    'version': model_config.get('version'),
+    'createdAt': model_config.get('createdAt'),
+    'description': model_config.get('description'),
+    'features': feature_cols,
+    'dataset': dataset_meta,
+    'hyperparameters': model_config.get('hyperparameters', {}),
+    'targets': targets
 }
 
-# Save as JSON for import
-with open('./ml/model_export.json', 'w', encoding='utf-8') as f:
-    json.dump(js_export, f, ensure_ascii=False, indent=2)
+export_path = Path('./ml/model_export.json')
+export_path.write_text(json.dumps(js_export, ensure_ascii=False, indent=2), encoding='utf-8')
 
-print("✓ Model exported to ./ml/model_export.json")
-print("\nExport summary:")
-print(f"  Version: {js_export['version']}")
+print(f'✓ Model exported to {export_path}')
+print('\nExport summary:')
+print(f"  Version: {js_export.get('version')}")
 print(f"  Features: {len(feature_cols)}")
-print(f"  Training samples: {model_config['training_samples']}")
-print(f"  Test R²: {model_config['metrics']['test_r2']:.4f}")
-print("\nNext: Update scoring-model.js to use this model config")
+print(f"  Training samples: {dataset_meta.get('records')}")
+print(f"  Targets: {', '.join(targets.keys()) or '無'}")
+print('\nNext: Update scoring-model.js to use this model config')

@@ -2,11 +2,18 @@ import { useState } from 'react'
 import ScoreGauge from './ScoreGauge'
 import MetricsBreakdown from './MetricsBreakdown'
 import Recommendations from './Recommendations'
-import ScoreHistoryPanel from './ScoreHistoryPanel'
-import { Trophy } from 'lucide-react'
+// import ScoreHistoryPanel from './ScoreHistoryPanel'
+import { Trophy, Sparkles } from 'lucide-react'
 
-export default function ResultsDashboard({ results, feedbackContext, apiBaseUrl, history = [], onExportHistory, onClearHistory }) {
-  const { overallScore, aeoScore, seoScore, metrics, recommendations, chunks = [] } = results
+export default function ResultsDashboard({
+  results,
+  recommendations = [],
+  onGenerateRecommendations,
+  generatingRecommendations = false,
+  feedbackContext,
+  apiBaseUrl /*, history = [], onExportHistory, onClearHistory */
+}) {
+  const { overallScore, aeoScore, seoScore, metrics, chunks = [], recommendationsStatus } = results
   const [selectedChunkIds, setSelectedChunkIds] = useState([])
 
   const getScoreColor = (score) => {
@@ -127,15 +134,50 @@ export default function ResultsDashboard({ results, feedbackContext, apiBaseUrl,
       )}
 
       {/* Recommendations */}
-      <Recommendations
-        recommendations={recommendations}
-        feedbackContext={feedbackContext}
-        apiBaseUrl={apiBaseUrl}
-        selectedChunkIds={selectedChunkIds}
-      />
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">優化建議清單</h3>
+            <p className="text-sm text-gray-600">先查看評分再決定是否產生建議，節省 LLM 成本</p>
+          </div>
+          {onGenerateRecommendations && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold disabled:opacity-50"
+              onClick={onGenerateRecommendations}
+              disabled={generatingRecommendations || recommendationsStatus === 'loading'}
+            >
+              <Sparkles className="w-4 h-4" />
+              {generatingRecommendations || recommendationsStatus === 'loading' ? '產生中…' : '產生優化建議'}
+            </button>
+          )}
+        </div>
 
-      {/* Score History Panel */}
-      <ScoreHistoryPanel history={history} onExport={onExportHistory} onClear={onClearHistory} />
+        {recommendationsStatus === 'failed' && (
+          <div className="p-3 bg-red-50 border border-red-100 text-sm text-red-700 rounded">
+            建議生成失敗，請稍後再試一次。
+          </div>
+        )}
+
+        {recommendationsStatus === 'not_requested' && recommendations.length === 0 && (
+          <div className="p-6 text-center text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
+            <p className="font-medium">尚未產生優化建議</p>
+            <p className="text-sm">當你需要具體調整方向時，再按下上方按鈕即可。</p>
+          </div>
+        )}
+
+        {recommendationsStatus !== 'not_requested' && (
+          <Recommendations
+            recommendations={recommendations}
+            feedbackContext={feedbackContext}
+            apiBaseUrl={apiBaseUrl}
+            selectedChunkIds={selectedChunkIds}
+          />
+        )}
+      </div>
+
+      {/* Score History Panel disabled for now */}
+      {/* <ScoreHistoryPanel history={history} onExport={onExportHistory} onClear={onClearHistory} /> */}
     </div>
   )
 }

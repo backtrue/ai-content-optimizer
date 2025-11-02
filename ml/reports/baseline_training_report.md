@@ -1,72 +1,57 @@
 # Baseline 模型訓練報告
 
-- 產出時間：2025-11-01T13:53:53
+- 產出時間：2025-11-02T03:58:46
 - 訓練資料筆數：1345
-- 特徵欄位數：62
+- 特徵欄位數：70
 
 ## 評估指標總覽
 
 | 目標 | Train RMSE | Test RMSE | Test R² | CV R² (mean±std) | 資料量 (train/test) |
 |---|---|---|---|---|
-| score_overall_proxy | 0.137 | 0.667 | 1.000 | 0.923 ± 0.144 | 1076/269 |
-| score_hcu_proxy | 0.149 | 1.014 | 0.980 | 0.939 ± 0.095 | 705/177 |
-| score_eeat_proxy | 0.157 | 0.394 | 1.000 | 0.963 ± 0.062 | 1076/269 |
-| score_aeo_proxy | 0.085 | 2.929 | 0.812 | 0.736 ± 0.244 | 705/177 |
+| score_hcu_proxy | 0.146 | 1.039 | 0.979 | 0.927 ± 0.116 | 705/177 |
+| score_eeat_proxy | 0.157 | 0.369 | 1.000 | 0.964 ± 0.064 | 1076/269 |
+| score_aeo_proxy | 0.069 | 2.955 | 0.809 | 0.737 ± 0.246 | 705/177 |
 
 ## 重要特徵（Top 10）
-
-### score_overall_proxy
-| 排名 | 特徵 | 重要度 |
-|---|---|---|
-| 1 | actionableWeakFlag | 0.520324 |
-| 2 | uniqueWordRatio | 0.340275 |
-| 3 | depthLowFlag | 0.101728 |
-| 4 | avgSentenceLengthNorm | 0.028041 |
-| 5 | hasVisibleDate | 0.003636 |
-| 6 | hcuNoRatio | 0.001420 |
-| 7 | listPresent | 0.000938 |
-| 8 | hcuYesRatio | 0.000846 |
-| 9 | referenceKeywordNorm | 0.000786 |
-| 10 | hasUniqueTitle | 0.000526 |
 
 ### score_hcu_proxy
 | 排名 | 特徵 | 重要度 |
 |---|---|---|
-| 1 | hcuNoRatio | 0.409491 |
-| 2 | listPresent | 0.202614 |
-| 3 | hcuYesRatio | 0.165184 |
-| 4 | hcuContentHelpfulness | 0.064954 |
-| 5 | tablePresent | 0.041340 |
-| 6 | wordCountNorm | 0.032087 |
-| 7 | avgSentenceLengthNorm | 0.018944 |
-| 8 | hasArticleSchema | 0.017743 |
-| 9 | hcuPartialRatio | 0.014515 |
-| 10 | h2CountNorm | 0.009196 |
+| 1 | hcuNoRatio | 0.385930 |
+| 2 | listPresent | 0.181733 |
+| 3 | hcuYesRatio | 0.178391 |
+| 4 | hcuContentHelpfulness | 0.082328 |
+| 5 | tablePresent | 0.043843 |
+| 6 | hcuPartialRatio | 0.028852 |
+| 7 | wordCountNorm | 0.026983 |
+| 8 | avgSentenceLengthNorm | 0.017625 |
+| 9 | h2CountNorm | 0.008577 |
+| 10 | hasArticleSchema | 0.008088 |
 
 ### score_eeat_proxy
 | 排名 | 特徵 | 重要度 |
 |---|---|---|
-| 1 | actionableWeakFlag | 0.502204 |
-| 2 | uniqueWordRatio | 0.380714 |
-| 3 | depthLowFlag | 0.050320 |
-| 4 | avgSentenceLengthNorm | 0.026921 |
-| 5 | hasVisibleDate | 0.022467 |
-| 6 | canonicalPresent | 0.007255 |
-| 7 | hasUniqueTitle | 0.004541 |
-| 8 | hasH1Keyword | 0.003181 |
-| 9 | metaDescriptionPresent | 0.001043 |
-| 10 | referenceKeywordNorm | 0.000782 |
+| 1 | depthLowFlag | 0.957585 |
+| 2 | uniqueWordRatio | 0.033596 |
+| 3 | avgSentenceLengthNorm | 0.004509 |
+| 4 | hasVisibleDate | 0.002496 |
+| 5 | canonicalPresent | 0.000705 |
+| 6 | hasUniqueTitle | 0.000642 |
+| 7 | referenceKeywordNorm | 0.000198 |
+| 8 | metaDescriptionPresent | 0.000146 |
+| 9 | hasH1Keyword | 0.000055 |
+| 10 | readabilityWeakFlag | 0.000023 |
 
 ### score_aeo_proxy
 | 排名 | 特徵 | 重要度 |
 |---|---|---|
-| 1 | listPresent | 0.384841 |
-| 2 | metaDescriptionPresent | 0.216392 |
-| 3 | hasArticleSchema | 0.085487 |
-| 4 | tablePresent | 0.082332 |
-| 5 | hcuContentHelpfulness | 0.050367 |
-| 6 | hcuYesRatio | 0.035306 |
-| 7 | hcuPartialRatio | 0.033704 |
-| 8 | hcuNoRatio | 0.024237 |
-| 9 | hasUniqueTitle | 0.023297 |
-| 10 | target_score | 0.014980 |
+| 1 | listPresent | 0.380929 |
+| 2 | metaDescriptionPresent | 0.283350 |
+| 3 | tablePresent | 0.091956 |
+| 4 | hcuYesRatio | 0.061685 |
+| 5 | hcuContentHelpfulness | 0.055710 |
+| 6 | hcuPartialRatio | 0.032913 |
+| 7 | hasUniqueTitle | 0.031187 |
+| 8 | hcuNoRatio | 0.008556 |
+| 9 | hasH1Keyword | 0.008519 |
+| 10 | hasArticleSchema | 0.007287 |

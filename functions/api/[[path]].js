@@ -808,7 +808,88 @@ const FEATURE_RECOMMENDATION_MAP = {
 
 const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 }
 
-function generateModelRecommendations(seoPredictions, aeoPredictions, modelContext) {
+function pickLowScoringMetrics(metrics = [], lowThreshold = 6, limit = 4) {
+  if (!Array.isArray(metrics)) return []
+  return metrics
+    .filter((metric) => Number.isFinite(metric?.score))
+    .filter((metric) => metric.score <= lowThreshold)
+    .map((metric) => ({
+      name: metric.name,
+      score: metric.score,
+      description: metric.description || '',
+      weight: metric.weight || 0,
+      evidence: Array.isArray(metric.evidence) ? metric.evidence : []
+    }))
+    .sort((a, b) => {
+      const weightDiff = (b.weight || 0) - (a.weight || 0)
+      if (Math.abs(weightDiff) > 0.01) return weightDiff
+      return a.score - b.score
+    })
+    .slice(0, limit)
+}
+
+function buildMetricRecommendation(metric, modelContext, target = 'seo') {
+  const featureKey = normalizeMetricNameToFeature(metric.name, target)
+  const featureConfig = FEATURE_RECOMMENDATION_MAP[featureKey]
+  if (!featureConfig) {
+    return {
+      priority: metric.score <= 3 ? 'high' : metric.score <= 6 ? 'medium' : 'low',
+      category: '內容',
+      issue: `${metric.name} 分數偏低 (${metric.score} 分)` ,
+      action: metric.description || '補強該指標相關的內容與信任訊號。',
+      expectedScoreGain: '+3 分',
+      title: `${metric.name} 分數偏低`,
+      description: metric.description || '補強該指標相關的內容與信任訊號。',
+      featureKey,
+      score: metric.score,
+      weight: metric.weight
+    }
+  }
+
+  if (typeof featureConfig.condition === 'function' && !featureConfig.condition(modelContext)) {
+    return null
+  }
+
+  const priority = metric.score <= 3 ? 'high' : featureConfig.priority || 'medium'
+  return {
+    priority,
+    category: featureConfig.category,
+    issue: `${metric.name} 分數偏低（${metric.score} 分）`,
+    action: featureConfig.action,
+    expectedScoreGain: featureConfig.expectedScoreGain || '+4 分',
+    title: `${metric.name} 分數偏低`,
+    description: featureConfig.action,
+    featureKey,
+    score: metric.score,
+    weight: metric.weight
+  }
+}
+
+function normalizeMetricNameToFeature(name = '', target = 'seo') {
+  const trimmed = name.trim()
+  const seoMapping = {
+    'E-E-A-T 信任線索': 'hasAuthorInfo',
+    '內容品質與原創性': 'depthLowFlag',
+    '人本與主題一致性': 'titleIntentMatch',
+    '標題與承諾落實': 'metaDescriptionPresent',
+    '搜尋意圖契合度': 'actionableScoreNorm',
+    '新鮮度與時效性': 'recentYearNorm',
+    '使用者安全與風險': 'metaDescriptionPresent',
+    '結構與可讀性': 'readabilityWeakFlag'
+  }
+  const aeoMapping = {
+    '段落獨立性': 'paragraphCountNorm',
+    '語言清晰度': 'avgSentenceLengthNorm',
+    '實體辨識': 'entityRichnessNorm',
+    '邏輯流暢度': 'actionableScoreNorm',
+    '可信度信號': 'evidenceCountNorm'
+  }
+  if (target === 'seo') return seoMapping[trimmed] || trimmed
+  if (target === 'aeo') return aeoMapping[trimmed] || trimmed
+  return trimmed
+}
+
+function generateModelRecommendations(seoPredictions, aeoPredictions, modelContext, metrics = {}) {
   const recommendations = []
   const featureScores = new Map()
 
@@ -852,14 +933,30 @@ function generateModelRecommendations(seoPredictions, aeoPredictions, modelConte
     })
   })
 
-  recommendations.sort((a, b) => {
+  const lowSeoMetrics = pickLowScoringMetrics(metrics.seo, 6, 4)
+  const lowAeoMetrics = pickLowScoringMetrics(metrics.aeo, 6, 2)
+  const metricBased = [
+    ...lowSeoMetrics.map((metric) => buildMetricRecommendation(metric, modelContext, 'seo')),
+    ...lowAeoMetrics.map((metric) => buildMetricRecommendation(metric, modelContext, 'aeo'))
+  ]
+    .filter(Boolean)
+
+  const merged = mergeRecommendations(metricBased, recommendations)
+
+  merged.sort((a, b) => {
     const pa = PRIORITY_ORDER[a.priority] ?? 99
     const pb = PRIORITY_ORDER[b.priority] ?? 99
     if (pa !== pb) return pa - pb
+    if (Number.isFinite(b.weight) && Number.isFinite(a.weight) && b.weight !== a.weight) {
+      return b.weight - a.weight
+    }
+    if (Number.isFinite(b.score) && Number.isFinite(a.score) && b.score !== a.score) {
+      return a.score - b.score
+    }
     return (b.impactScore || 0) - (a.impactScore || 0)
   })
 
-  return recommendations
+  return merged.slice(0, 6)
 }
 
 function mergeRecommendations(primary = [], secondary = []) {
@@ -1260,7 +1357,7 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
     const models = Array.isArray(listData.models) ? listData.models : [];
     // 偏好順序：2.5 > 2.0 > 1.5 > 1.0；且要有 generateContent 支援
     const prefer = [
-      'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-pro', 'gemini-2.0-flash',
+      'gemini-2.5-flash', 'gemini-2.0-pro', 'gemini-2.0-flash',
       'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'
     ];
     let chosen = null;
@@ -1270,7 +1367,11 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
     }
     // 若未命中，退而求其次：任一支援 generateContent 的模型
     if (!chosen) {
-      chosen = models.find(x => x.supportedGenerationMethods?.includes('generateContent') || x.supportedGenerationMethods?.includes('generateText'));
+      chosen = models.find((x) => {
+        const supportsGeneration = x.supportedGenerationMethods?.includes('generateContent') || x.supportedGenerationMethods?.includes('generateText');
+        const isHighCostPro = typeof x.name === 'string' && x.name.includes('gemini-2.5-pro');
+        return supportsGeneration && !isHighCostPro;
+      });
     }
     if (!chosen || !chosen.name) {
       throw new Error('No available Gemini model supporting generateContent for this API key/project');
@@ -1692,6 +1793,8 @@ async function handleAnalyzePost(context, corsHeaders) {
       )
     }
 
+    const includeRecommendations = requestBody.includeRecommendations === true || requestBody.includeRecommendations === 'true'
+
     let targetKeywords = []
     if (Array.isArray(requestBody.targetKeywords)) {
       targetKeywords = requestBody.targetKeywords
@@ -1757,20 +1860,22 @@ async function handleAnalyzePost(context, corsHeaders) {
 
     let payload = normalizeAnalysisResult(analysisResult, contentSignals)
 
-    const openaiKey = env.OPENAI_API_KEY || null
     let openAiAugmentation = null
-    if (openaiKey) {
-      try {
-        openAiAugmentation = await evaluateHelpfulContentWithOpenAI({
-          content: normalizedContentVariants.plain,
-          targetKeywords,
-          payload,
-          contentSignals,
-          apiKey: openaiKey
-        })
-        payload = mergeAugmentedInsights(payload, openAiAugmentation)
-      } catch (error) {
-        console.error('OpenAI augmentation failed:', error)
+    if (includeRecommendations) {
+      const openaiKey = env.OPENAI_API_KEY || null
+      if (openaiKey) {
+        try {
+          openAiAugmentation = await evaluateHelpfulContentWithOpenAI({
+            content: normalizedContentVariants.plain,
+            targetKeywords,
+            payload,
+            contentSignals,
+            apiKey: openaiKey
+          })
+          payload = mergeAugmentedInsights(payload, openAiAugmentation)
+        } catch (error) {
+          console.error('OpenAI augmentation failed:', error)
+        }
       }
     }
 
@@ -1779,28 +1884,34 @@ async function handleAnalyzePost(context, corsHeaders) {
     const aeoPredictions = payload?.scoreGuards?.aeoPredictions || null
     const modelContext = payload?.scoreGuards?.modelContext || null
 
-    if (payload.metrics?.seo && openAiAugmentation?.metrics?.seo) {
-      payload.metrics.seo = blendMetricArrays(payload.metrics.seo, openAiAugmentation.metrics.seo)
-    }
-    if (payload.metrics?.aeo && openAiAugmentation?.metrics?.aeo) {
-      payload.metrics.aeo = blendMetricArrays(payload.metrics.aeo, openAiAugmentation.metrics.aeo)
-    }
+    if (includeRecommendations) {
+      if (payload.metrics?.seo && openAiAugmentation?.metrics?.seo) {
+        payload.metrics.seo = blendMetricArrays(payload.metrics.seo, openAiAugmentation.metrics.seo)
+      }
+      if (payload.metrics?.aeo && openAiAugmentation?.metrics?.aeo) {
+        payload.metrics.aeo = blendMetricArrays(payload.metrics.aeo, openAiAugmentation.metrics.aeo)
+      }
 
-    if (openAiAugmentation?.highRiskFlags?.length) {
-      payload.highRiskFlags = mergeUniqueFlags(payload.highRiskFlags || [], openAiAugmentation.highRiskFlags.map(normalizeHighRiskFlag))
-    }
-    if (openAiAugmentation?.eeatBreakdown) {
-      payload.eeatBreakdown = normalizeEeatBreakdown(openAiAugmentation.eeatBreakdown)
-    }
+      if (openAiAugmentation?.highRiskFlags?.length) {
+        payload.highRiskFlags = mergeUniqueFlags(payload.highRiskFlags || [], openAiAugmentation.highRiskFlags.map(normalizeHighRiskFlag))
+      }
+      if (openAiAugmentation?.eeatBreakdown) {
+        payload.eeatBreakdown = normalizeEeatBreakdown(openAiAugmentation.eeatBreakdown)
+      }
 
-    const modelRecommendations = generateModelRecommendations(seoPredictions, aeoPredictions, modelContext)
-    const heuristicRecommendations = generateHeuristicRecommendations(payload, contentSignals)
-    const combinedRecommendations = mergeRecommendations(modelRecommendations, heuristicRecommendations)
+      const modelRecommendations = generateModelRecommendations(seoPredictions, aeoPredictions, modelContext, payload.metrics)
+      const heuristicRecommendations = generateHeuristicRecommendations(payload, contentSignals)
+      const combinedRecommendations = mergeRecommendations(modelRecommendations, heuristicRecommendations)
 
-    if (!Array.isArray(payload.recommendations) || payload.recommendations.length === 0) {
-      payload.recommendations = combinedRecommendations
+      if (!Array.isArray(payload.recommendations) || payload.recommendations.length === 0) {
+        payload.recommendations = combinedRecommendations
+      } else {
+        payload.recommendations = mergeRecommendations(payload.recommendations, combinedRecommendations)
+      }
+      payload.recommendationsStatus = 'ready'
     } else {
-      payload.recommendations = mergeRecommendations(payload.recommendations, combinedRecommendations)
+      payload.recommendations = []
+      payload.recommendationsStatus = 'not_requested'
     }
 
     if (returnChunks && chunkSourceText) {
@@ -1818,6 +1929,7 @@ async function handleAnalyzePost(context, corsHeaders) {
     }
 
     payload = { ...payload, contentSignals }
+    payload = { ...payload, includeRecommendations }
 
     return new Response(
       JSON.stringify(payload),

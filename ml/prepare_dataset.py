@@ -96,6 +96,18 @@ AEO_WEIGHTS = {
 OUTPUT_FILENAME = 'training_prepared.csv'
 
 
+MISSING_FEATURE_DEFAULTS = {
+    'entityRichnessNorm': 0.0,
+    'missingAuthorFlag': 0,
+    'missingPublisherFlag': 0,
+    'missingCanonicalFlag': 0,
+    'missingMetaFlag': 0,
+    'missingH1Flag': 0,
+    'h2CoverageMissing': 0,
+    'paragraphsLongFlag': 0,
+}
+
+
 def safe_float(value) -> float:
     """嘗試將資料轉成浮點數，失敗時回傳 NaN。"""
     if pd.isna(value):
@@ -143,6 +155,25 @@ def compute_weighted_score(row: pd.Series, groups: Dict[str, Dict[str, Iterable[
     if total_weight == 0:
         return np.nan, group_scores
     return float(np.clip(weighted_sum / total_weight, 0.0, 1.0)), group_scores
+
+
+def ensure_additional_features(df: pd.DataFrame) -> pd.DataFrame:
+    """補齊 scoring-model 推論端所需的特徵欄位。"""
+
+    df = df.copy()
+
+    if 'entityRichnessNorm' not in df.columns:
+        sample_lengths = df.get('keyword', pd.Series([], dtype=object)).astype(str).str.split(',')
+        df['entityRichnessNorm'] = sample_lengths.apply(lambda items: min(len(items), 8) / 8 if isinstance(items, list) else 0.0)
+
+    # 缺失旗標若未提供，預設為 0（不存在缺口）
+    for column, default_value in MISSING_FEATURE_DEFAULTS.items():
+        if column not in df.columns:
+            df[column] = default_value
+        else:
+            df[column] = df[column].fillna(default_value)
+
+    return df
 
 
 def compute_scores(df: pd.DataFrame) -> pd.DataFrame:
@@ -206,13 +237,16 @@ def main() -> None:
     df = pd.read_csv(input_path)
     print(f"✓ 讀入 {len(df)} 筆資料，共 {len(df.columns)} 欄位")
 
-    print("\n[2/4] 型別與缺失值處理…")
+    print('\n[2/4] 型別與缺失值處理…')
     if 'uniqueWordRatio' in df.columns:
         df['uniqueWordRatio'] = pd.to_numeric(df['uniqueWordRatio'], errors='coerce')
     for feature in INVERT_FEATURES:
         if feature in df.columns:
             df[feature] = pd.to_numeric(df[feature], errors='coerce').fillna(0)
-    print('✓ 基本欄位轉換完成')
+
+    # 補齊 scoring-model.js 所需的推論欄位
+    df = ensure_additional_features(df)
+    print('✓ 基本欄位轉換完成，新增缺失特徵欄位')
 
     print("\n[3/4] 計算 HCU / EEAT / AEO 代理分數…")
     prepared_df = compute_scores(df)

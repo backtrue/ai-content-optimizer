@@ -1,202 +1,215 @@
+const SEO_TARGETS = new Set([
+  'score_hcu_proxy',
+  'score_eeat_proxy'
+])
+
+const AEO_TARGETS = new Set(['score_aeo_proxy'])
+
+const TARGET_DISPLAY_NAMES = {
+  score_hcu_proxy: 'HCU Helpful Content Proxy',
+  score_eeat_proxy: 'E-E-A-T Proxy',
+  score_aeo_proxy: 'AEO Proxy'
+}
+
 const DEFAULT_MODEL = {
-  version: '1.0.0-xgboost-baseline',
-  createdAt: '2025-10-28T09:08:31Z',
-  description:
-    'XGBoost model trained on 19 SERP ranking records. Features importance-weighted for content quality prediction. Test R²: 0.1555. Requires more training data (target: 100+ records) for production use.',
-  trainingMetadata: {
-    samples: 19,
-    features: 33,
-    modelType: 'XGBRegressor',
-    testR2: 0.1555,
-    testRMSE: 12.74,
-    topFeatures: ['actionableWeakFlag', 'longParagraphPenalty', 'referenceKeywordNorm', 'avgSentenceLengthNorm', 'uniqueWordRatio']
-  },
-  seo: {
-    metrics: [
-      {
-        name: 'E-E-A-T 信任線索',
-        intercept: 3.8,
-        weights: {
-          hasAuthorInfo: 2.1,
-          hasPublisherInfo: 1.2,
-          hasArticleSchema: 0.6,
-          authorityLinkPresent: 1.3,
-          evidenceCountNorm: 2.0,
-          experienceCueNorm: 1.0,
-          hcuYesRatio: 1.2,
-          hcuNoRatio: -2.5,
-          missingAuthorFlag: -1.6,
-          missingPublisherFlag: -1.2,
-          missingCanonicalFlag: -0.4
-        }
-      },
-      {
-        name: '內容品質與原創性',
-        intercept: 3.6,
-        weights: {
-          wordCountNorm: 2.2,
-          paragraphCountNorm: 1.5,
-          evidenceCountNorm: 1.8,
-          uniqueWordRatio: 2.4,
-          actionableScoreNorm: 1.4,
-          experienceCueNorm: 1.2,
-          hcuYesRatio: 1.1,
-          hcuNoRatio: -2.2,
-          depthLowFlag: -2.8
-        }
-      },
-      {
-        name: '人本與主題一致性',
-        intercept: 3.5,
-        weights: {
-          titleIntentMatch: 3.0,
-          actionableScoreNorm: 1.4,
-          referenceKeywordNorm: 1.2,
-          hasH1Keyword: 1.2,
-          hcuYesRatio: 1.0,
-          hcuNoRatio: -2.0,
-          actionableWeakFlag: -1.6,
-          missingH1Flag: -1.4
-        }
-      },
-      {
-        name: '標題與承諾落實',
-        intercept: 4.0,
-        weights: {
-          titleIntentMatch: 2.5,
-          metaDescriptionPresent: 1.0,
-          hasUniqueTitle: 1.3,
-          actionableScoreNorm: 1.0,
-          hcuYesRatio: 0.8,
-          hcuNoRatio: -1.6,
-          missingH1Flag: -1.5,
-          titleMismatchFlag: -2.5
-        }
-      },
-      {
-        name: '搜尋意圖契合度',
-        intercept: 3.9,
-        weights: {
-          h2CountNorm: 2.0,
-          paragraphCountNorm: 1.6,
-          actionableScoreNorm: 1.5,
-          wordCountNorm: 1.5,
-          hcuYesRatio: 1.1,
-          hcuNoRatio: -2.4,
-          depthLowFlag: -1.8,
-          h2CoverageMissing: -2.2,
-          actionableWeakFlag: -1.6
-        }
-      },
-      {
-        name: '新鮮度與時效性',
-        intercept: 3.2,
-        weights: {
-          hasPublishedDate: 2.2,
-          hasVisibleDate: 1.0,
-          hasModifiedDate: 1.0,
-          recentYearNorm: 2.4,
-          hcuYesRatio: 0.6,
-          hcuNoRatio: -1.4,
-          freshnessWeakFlag: -2.4
-        }
-      },
-      {
-        name: '使用者安全與風險',
-        intercept: 4.0,
-        weights: {
-          metaDescriptionPresent: 1.4,
-          canonicalPresent: 1.2,
-          evidenceCountNorm: 1.0,
-          actionableScoreNorm: 0.8,
-          externalLinkPresent: 0.8,
-          hcuNoRatio: -1.6,
-          missingCanonicalFlag: -1.2,
-          missingMetaFlag: -1.5
-        }
-      },
-      {
-        name: '結構與可讀性',
-        intercept: 3.8,
-        weights: {
-          paragraphCountNorm: 1.8,
-          h2CountNorm: 1.6,
-          listPresent: 1.2,
-          tablePresent: 0.9,
-          longParagraphPenalty: -2.5,
-          readabilityWeakFlag: -2.8,
-          hcuYesRatio: 0.9,
-          hcuNoRatio: -1.8
-        }
-      }
+  version: '2025-11-02-serp-page1',
+  createdAt: '2025-11-02T03:58:46',
+  description: 'XGBoost 多輸出模型（SERP 前十樣本正例訓練）',
+  dataset: {
+    path: 'ml/page1_positive_samples.csv',
+    records: 1345,
+    feature_columns: [
+      'serp_rank',
+      'target_score',
+      'wordCountNorm',
+      'paragraphCountNorm',
+      'h2CountNorm',
+      'actionableScoreNorm',
+      'evidenceCountNorm',
+      'experienceCueNorm',
+      'recentYearNorm',
+      'uniqueWordRatio',
+      'titleIntentMatch',
+      'referenceKeywordNorm',
+      'hasH1Keyword',
+      'hasUniqueTitle',
+      'hasAuthorInfo',
+      'hasPublisherInfo',
+      'hasArticleSchema',
+      'hasPublishedDate',
+      'hasModifiedDate',
+      'hasVisibleDate',
+      'metaDescriptionPresent',
+      'canonicalPresent',
+      'externalLinkPresent',
+      'authorityLinkPresent',
+      'listPresent',
+      'tablePresent',
+      'longParagraphPenalty',
+      'avgSentenceLengthNorm',
+      'depthLowFlag',
+      'readabilityWeakFlag',
+      'actionableWeakFlag',
+      'freshnessWeakFlag',
+      'titleMismatchFlag',
+      'hcuYesRatio',
+      'hcuNoRatio',
+      'hcuPartialRatio',
+      'hcuContentHelpfulness',
+      'qaFormatScore',
+      'firstParagraphAnswerQuality',
+      'semanticParagraphFocus',
+      'headingHierarchyQuality',
+      'topicCohesion',
+      'faqSchemaPresent',
+      'howtoSchemaPresent',
+      'articleSchemaPresent',
+      'organizationSchemaPresent',
+      'ogTagsComplete',
+      'metaTagsQuality',
+      'htmlStructureValidity',
+      'authorInfoPresent',
+      'brandEntityClarity',
+      'externalCitationCount',
+      'socialMediaLinksPresent',
+      'reviewRatingPresent',
+      'semanticNaturalness',
+      'paragraphExtractability',
+      'richSnippetFormat',
+      'citabilityTrustScore',
+      'multimediaSupport',
+      'analysis_http_status',
+      'analysis_error_code',
+      'analysis_attempts',
+      'entityRichnessNorm',
+      'missingAuthorFlag',
+      'missingPublisherFlag',
+      'missingCanonicalFlag',
+      'missingMetaFlag',
+      'missingH1Flag',
+      'h2CoverageMissing',
+      'paragraphsLongFlag'
     ]
   },
-  aeo: {
-    metrics: [
-      {
-        name: '段落獨立性',
-        intercept: 3.6,
-        weights: {
-          paragraphCountNorm: 2.2,
-          h2CountNorm: 2.0,
-          listPresent: 1.0,
-          tablePresent: 0.6,
-          longParagraphPenalty: -2.4,
-          hcuYesRatio: 1.2,
-          hcuNoRatio: -2.2
-        }
+  hyperparameters: {
+    n_estimators: 200,
+    max_depth: 5,
+    learning_rate: 0.08,
+    subsample: 0.8,
+    colsample_bytree: 0.8,
+    random_state: 42,
+    reg_lambda: 1,
+    min_child_weight: 1
+  },
+  targets: {
+    score_hcu_proxy: {
+      metrics: {
+        train_rmse: 0.14636306390866977,
+        train_mae: 0.1096221872677064,
+        train_r2: 0.9996996807193225,
+        test_rmse: 1.038821306504367,
+        test_mae: 0.6645446047664398,
+        test_r2: 0.9792769933946864,
+        cv_r2_mean: 0.9272366070042087,
+        cv_r2_std: 0.11611927512133675
       },
-      {
-        name: '語言清晰度',
-        intercept: 4.2,
-        weights: {
-          avgSentenceLengthNorm: 1.5,
-          uniqueWordRatio: 1.6,
-          readabilityWeakFlag: -2.4,
-          hcuYesRatio: 1.0,
-          hcuNoRatio: -2.0,
-          longParagraphPenalty: -1.2
-        }
+      featureImportance: {
+        hcuNoRatio: 0.38592976331710815,
+        listPresent: 0.1817331463098526,
+        hcuYesRatio: 0.17839081585407257,
+        hcuContentHelpfulness: 0.0823281854391098,
+        tablePresent: 0.04384326562285423,
+        hcuPartialRatio: 0.028851637616753578,
+        wordCountNorm: 0.02698330767452717,
+        avgSentenceLengthNorm: 0.017625009641051292,
+        h2CountNorm: 0.008576633408665657,
+        hasArticleSchema: 0.00808789674192667,
+        metaDescriptionPresent: 0.007322113029658794,
+        canonicalPresent: 0.00580165209248662,
+        uniqueWordRatio: 0.005308046936988831,
+        target_score: 0.004979643505066633,
+        hasH1Keyword: 0.00462878355756402,
+        referenceKeywordNorm: 0.003904263488948345,
+        hasVisibleDate: 0.0022170410957187414,
+        hasUniqueTitle: 0.0011213389225304127,
+        analysis_attempts: 0.0008962113060988486,
+        serp_rank: 0.0008150492212735116
       },
-      {
-        name: '實體辨識',
-        intercept: 4.0,
-        weights: {
-          entityRichnessNorm: 2.4,
-          evidenceCountNorm: 1.2,
-          authorityLinkPresent: 1.0,
-          hcuYesRatio: 0.8,
-          hcuNoRatio: -1.4
-        }
+      modelPath: 'ml/models/score_hcu_proxy.json'
+    },
+    score_eeat_proxy: {
+      metrics: {
+        train_rmse: 0.15678635971082622,
+        train_mae: 0.050606046803595824,
+        train_r2: 0.9999851144907551,
+        test_rmse: 0.3694621697622902,
+        test_mae: 0.12338946797770704,
+        test_r2: 0.9999207725492337,
+        cv_r2_mean: 0.9639808330168096,
+        cv_r2_std: 0.0638254604472671
       },
-      {
-        name: '邏輯流暢度',
-        intercept: 4.0,
-        weights: {
-          paragraphCountNorm: 1.4,
-          h2CountNorm: 1.4,
-          actionableScoreNorm: 1.0,
-          longParagraphPenalty: -1.6,
-          readabilityWeakFlag: -1.8,
-          hcuYesRatio: 0.9,
-          hcuNoRatio: -1.6
-        }
+      featureImportance: {
+        depthLowFlag: 0.9575852155685425,
+        uniqueWordRatio: 0.03359594941139221,
+        avgSentenceLengthNorm: 0.00450942711904645,
+        hasVisibleDate: 0.002495763124898076,
+        canonicalPresent: 0.0007051031570881605,
+        hasUniqueTitle: 0.0006417009863071144,
+        referenceKeywordNorm: 0.0001980849337996915,
+        metaDescriptionPresent: 0.00014637813728768378,
+        hasH1Keyword: 0.000054810756410006434,
+        readabilityWeakFlag: 0.000023275380954146385,
+        hcuNoRatio: 0.000009716589374875184,
+        h2CountNorm: 0.000008846269338391721,
+        hcuContentHelpfulness: 0.000007927957994979806,
+        wordCountNorm: 0.000004394982170197181,
+        listPresent: 0.000004061183517478639,
+        hcuPartialRatio: 0.0000037918721318419557,
+        hcuYesRatio: 0.0000016812450667202938,
+        serp_rank: 0.000001201063582811912,
+        analysis_attempts: 0.0000011106247939096647,
+        target_score: 0.0000007476599535038986
       },
-      {
-        name: '可信度信號',
-        intercept: 3.5,
-        weights: {
-          evidenceCountNorm: 2.2,
-          authorityLinkPresent: 1.4,
-          hasAuthorInfo: 1.2,
-          hasPublisherInfo: 1.0,
-          hcuYesRatio: 0.9,
-          hcuNoRatio: -2.0,
-          experienceCueNorm: 1.0
-        }
-      }
-    ]
-  }
+      modelPath: 'ml/models/score_eeat_proxy.json'
+    },
+    score_aeo_proxy: {
+      metrics: {
+        train_rmse: 0.06933942385947502,
+        train_mae: 0.03926012172544234,
+        train_r2: 0.9998377736000212,
+        test_rmse: 2.954804829861603,
+        test_mae: 0.6689611039502176,
+        test_r2: 0.8090589102216745,
+        cv_r2_mean: 0.7371266106518123,
+        cv_r2_std: 0.24633728947132386
+      },
+      featureImportance: {
+        listPresent: 0.3809288740158081,
+        metaDescriptionPresent: 0.2833498418331146,
+        tablePresent: 0.09195628762245178,
+        hcuYesRatio: 0.06168481707572937,
+        hcuContentHelpfulness: 0.055709585547447205,
+        hcuPartialRatio: 0.03291266784071922,
+        hasUniqueTitle: 0.031187327578663826,
+        hcuNoRatio: 0.008556314744055271,
+        hasH1Keyword: 0.008518756367266178,
+        hasArticleSchema: 0.007287164684385061,
+        wordCountNorm: 0.0058289142325520515,
+        uniqueWordRatio: 0.005277007352560759,
+        serp_rank: 0.004822743125259876,
+        hasVisibleDate: 0.004676505457609892,
+        target_score: 0.00456983270123601,
+        avgSentenceLengthNorm: 0.004107132088392973,
+        referenceKeywordNorm: 0.0036843735724687576,
+        canonicalPresent: 0.0022990084253251553,
+        h2CountNorm: 0.0012330744648352265,
+        readabilityWeakFlag: 0.0007190345786511898
+      },
+      modelPath: 'ml/models/score_aeo_proxy.json'
+    }
+  },
+  seo: null,
+  aeo: null
 }
 
 let cachedModel = null

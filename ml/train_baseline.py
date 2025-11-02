@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """多輸出 Baseline 模型訓練腳本
-- 使用 `training_prepared.csv`（含 HCU / EEAT / AEO 代理分數）
+- 預設使用 `training_prepared.csv`（含 HCU / EEAT / AEO 代理分數）
 - 為四個代理目標訓練獨立的 XGBoost Regressor
 - 輸出模型檔、組態摘要與評估報告
 """
@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import argparse
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -18,7 +19,6 @@ import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import cross_val_score, train_test_split
 
-DATA_PATH = Path('./ml/training_prepared.csv')
 MODEL_DIR = Path('./ml/models')
 REPORT_DIR = Path('./ml/reports')
 MODEL_CONFIG_PATH = Path('./ml/trained_model_config.json')
@@ -149,13 +149,21 @@ def write_json(path: Path, data: Dict[str, Any]) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
-def build_config(results: Dict[str, Dict[str, Any]], df: pd.DataFrame, X: pd.DataFrame) -> Dict[str, Any]:
+def build_config(
+    results: Dict[str, Dict[str, Any]],
+    df: pd.DataFrame,
+    X: pd.DataFrame,
+    *,
+    version: str,
+    description: str,
+    dataset_path: Path,
+) -> Dict[str, Any]:
     return {
-        'version': '2025-11-01-baseline-v2',
+        'version': version,
         'createdAt': datetime.now().isoformat(timespec='seconds'),
-        'description': 'XGBoost 多輸出 baseline，使用 training_prepared.csv HCU/EEAT/AEO 代理分數訓練',
+        'description': description,
         'dataset': {
-            'path': str(DATA_PATH),
+            'path': str(dataset_path),
             'records': int(len(df)),
             'feature_columns': list(X.columns),
         },
@@ -216,7 +224,30 @@ def render_markdown_report(results: Dict[str, Dict[str, Any]], df: pd.DataFrame,
     (REPORT_DIR / 'baseline_training_report.md').write_text('\n'.join(lines), encoding='utf-8')
 
 
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description='多輸出 XGBoost 模型訓練腳本')
+    parser.add_argument(
+        '--data',
+        default='./ml/training_prepared.csv',
+        help='訓練資料 CSV 路徑（預設：./ml/training_prepared.csv）',
+    )
+    parser.add_argument(
+        '--version',
+        default='2025-11-01-baseline-v2',
+        help='模型版本字串，寫入 trained_model_config.json',
+    )
+    parser.add_argument(
+        '--description',
+        default='XGBoost 多輸出 baseline，使用 training_prepared.csv HCU/EEAT/AEO 代理分數訓練',
+        help='模型描述文字',
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = parse_arguments()
+    data_path = Path(args.data)
+
     print('=' * 70)
     print('BASELINE 模型訓練（HCU / EEAT / AEO / 總分）')
     print('=' * 70)
@@ -224,7 +255,8 @@ def main() -> None:
     ensure_directories()
 
     print('\n[1/4] 載入資料…')
-    df = load_dataset(DATA_PATH)
+    print(f'資料來源：{data_path}')
+    df = load_dataset(data_path)
 
     print('\n[2/4] 準備特徵…')
     X = prepare_features(df)
@@ -249,7 +281,14 @@ def main() -> None:
     print('\n[4/4] 儲存成果…')
     save_models(results)
 
-    config = build_config(results, df, X)
+    config = build_config(
+        results,
+        df,
+        X,
+        version=args.version,
+        description=args.description,
+        dataset_path=data_path,
+    )
     write_json(MODEL_CONFIG_PATH, config)
 
     summary = build_summary(results)
