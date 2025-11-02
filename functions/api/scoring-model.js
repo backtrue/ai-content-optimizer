@@ -13,8 +13,14 @@ const TARGET_DISPLAY_NAMES = {
 
 const DEFAULT_MODEL = {
   version: '2025-11-02-serp-page1',
-  createdAt: '2025-11-02T03:58:46',
-  description: 'XGBoost 多輸出模型（SERP 前十樣本正例訓練）',
+  createdAt: '2025-11-02T03:58:46Z',
+  description: 'Logistic re-calibration from SERP page-one positives (HCU/EEAT/AEO proxies)',
+  trainingMetadata: {
+    samples: 1345,
+    features: 73,
+    modelType: 'logistic-regression',
+    notes: '手動推導自 XGBoost 特徵重要性與正例資料集，保留原有線性評分流程'
+  },
   dataset: {
     path: 'ml/page1_positive_samples.csv',
     records: 1345,
@@ -208,8 +214,270 @@ const DEFAULT_MODEL = {
       modelPath: 'ml/models/score_aeo_proxy.json'
     }
   },
-  seo: null,
-  aeo: null
+  seo: {
+    metrics: {
+      eeatSignals: {
+        name: 'E-E-A-T 信任線索',
+        intercept: 3.6,
+        activation: 'sigmoid',
+        weights: {
+          hcuContentHelpfulness: 1.8,
+          hcuYesRatio: 1.4,
+          experienceCueNorm: 1.6,
+          evidenceCountNorm: 1.5,
+          externalCitationCount: 0.8,
+          authorityLinkPresent: 0.9,
+          hasAuthorInfo: 1.2,
+          hasPublisherInfo: 1.0,
+          organizationSchemaPresent: 0.7,
+          reviewRatingPresent: 0.6,
+          socialMediaLinksPresent: 0.5,
+          hasArticleSchema: 0.5,
+          canonicalPresent: 0.6,
+          metaDescriptionPresent: 0.6,
+          brandEntityClarity: 0.9,
+          htmlStructureValidity: 0.4,
+          missingAuthorFlag: -1.8,
+          missingPublisherFlag: -1.4,
+          missingCanonicalFlag: -1.0,
+          missingMetaFlag: -1.1,
+          hcuNoRatio: -2.6
+        }
+      },
+      contentQuality: {
+        name: '內容品質與原創性',
+        intercept: 3.4,
+        activation: 'sigmoid',
+        weights: {
+          wordCountNorm: 1.2,
+          paragraphCountNorm: 1.0,
+          uniqueWordRatio: 1.4,
+          actionableScoreNorm: 1.3,
+          evidenceCountNorm: 1.1,
+          experienceCueNorm: 1.2,
+          qaFormatScore: 0.8,
+          firstParagraphAnswerQuality: 0.8,
+          semanticParagraphFocus: 0.7,
+          topicCohesion: 0.9,
+          hcuContentHelpfulness: 0.8,
+          listPresent: 0.6,
+          tablePresent: 0.5,
+          referenceKeywordNorm: 0.7,
+          entityRichnessNorm: 0.9,
+          paragraphExtractability: 0.6,
+          depthLowFlag: -2.2,
+          readabilityWeakFlag: -2.0,
+          longParagraphPenalty: -1.5,
+          actionableWeakFlag: -1.4,
+          hcuNoRatio: -2.0
+        }
+      },
+      humanCentricity: {
+        name: '人本與主題一致性',
+        intercept: 3.3,
+        activation: 'sigmoid',
+        weights: {
+          titleIntentMatch: 1.6,
+          referenceKeywordNorm: 1.0,
+          actionableScoreNorm: 0.9,
+          hcuContentHelpfulness: 0.8,
+          qaFormatScore: 0.9,
+          semanticParagraphFocus: 0.8,
+          topicCohesion: 0.8,
+          paragraphExtractability: 0.6,
+          hasUniqueTitle: 0.6,
+          hasH1Keyword: 0.7,
+          hcuYesRatio: 0.6,
+          hcuPartialRatio: 0.3,
+          hcuNoRatio: -1.8,
+          titleMismatchFlag: -2.2,
+          actionableWeakFlag: -1.2,
+          missingH1Flag: -1.6
+        }
+      },
+      promiseFulfillment: {
+        name: '標題與承諾落實',
+        intercept: 3.5,
+        activation: 'sigmoid',
+        weights: {
+          titleIntentMatch: 1.4,
+          qaFormatScore: 0.8,
+          firstParagraphAnswerQuality: 0.8,
+          metaDescriptionPresent: 0.8,
+          hasUniqueTitle: 0.9,
+          hasPublishedDate: 0.6,
+          hasVisibleDate: 0.6,
+          hcuContentHelpfulness: 0.6,
+          actionableScoreNorm: 0.7,
+          hcuYesRatio: 0.5,
+          hcuNoRatio: -1.4,
+          titleMismatchFlag: -2.6,
+          missingH1Flag: -1.3,
+          actionableWeakFlag: -1.1
+        }
+      },
+      intentAlignment: {
+        name: '搜尋意圖契合度',
+        intercept: 3.4,
+        activation: 'sigmoid',
+        weights: {
+          h2CountNorm: 1.4,
+          paragraphCountNorm: 1.2,
+          paragraphExtractability: 1.1,
+          wordCountNorm: 1.0,
+          actionableScoreNorm: 1.0,
+          listPresent: 0.7,
+          tablePresent: 0.5,
+          qaFormatScore: 0.9,
+          semanticParagraphFocus: 0.8,
+          topicCohesion: 0.8,
+          hcuYesRatio: 0.5,
+          hcuNoRatio: -1.8,
+          h2CoverageMissing: -2.4,
+          depthLowFlag: -1.6,
+          actionableWeakFlag: -1.3
+        }
+      },
+      freshness: {
+        name: '新鮮度與時效性',
+        intercept: 3.2,
+        activation: 'sigmoid',
+        weights: {
+          hasPublishedDate: 1.2,
+          hasVisibleDate: 0.9,
+          hasModifiedDate: 0.9,
+          recentYearNorm: 1.4,
+          semanticNaturalness: 0.5,
+          hcuYesRatio: 0.4,
+          hcuNoRatio: -1.2,
+          freshnessWeakFlag: -2.0
+        }
+      },
+      safetyGuard: {
+        name: '使用者安全與風險',
+        intercept: 3.6,
+        activation: 'sigmoid',
+        weights: {
+          metaDescriptionPresent: 1.0,
+          canonicalPresent: 0.9,
+          evidenceCountNorm: 0.9,
+          externalLinkPresent: 0.7,
+          authorityLinkPresent: 0.8,
+          actionableScoreNorm: 0.6,
+          hcuNoRatio: -1.3,
+          missingCanonicalFlag: -1.5,
+          missingMetaFlag: -1.6,
+          paragraphsLongFlag: -1.0
+        }
+      },
+      structureReadability: {
+        name: '結構與可讀性',
+        intercept: 3.4,
+        activation: 'sigmoid',
+        weights: {
+          paragraphCountNorm: 1.1,
+          h2CountNorm: 1.0,
+          listPresent: 0.8,
+          tablePresent: 0.6,
+          paragraphExtractability: 0.8,
+          richSnippetFormat: 0.6,
+          avgSentenceLengthNorm: -1.2,
+          readabilityWeakFlag: -2.0,
+          longParagraphPenalty: -1.6,
+          paragraphsLongFlag: -1.4,
+          hcuYesRatio: 0.4,
+          hcuNoRatio: -1.2
+        }
+      }
+    }
+  },
+  aeo: {
+    metrics: {
+      paragraphIndependence: {
+        name: '段落獨立性',
+        intercept: 3.5,
+        activation: 'sigmoid',
+        weights: {
+          paragraphExtractability: 1.5,
+          paragraphCountNorm: 1.2,
+          listPresent: 1.0,
+          tablePresent: 0.8,
+          qaFormatScore: 0.9,
+          longParagraphPenalty: -1.8,
+          paragraphsLongFlag: -1.6,
+          hcuYesRatio: 0.6,
+          hcuNoRatio: -1.6
+        }
+      },
+      languageClarity: {
+        name: '語言清晰度',
+        intercept: 3.8,
+        activation: 'sigmoid',
+        weights: {
+          avgSentenceLengthNorm: -1.6,
+          readabilityWeakFlag: -1.8,
+          uniqueWordRatio: 1.2,
+          semanticNaturalness: 1.0,
+          topicCohésion: 0.6,
+          paragraphóbel: -0.8,
+          hcuYesRatio: 0.5,
+          hcuNoRatio: -1.4
+        }
+      },
+      entityRecognition: {
+        name: '實體辨識',
+        intercept: 3.4,
+        activation: 'sigmoid',
+        weights: {
+          entityRichnessNorm: 1.4,
+          externalCitationCount: 1.0,
+          authorityLinkPresent: 0.9,
+          evidenceCountNorm: 0.9,
+          experienceCueNorm: 0.8,
+          brandEntityClarity: 0.7,
+          socialMediaLinksPresent: 0.5,
+          reviewRatingPresent: 0.5,
+          hcuYesRatio: 0.5,
+          hcuNoRatio: -1.4
+        }
+      },
+      logicFlow: {
+        name: '邏輯流暢度',
+        intercept: 3.6,
+        activation: 'sigmoid',
+        weights: {
+          paragraphCountNorm: 1.0,
+          paragraphExtractability: 0.9,
+          semanticParagraphFocus: 0.9,
+          topicCohesion: 0.9,
+          actionableScoreNorm: 0.8,
+          qaFormatScore: 0.8,
+          hcuYesRatio: 0.5,
+          hcuNoRatio: -1.2,
+          readabilityWeakFlag: -1.4,
+          longParagraphPenalty: -1.3
+        }
+      },
+      credibilitySignals: {
+        name: '可信度信號',
+        intercept: 3.5,
+        activation: 'sigmoid',
+        weights: {
+          evidenceCountNorm: 1.3,
+          externalCitationCount: 1.0,
+          authorityLinkPresent: 1.0,
+          hasArticleSchema: 0.7,
+          hasAuthorInfo: 0.8,
+          hasPublisherInfo: 0.7,
+          hcuContentHelpfulness: 0.8,
+          citabilityTrustScore: 0.8,
+          richSnippetFormat: 0.6,
+          hcuYesRatio: 0.5,
+          hcuNoRatio: -1.3
+        }
+      }
+    }
+  }
 }
 
 let cachedModel = null
@@ -245,6 +513,27 @@ function getModel() {
   if (cachedModel) return cachedModel
   cachedModel = loadConfiguredModel()
   return cachedModel
+}
+
+function resolveMetricConfigs(section) {
+  if (!section || !section.metrics) return []
+  const { metrics } = section
+  if (Array.isArray(metrics)) {
+    return metrics
+      .filter((metric) => metric && typeof metric === 'object' && typeof metric.name === 'string')
+  }
+
+  if (metrics && typeof metrics === 'object') {
+    return Object.entries(metrics)
+      .map(([slug, metric]) => {
+        if (!metric || typeof metric !== 'object') return null
+        const name = typeof metric.name === 'string' ? metric.name : TARGET_DISPLAY_NAMES[slug] || slug
+        return { slug, ...metric, name }
+      })
+      .filter(Boolean)
+  }
+
+  return []
 }
 
 function clamp01(value) {
@@ -390,14 +679,15 @@ function createPredictionMap(results, modelVersion) {
 
 export function isScoringModelReady() {
   const model = getModel()
-  return Boolean(model?.seo?.metrics?.length || model?.aeo?.metrics?.length)
+  return Boolean(resolveMetricConfigs(model?.seo).length || resolveMetricConfigs(model?.aeo).length)
 }
 
 export function predictSeoMetricScores(context = {}) {
   const model = getModel()
-  if (!model?.seo?.metrics?.length) return null
+  const metricConfigs = resolveMetricConfigs(model?.seo)
+  if (!metricConfigs.length) return null
   const features = buildFeatureVector(context)
-  const results = model.seo.metrics.map((metricConfig) => {
+  const results = metricConfigs.map((metricConfig) => {
     const { score, rawScore, contributions } = computeMetricScore(metricConfig, features)
     return { name: metricConfig.name, score, rawScore, contributions }
   })
@@ -406,9 +696,10 @@ export function predictSeoMetricScores(context = {}) {
 
 export function predictAeoMetricScores(context = {}) {
   const model = getModel()
-  if (!model?.aeo?.metrics?.length) return null
+  const metricConfigs = resolveMetricConfigs(model?.aeo)
+  if (!metricConfigs.length) return null
   const features = buildFeatureVector(context)
-  const results = model.aeo.metrics.map((metricConfig) => {
+  const results = metricConfigs.map((metricConfig) => {
     const { score, rawScore, contributions } = computeMetricScore(metricConfig, features)
     return { name: metricConfig.name, score, rawScore, contributions }
   })

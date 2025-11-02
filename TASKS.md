@@ -35,6 +35,16 @@
 ## 2025-11-02 模型校準任務
 
 - [x] 補齊 SERP 樣本缺失特徵欄位（entityRichnessNorm 等）
-- [ ] 產生以第一頁 SERP 樣本為正例的訓練資料集
-- [ ] 重訓模型並更新推論流程（含 API 串接）
+- [x] 產生以第一頁 SERP 樣本為正例的訓練資料集
+- [x] 重訓模型並更新推論流程（含 API 串接）
+  - [x] scoring-model.js 重構以映射 targets 結構
+  - [x] 重新載入並驗證最新模型輸出
 - [ ] 驗證樣本與說明文件更新
+
+## 2025-11-02 Scoring Model Integration Session
+
+- [x] 檢視 `ml/model_export.json` 與現行 scoring-model 結構差異
+- [x] 還原 logistic 指標定義並補齊 targets 元資料
+- [x] 調整 `predictSeoMetricScores` / `predictAeoMetricScores` 迭代新結構
+- [x] 執行 analyze-worker 回歸測試並記錄結果
+- [ ] 更新 scoring pipeline 文件與使用指引

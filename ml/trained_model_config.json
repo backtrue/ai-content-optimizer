@@ -1,9 +1,9 @@
 {
   "version": "2025-11-02-serp-page1",
-  "createdAt": "2025-11-02T03:58:46",
-  "description": "XGBoost 多輸出模型（SERP 前十樣本正例訓練）",
+  "createdAt": "2025-11-02T16:09:22",
+  "description": "SERP page-one positives retraining with enhanced features",
   "dataset": {
-    "path": "ml/page1_positive_samples.csv",
+    "path": "ml/page1_positive_prepared.csv",
     "records": 1345,
     "feature_columns": [
       "serp_rank",
@@ -89,6 +89,104 @@
     "min_child_weight": 1.0
   },
   "targets": {
+    "score_overall_proxy": {
+      "train_size": 1076,
+      "test_size": 269,
+      "total_size": 1345,
+      "metrics": {
+        "train_rmse": 0.13827009090111822,
+        "train_mae": 0.0757210293916846,
+        "train_r2": 0.9999893650484102,
+        "test_rmse": 0.6467261324814151,
+        "test_mae": 0.2723347403735667,
+        "test_r2": 0.9997782807240508,
+        "cv_r2_mean": 0.9157139125628971,
+        "cv_r2_std": 0.16128889286225095
+      },
+      "feature_importance_top20": [
+        {
+          "feature": "depthLowFlag",
+          "importance": 0.9611362218856812
+        },
+        {
+          "feature": "uniqueWordRatio",
+          "importance": 0.03383655473589897
+        },
+        {
+          "feature": "avgSentenceLengthNorm",
+          "importance": 0.0038935141637921333
+        },
+        {
+          "feature": "hasVisibleDate",
+          "importance": 0.000395224109524861
+        },
+        {
+          "feature": "hcuNoRatio",
+          "importance": 0.0001377834123559296
+        },
+        {
+          "feature": "hcuYesRatio",
+          "importance": 0.00010924453818006441
+        },
+        {
+          "feature": "hasH1Keyword",
+          "importance": 0.00010795751586556435
+        },
+        {
+          "feature": "listPresent",
+          "importance": 9.403820149600506e-05
+        },
+        {
+          "feature": "hasUniqueTitle",
+          "importance": 6.587372627109289e-05
+        },
+        {
+          "feature": "referenceKeywordNorm",
+          "importance": 5.5385393352480605e-05
+        },
+        {
+          "feature": "tablePresent",
+          "importance": 4.706033359980211e-05
+        },
+        {
+          "feature": "hasArticleSchema",
+          "importance": 2.9573713618447073e-05
+        },
+        {
+          "feature": "metaDescriptionPresent",
+          "importance": 2.9058544896543026e-05
+        },
+        {
+          "feature": "hcuContentHelpfulness",
+          "importance": 1.5140568393690046e-05
+        },
+        {
+          "feature": "wordCountNorm",
+          "importance": 1.3186651813157368e-05
+        },
+        {
+          "feature": "hcuPartialRatio",
+          "importance": 1.0953605851682369e-05
+        },
+        {
+          "feature": "canonicalPresent",
+          "importance": 9.442808732273988e-06
+        },
+        {
+          "feature": "readabilityWeakFlag",
+          "importance": 4.230868398735765e-06
+        },
+        {
+          "feature": "target_score",
+          "importance": 3.734342044481309e-06
+        },
+        {
+          "feature": "h2CountNorm",
+          "importance": 3.3881108265632065e-06
+        }
+      ],
+      "model_path": "ml/models/score_overall_proxy.json"
+    },
     "score_hcu_proxy": {
       "train_size": 705,
       "test_size": 177,

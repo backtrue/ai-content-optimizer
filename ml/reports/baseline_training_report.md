@@ -1,6 +1,6 @@
 # Baseline 模型訓練報告
 
-- 產出時間：2025-11-02T03:58:46
+- 產出時間：2025-11-02T16:09:22
 - 訓練資料筆數：1345
 - 特徵欄位數：70
 
@@ -8,11 +8,26 @@
 
 | 目標 | Train RMSE | Test RMSE | Test R² | CV R² (mean±std) | 資料量 (train/test) |
 |---|---|---|---|---|
+| score_overall_proxy | 0.138 | 0.647 | 1.000 | 0.916 ± 0.161 | 1076/269 |
 | score_hcu_proxy | 0.146 | 1.039 | 0.979 | 0.927 ± 0.116 | 705/177 |
 | score_eeat_proxy | 0.157 | 0.369 | 1.000 | 0.964 ± 0.064 | 1076/269 |
 | score_aeo_proxy | 0.069 | 2.955 | 0.809 | 0.737 ± 0.246 | 705/177 |
 
 ## 重要特徵（Top 10）
+
+### score_overall_proxy
+| 排名 | 特徵 | 重要度 |
+|---|---|---|
+| 1 | depthLowFlag | 0.961136 |
+| 2 | uniqueWordRatio | 0.033837 |
+| 3 | avgSentenceLengthNorm | 0.003894 |
+| 4 | hasVisibleDate | 0.000395 |
+| 5 | hcuNoRatio | 0.000138 |
+| 6 | hcuYesRatio | 0.000109 |
+| 7 | hasH1Keyword | 0.000108 |
+| 8 | listPresent | 0.000094 |
+| 9 | hasUniqueTitle | 0.000066 |
+| 10 | referenceKeywordNorm | 0.000055 |
 
 ### score_hcu_proxy
 | 排名 | 特徵 | 重要度 |
