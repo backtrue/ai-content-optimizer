@@ -47,4 +47,5 @@
 - [x] 還原 logistic 指標定義並補齊 targets 元資料
 - [x] 調整 `predictSeoMetricScores` / `predictAeoMetricScores` 迭代新結構
 - [x] 執行 analyze-worker 回歸測試並記錄結果
+- [x] 建立 `scripts/deploy-cloudflare.sh` 一鍵部署腳本並更新文件
 - [ ] 更新 scoring pipeline 文件與使用指引

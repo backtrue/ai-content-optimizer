@@ -103,6 +103,25 @@ Root directory: /
 2. 等待構建完成（通常需要 2-5 分鐘）
 3. 構建成功後，你會看到部署的 URL
 
+### 使用專案內建部署腳本（CLI）
+
+如需從終端快速部署，可以使用 `scripts/deploy-cloudflare.sh`：
+
+```bash
+./scripts/deploy-cloudflare.sh
+```
+
+- 預設會執行 `npm install`、`npm run build`，並發出：
+  - `wrangler pages deploy dist --project-name ai-content-optimizer`
+  - `wrangler deploy --env production`
+- 可透過參數客製：
+  - `--project <name>` 指定 Pages 專案名稱
+  - `--worker-env <env>` 指定 analyze-worker 的 wrangler 環境
+  - `--skip-install` 或 `--skip-worker` 控制流程
+- 也可以利用環境變數 `CLOUDFLARE_PAGES_PROJECT`、`CLOUDFLARE_WORKER_ENV`、`DEPLOY_WORKER` 等覆寫設定。
+
+> 使用前請先完成 `wrangler login`，或設定 Cloudflare API Token 相關環境變數。
+
 ### 步驟 7：驗證部署
 
 1. 點擊提供的 URL（格式：`https://ai-content-optimizer.pages.dev`）
