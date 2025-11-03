@@ -46,12 +46,12 @@ export default function MetricsBreakdown({ metrics }) {
 
   return (
     <div className="card">
-      <h3 className="text-xl font-bold text-gray-800 mb-6">詳細指標分析</h3>
+      <h3 className="text-xl font-bold text-gray-800 mb-6">內容指標分析</h3>
       
       <div className="space-y-6">
         {/* AEO Metrics */}
         <div>
-          <h4 className="font-semibold text-gray-700 mb-3 text-lg">AEO/RAG 指標</h4>
+          <h4 className="font-semibold text-gray-700 mb-3 text-lg">AEO 評估（答案精準度 / 精選摘要適配 / 敘事可信度）</h4>
           <div className="space-y-3">
             {aeoMetrics.map((metric, index) => (
               <div key={index} className="space-y-1">
@@ -79,14 +79,14 @@ export default function MetricsBreakdown({ metrics }) {
               </div>
             ))}
             {!aeoMetrics.length && (
-              <p className="text-sm text-gray-500">尚未提供 AEO/RAG 指標資料。</p>
+              <p className="text-sm text-gray-500">尚未提供 AEO 指標資料。</p>
             )}
           </div>
         </div>
 
         {/* SEO Metrics */}
         <div>
-          <h4 className="font-semibold text-gray-700 mb-3 text-lg">SEO 指標</h4>
+          <h4 className="font-semibold text-gray-700 mb-3 text-lg">SEO 評估（內容意圖契合 / 洞察與證據支持 / 可讀性與敘事流暢）</h4>
           <div className="space-y-3">
             {seoMetrics.map((metric, index) => (
               <div key={index} className="space-y-1">

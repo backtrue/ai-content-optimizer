@@ -90,7 +90,7 @@ function App() {
           : 'plain'
 
       const contentHash = await sha256Hex(plainText)
-      setFeedbackContext({ sessionId, contentHash, targetKeywords, format: formatHint, sourceUrl: meta.fetchedUrl || meta.contentUrl || null })
+      setFeedbackContext({ sessionId, contentHash, targetKeywords, format: formatHint, sourceUrl: null })
       const response = await fetchWithRetry(
         `${apiUrl}/api/analyze`,
         {
@@ -111,8 +111,6 @@ function App() {
             returnChunks: true,
             sessionId,
             mode: meta.mode,
-            contentUrl: meta.contentUrl,
-            fetchedUrl: meta.fetchedUrl || meta.contentUrl,
             includeRecommendations: false,
           }),
         },
@@ -123,6 +121,18 @@ function App() {
       // 如果代碼執行到這裡，表示請求成功
 
       const data = await response.json()
+
+      if (data?.status === 'insufficient_metadata') {
+        setAnalysisResults({
+          status: 'insufficient_metadata',
+          message: data?.message || '缺少 HTML metadata，請提供原始頁面再檢測。',
+          contentSignals: data?.contentSignals || null,
+          recommendationsStatus: 'unavailable'
+        })
+        setRecommendations([])
+        return
+      }
+
       const initialResults = {
         ...data,
         rawInput: {
@@ -163,7 +173,7 @@ function App() {
   }
 
   const handleGenerateRecommendations = async () => {
-    if (!analysisResults) return
+    if (!analysisResults || analysisResults?.status === 'insufficient_metadata') return
     setIsLoadingRecommendations(true)
     setError(null)
     setRecommendations([])
@@ -220,36 +230,6 @@ function App() {
     }
   }
 
-  const handleFetchUrl = async (url) => {
-    const payload = {
-      contentUrl: url,
-      sessionId,
-    }
-
-    const response = await fetchWithRetry(
-      `${apiUrl}/api/fetch-content`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        mode: 'cors',
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      },
-      1,
-      1000
-    )
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData?.message || errorData?.error || '擷取網址內容失敗')
-    }
-
-    return response.json()
-  }
-
   const handleExportHistory = () => {
     if (!analysisHistory.length) return
     const headers = ['timestamp', 'keywords', 'overall', 'aeo', 'seo', 'missingCritical', 'contentQualityFlags']
@@ -298,7 +278,7 @@ function App() {
             </p>
           </div>
         </section>
-        <InputSection onAnalyze={handleAnalyze} onFetchUrl={handleFetchUrl} isLoading={isLoading} />
+        <InputSection onAnalyze={handleAnalyze} isLoading={isLoading} />
         
         {error && (
           <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">

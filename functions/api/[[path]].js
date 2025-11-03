@@ -250,20 +250,14 @@ ${content.slice(0, 6000)}
   },
   "metrics": {
     "seo": [
-      { "name": "E-E-A-T 信任線索", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "內容品質與原創性", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "人本與主題一致性", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "標題與承諾落實", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "搜尋意圖契合度", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "新鮮度與時效性", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "使用者安全與風險", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" }
+      { "name": "內容意圖契合", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "洞察與證據支持", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "可讀性與敘事流暢", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" }
     ],
     "aeo": [
-      { "name": "段落獨立性", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "語言清晰度", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "實體辨識", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "邏輯流暢度", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
-      { "name": "可信度信號", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" }
+      { "name": "答案精準度", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "精選摘要適配", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" },
+      { "name": "敘事可信度", "score": 0-10, "confidence": "high|medium|low", "notes": "20-40 字" }
     ]
   },
   "eeatBreakdown": {
@@ -278,10 +272,10 @@ ${content.slice(0, 6000)}
   "recommendations": [
     {
       "priority": "critical|high|medium|low",
-      "category": "內容|結構|E-E-A-T|技術|風險",
-      "issue": "簡述當前缺口 (<=40 字)",
-      "action": "具體改善步驟 (<=60 字)",
-      "expectedScoreGain": "以「+5 分」格式估算"
+      "category": "AEO|SEO|Authority|Structure|Safety",
+      "issue": "簡述當前缺口 (≤40 字)",
+      "action": "具體改善步驟 (≤60 字)",
+      "expectedScoreGain": "以 +5 分 格式估算"
     }
   ]
 }
@@ -481,14 +475,22 @@ function normalizeHcuEntry(entry = {}) {
 
 function normalizeRecommendation(entry = {}) {
   const allowedPriority = ['critical', 'high', 'medium', 'low']
-  const allowedCategory = ['內容', '結構', 'E-E-A-T', '技術', '風險']
+  const allowedCategory = ['SEO', 'AEO', 'Authority', 'Structure', 'Safety']
+  const categoryAliases = {
+    內容: 'SEO',
+    結構: 'Structure',
+    'E-E-A-T': 'Authority',
+    技術: 'SEO',
+    風險: 'Safety'
+  }
   const priority = typeof entry.priority === 'string' ? entry.priority.trim().toLowerCase() : 'medium'
-  const category = typeof entry.category === 'string' ? entry.category.trim() : '內容'
+  const inputCategory = typeof entry.category === 'string' ? entry.category.trim() : ''
+  const category = categoryAliases[inputCategory] || inputCategory
   return {
     priority: allowedPriority.includes(priority) ? priority : 'medium',
-    category: allowedCategory.includes(category) ? category : '內容',
-    issue: coerceString(entry.issue).slice(0, 120),
-    action: coerceString(entry.action).slice(0, 160),
+    category: allowedCategory.includes(category) ? category : 'SEO',
+    issue: constrainLength(typeof entry.issue === 'string' ? entry.issue : '', 60),
+    action: constrainLength(typeof entry.action === 'string' ? entry.action : '', 80),
     expectedScoreGain: coerceString(entry.expectedScoreGain).slice(0, 40)
   }
 }
@@ -533,13 +535,77 @@ function mergeUniqueFlags(baseFlags = [], newFlags = []) {
   return merged
 }
 
+function buildEvidenceEntries(key, contentSignals = {}, scoreGuards = {}) {
+  const missing = scoreGuards.missingCritical || {}
+  const flags = scoreGuards.contentQualityFlags || {}
+  const unknownSignals = Array.isArray(contentSignals.unknownSignals) ? contentSignals.unknownSignals : []
+  const entries = []
+
+  const push = (text) => {
+    if (text) entries.push(text)
+  }
+
+  switch (key) {
+    case 'author':
+      push(`hasAuthorInfo=${contentSignals.hasAuthorInfo}`)
+      break
+    case 'publisher':
+      push(`hasPublisherInfo=${contentSignals.hasPublisherInfo}`)
+      break
+    case 'meta':
+      push(`hasMetaDescription=${contentSignals.hasMetaDescription}`)
+      break
+    case 'canonical':
+      push(`hasCanonical=${contentSignals.hasCanonical}`)
+      break
+    case 'evidence':
+      push(`evidenceCount=${contentSignals.evidenceCount}`)
+      push(`externalAuthorityLinkCount=${contentSignals.externalAuthorityLinkCount}`)
+      break
+    case 'structure':
+      push(`h2Count=${contentSignals.h2Count}`)
+      push(`listCount=${contentSignals.listCount}`)
+      break
+    case 'schema':
+      push(`schemaInspectable=${contentSignals.inspectability?.schema}`)
+      push(`unknownSignals=${unknownSignals.join(',') || 'none'}`)
+      break
+    case 'readability':
+      push(`paragraphAverageLength=${contentSignals.paragraphAverageLength}`)
+      push(`longParagraphCount=${contentSignals.longParagraphCount}`)
+      break
+    default:
+      break
+  }
+
+  if (entries.length) return entries
+
+  if (missing && Object.prototype.hasOwnProperty.call(missing, key)) {
+    return [`missingCritical.${key}=${missing[key]}`]
+  }
+
+  if (flags && Object.prototype.hasOwnProperty.call(flags, key)) {
+    return [`contentQualityFlags.${key}=${flags[key]}`]
+  }
+
+  return []
+}
+
+function formatActionWithEvidence(action, evidence = []) {
+  if (!Array.isArray(evidence) || evidence.length === 0) return action
+  return `${action}（偵測：${evidence.join(' | ')}）`
+}
+
 function generateHeuristicRecommendations(payload = {}, contentSignals = {}) {
   const recommendations = []
   const scoreGuards = payload.scoreGuards || {}
   const missing = scoreGuards.missingCritical || {}
+  const flags = scoreGuards.contentQualityFlags || {}
   const seoMetrics = Array.isArray(payload.metrics?.seo) ? payload.metrics.seo : []
+  const unknownSignals = new Set(Array.isArray(contentSignals.unknownSignals) ? contentSignals.unknownSignals : [])
 
-  function add(priority, category, issue, action, expectedScoreGain) {
+  function add(priority, category, issue, action, expectedScoreGain, evidence = []) {
+    const evidenceList = Array.isArray(evidence) ? evidence.filter(Boolean) : []
     recommendations.push({
       priority,
       category,
@@ -547,266 +613,253 @@ function generateHeuristicRecommendations(payload = {}, contentSignals = {}) {
       action,
       expectedScoreGain,
       title: issue,
-      description: action
+      description: action,
+      evidence: evidenceList
     })
   }
 
-  const eatScore = seoMetrics.find((metric) => metric?.name === 'E-E-A-T 信任線索')?.score ?? null
-  if (missing.author || missing.publisher || (isFiniteNumber(eatScore) && eatScore <= 4)) {
-    add(
-      'critical',
-      'E-E-A-T',
-      '缺少作者與品牌信任信號',
-      '補充作者/品牌介紹、加入客服或社群管道，並於段落內引用可靠來源。',
-      '+8 分'
-    )
-  }
-
-  if (missing.metaDescription || missing.canonical) {
-    add(
-      'high',
-      '技術',
-      'Meta 與 Canonical 缺失降低搜尋信號',
-      '撰寫 120 字以內的精準 Meta Description 並補上 rel="canonical"。',
-      '+5 分'
-    )
-  }
-
-  const depthFlags = scoreGuards.contentQualityFlags || {}
-  if (depthFlags.depthLow || depthFlags.actionableZero || depthFlags.evidenceNone) {
-    add(
-      'high',
-      '內容',
-      '內容深度與佐證不足',
-      '為三個產地各補充 2~3 個量化數據或評測經驗，並加入 1-2 個外部權威連結。',
-      '+10 分'
-    )
-  }
-
-  if (missing.faq || missing.howto) {
-    add(
-      'medium',
-      '結構',
-      '缺乏可被 AI 直接引用的 FAQ/HowTo 結構',
-      '新增 FAQ 或沖煮步驟段落並套用 FAQPage/HowTo Schema。',
-      '+6 分'
-    )
-  }
-
-  if (!contentSignals.externalLinkCount || contentSignals.externalLinkCount === 0) {
-    add(
-      'medium',
-      'E-E-A-T',
-      '無外部權威引用',
-      '連結到產地莊園、比賽或認證的官方頁面，強化可信度。',
-      '+4 分'
-    )
-  }
-
-  if (Array.isArray(payload.metrics?.seo)) {
-    const readabilityScore = seoMetrics.find((metric) => metric?.name === '結構與可讀性')?.score ?? null
-    if (isFiniteNumber(readabilityScore) && readabilityScore < 6 && contentSignals.h2Count < 4) {
+  const evidenceScore = seoMetrics.find((metric) => metric?.name === '洞察與證據支持')?.score ?? null
+  const authorUnknown = isUnknown(contentSignals.hasAuthorInfo)
+  const publisherUnknown = isUnknown(contentSignals.hasPublisherInfo)
+  const authorMissing = missing.author === true
+  const publisherMissing = missing.publisher === true
+  if (authorMissing || publisherMissing || (isFiniteNumber(evidenceScore) && evidenceScore <= 4)) {
+    if (authorUnknown && publisherUnknown && !missing.author && !missing.publisher) {
       add(
         'medium',
-        '結構',
-        '段落與標題結構可再優化',
-        '將「運送/訂閱/莊園故事」各拆為問句式 H2，並增設段落摘要。',
-        '+3 分'
+        'Authority',
+        '無法判斷作者/品牌信任信號',
+        '需要原始 HTML 的 <head> 或作者區塊才能檢查作者與品牌資訊。',
+        '+0 分'
       )
+    } else {
+      if (authorMissing || publisherMissing) {
+        const evidence = [
+          ...buildEvidenceEntries('author', contentSignals, scoreGuards),
+          ...buildEvidenceEntries('publisher', contentSignals, scoreGuards)
+        ]
+        add(
+          'critical',
+          'Authority',
+          '缺少作者與品牌信任信號',
+          formatActionWithEvidence('補充作者/品牌介紹、加入客服或社群管道，並於段落內引用可靠來源。', evidence),
+          '+8 分',
+          evidence
+        )
+      }
     }
+  }
+
+  const metaUnknown = isUnknown(contentSignals.hasMetaDescription)
+  const canonicalUnknown = isUnknown(contentSignals.hasCanonical)
+  const depthFlags = scoreGuards.contentQualityFlags || {}
+
+  if (recommendations.length === 0 && unknownSignals.size > 0) {
+    add(
+      'low',
+      '資料不足',
+      '缺少 HTML metadata，請提供原始頁面再檢測',
+      `偵測到下列項目無法判斷：${Array.from(unknownSignals).join(', ')}`,
+      '+0 分'
+    )
   }
 
   return recommendations
 }
 
 const FEATURE_RECOMMENDATION_MAP = {
-  metaDescriptionPresent: {
-    category: '技術',
+  titleIntentMatch: {
+    category: '內容',
     priority: 'high',
-    issue: '缺少 Meta Description 與摘要訊號',
-    action: '撰寫 120 字內、含主要關鍵字的 Meta Description，確保描述涵蓋使用者意圖。',
-    expectedScoreGain: '+4 分',
-    condition: ({ missingCritical }) => missingCritical?.metaDescription === true
-  },
-  canonicalPresent: {
-    category: '技術',
-    priority: 'high',
-    issue: '缺少 Canonical 導致搜尋辨識困難',
-    action: '補上 rel="canonical" 指向原始頁面，避免複製內容稀釋權重。',
-    expectedScoreGain: '+4 分',
-    condition: ({ missingCritical }) => missingCritical?.canonical === true
-  },
-  hasAuthorInfo: {
-    category: 'E-E-A-T',
-    priority: 'high',
-    issue: '頁面缺少作者資訊削弱信任度',
-    action: '在頁首或文末加入作者介紹與專業授權連結，補充聯絡方式。',
-    expectedScoreGain: '+6 分',
-    condition: ({ missingCritical }) => missingCritical?.author === true
-  },
-  hasPublisherInfo: {
-    category: 'E-E-A-T',
-    priority: 'high',
-    issue: '頁面缺少品牌／出版者資訊',
-    action: '補充品牌或組織資訊、社群連結，並維護公司頁面 Schema。',
+    issue: '開頭段落未清楚兌現搜尋意圖',
+    action: '調整標題與首段，直接重述使用者問題並給出摘要答案。',
     expectedScoreGain: '+5 分',
-    condition: ({ missingCritical }) => missingCritical?.publisher === true
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.titleMismatch
   },
-  hasArticleSchema: {
-    category: '結構',
+  firstParagraphAnswerQuality: {
+    category: '內容',
+    priority: 'high',
+    issue: '首段沒有直接回答主要問題',
+    action: '重寫開頭段落，提供明確結論與下一步行動提醒。',
+    expectedScoreGain: '+5 分',
+    condition: ({ contentSignals }) => (contentSignals?.firstParagraphAnswerQuality ?? 0) < 0.6
+  },
+  qaFormatScore: {
+    category: '內容',
     priority: 'medium',
-    issue: '缺乏 Article/BlogPosting Schema',
-    action: '加入 Article 結構化資料，標註作者、發布時間與主題，使搜尋更易理解內容。',
+    issue: '缺少問答式結構，難以讓讀者快速抓重點',
+    action: '以「問題＋回答」格式重組段落，讓每段直接回覆一個疑問。',
     expectedScoreGain: '+4 分',
-    condition: ({ contentSignals }) => contentSignals?.hasArticleSchema === false
+    condition: ({ contentSignals }) => (contentSignals?.qaFormatScore ?? 0) < 0.5
   },
-  listPresent: {
-    category: '結構',
+  semanticParagraphFocus: {
+    category: '內容',
     priority: 'medium',
-    issue: '缺少條列整理降低可掃讀性',
-    action: '整理重點段落為條列式（清單或步驟），對應使用者操作或比較需求。',
+    issue: '段落主題分散，關鍵資訊難以辨識',
+    action: '針對讀者問題拆分段落，每段只專注在一個重點並加入小標。',
     expectedScoreGain: '+3 分',
-    condition: ({ contentSignals }) => (contentSignals?.listCount || 0) === 0
+    condition: ({ contentSignals }) => (contentSignals?.semanticParagraphFocus ?? 0) < 0.55
   },
-  tablePresent: {
-    category: '結構',
+  topicCohesion: {
+    category: '內容',
     priority: 'medium',
-    issue: '缺乏表格整理數據或比較',
-    action: '將規格、價格、差異重點轉換為表格呈現，強化決策效率。',
+    issue: '內容跳題，主題一致性不足',
+    action: '整理大綱，移除與目標問題無關的段落並補上關鍵步驟。',
     expectedScoreGain: '+3 分',
-    condition: ({ contentSignals }) => (contentSignals?.tableCount || 0) === 0
+    condition: ({ contentSignals }) => (contentSignals?.topicCohesion ?? 0) < 0.6
   },
   actionableScoreNorm: {
     category: '內容',
     priority: 'high',
-    issue: '操作指引不足，難以轉化為實際行動',
-    action: '補充步驟化教學、清單或案例成果，至少新增 3 個具體行動建議。',
+    issue: '缺乏可執行的步驟或清單',
+    action: '補上 3-5 個具體操作步驟或檢核清單，協助讀者立即採取行動。',
     expectedScoreGain: '+6 分',
     condition: ({ contentQualityFlags }) => contentQualityFlags?.actionableWeak
   },
-  experienceCueNorm: {
-    category: 'E-E-A-T',
+  referenceKeywordNorm: {
+    category: '內容',
     priority: 'medium',
-    issue: '缺少經驗案例或第一手實證',
-    action: '新增實測心得、客戶引用或案例證言，提高體驗與可信度。',
+    issue: '未涵蓋關鍵關聯詞或延伸問題',
+    action: '蒐集相關長尾問題，於段落中自然回答並補充案例。',
     expectedScoreGain: '+4 分',
-    condition: ({ contentQualityFlags }) => contentQualityFlags?.experienceWeak
+    condition: ({ contentSignals }) => (contentSignals?.referenceKeywordNorm ?? 0) < 0.5
   },
   evidenceCountNorm: {
     category: 'E-E-A-T',
     priority: 'high',
-    issue: '缺少外部佐證與權威來源',
-    action: '引用並連結 2~3 個可信的統計或專家研究，並標註來源年份。',
+    issue: '缺少外部資料或統計支撐',
+    action: '引用並連結 2-3 個可信來源，標註年份與關鍵數據。',
     expectedScoreGain: '+5 分',
     condition: ({ contentQualityFlags }) => contentQualityFlags?.evidenceWeak
   },
-  recentYearNorm: {
-    category: '新鮮度',
+  experienceCueNorm: {
+    category: 'E-E-A-T',
     priority: 'medium',
-    issue: '內容缺乏近期年份更新',
-    action: '補充近三年內的統計或政策動態，更新頁面發布／修改時間。',
+    issue: '沒有展現實務經驗或案例',
+    action: '補充親身經驗、客戶成果或失敗教訓，強化可信度。',
     expectedScoreGain: '+4 分',
-    condition: ({ contentQualityFlags }) => contentQualityFlags?.freshnessWeak
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.experienceWeak
   },
-  titleIntentMatch: {
+  entityRichnessNorm: {
     category: '內容',
     priority: 'medium',
-    issue: '標題與主題關鍵字對應度不足',
-    action: '重新撰寫標題與前導段落，明確涵蓋主關鍵字與使用者意圖。',
+    issue: '專有名詞與實體提及不足',
+    action: '加入人物、地點、工具或數值等具體實體，提高資訊密度。',
     expectedScoreGain: '+3 分',
-    condition: ({ contentQualityFlags }) => contentQualityFlags?.titleMismatch
+    condition: ({ contentSignals }) => (contentSignals?.entityRichnessNorm ?? 0) < 0.5
+  },
+  paragraphExtractability: {
+    category: '內容',
+    priority: 'medium',
+    issue: '段落過長或缺少重點句，難以被擷取',
+    action: '將關鍵結論獨立成 2-3 句短段落，並以粗體或小標凸顯結論。',
+    expectedScoreGain: '+4 分',
+    condition: ({ contentSignals }) => (contentSignals?.paragraphExtractability ?? 0) < 0.55
+  },
+  semanticNaturalness: {
+    category: '內容',
+    priority: 'medium',
+    issue: '語句生硬或堆疊關鍵字，降低可信度',
+    action: '重寫冗長句為口語化短句，確保段落自然易讀。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentSignals }) => (contentSignals?.semanticNaturalness ?? 0) < 0.6
   },
   uniqueWordRatio: {
     category: '內容',
     priority: 'medium',
-    issue: '字詞多樣性不足，內容顯得重複',
-    action: '補充專業名詞、使用情境與差異化觀點，降低重複句型。',
+    issue: '重複用詞過多，缺乏差異化內容',
+    action: '補充不同角度與實例，重新敘述重複句型。',
     expectedScoreGain: '+3 分',
     condition: ({ contentQualityFlags }) => contentQualityFlags?.uniqueWordLow
-  },
-  avgSentenceLengthNorm: {
-    category: '結構',
-    priority: 'low',
-    issue: '句子偏長導致閱讀負擔',
-    action: '拆分冗長句子、加上過場語與小標，讓每句平均不超過 24 個字。',
-    expectedScoreGain: '+2 分',
-    condition: ({ contentQualityFlags }) => contentQualityFlags?.readabilityWeak
   },
   depthLowFlag: {
     category: '內容',
     priority: 'high',
-    issue: '內容深度與段落數不足',
-    action: '延伸常見問題、比較表與使用案例，補足至少 3 個段落與 500 字以上內容。',
+    issue: '篇幅過短，主題面向覆蓋不足',
+    action: '新增常見問題、比較表與最佳實務，至少補足 500 字。',
     expectedScoreGain: '+6 分',
     condition: ({ contentQualityFlags }) => contentQualityFlags?.depthLow
   },
   readabilityWeakFlag: {
-    category: '結構',
+    category: '內容',
+    priority: 'high',
+    issue: '段落過長或句子太複雜，影響可讀性',
+    action: '拆分長段、加入項目符號，並將 30 字以上長句改寫為短句。',
+    expectedScoreGain: '+5 分',
+    condition: ({ contentQualityFlags }) => contentQualityFlags?.readabilityWeak
+  },
+  longParagraphPenalty: {
+    category: '內容',
     priority: 'medium',
-    issue: '可讀性不足，需要優化排版',
-    action: '加入 H2/H3 標題、條列與段落摘要，確保段落平均長度低於 350 字。',
+    issue: '存在 200 字以上長段落，難以掃讀',
+    action: '將長段落分割為 2-3 個短段落，並於開頭加入主題句。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentSignals }) => (contentSignals?.longParagraphCount ?? 0) > 0
+  },
+  paragraphsLongFlag: {
+    category: '內容',
+    priority: 'medium',
+    issue: '平均段落過長，手機閱讀負擔高',
+    action: '控制每段 60-80 字，必要時使用項目符號分段。',
     expectedScoreGain: '+3 分',
     condition: ({ contentQualityFlags }) => contentQualityFlags?.readabilityWeak
   },
-  actionableWeakFlag: {
+  h2CountNorm: {
+    category: '內容',
+    priority: 'medium',
+    issue: '缺少小標題支撐段落層次',
+    action: '依讀者流程補上 3-5 個 H2 小標，每段聚焦一個子問題。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentSignals }) => (contentSignals?.h2CountNorm ?? 0) < 0.5
+  },
+  richSnippetFormat: {
+    category: '內容',
+    priority: 'medium',
+    issue: '缺少列表或步驟格式，難以被摘要',
+    action: '將重點整理為編號步驟、表格或比較清單，方便快速抽取。',
+    expectedScoreGain: '+3 分',
+    condition: ({ contentSignals }) => (contentSignals?.richSnippetFormat ?? 0) < 0.5
+  },
+  hcuNoRatio: {
     category: '內容',
     priority: 'high',
-    issue: '缺乏可立即執行的建議',
-    action: '提供逐步操作、檢核清單或工具下載，引導使用者下一步。',
-    expectedScoreGain: '+5 分',
-    condition: ({ contentQualityFlags }) => contentQualityFlags?.actionableWeak
-  },
-  freshnessWeakFlag: {
-    category: '新鮮度',
-    priority: 'medium',
-    issue: '缺少近期更新與維護訊號',
-    action: '補上最新趨勢、調整發布/更新日期，並新增 2023 年後的統計或政策。',
-    expectedScoreGain: '+3 分',
-    condition: ({ contentQualityFlags }) => contentQualityFlags?.freshnessWeak
-  },
-  titleMismatchFlag: {
-    category: '內容',
-    priority: 'high',
-    issue: '標題承諾與內文落差過大',
-    action: '校對標題與主段落是否對應，必要時重寫標題或補充對應內容。',
-    expectedScoreGain: '+5 分',
-    condition: ({ contentQualityFlags }) => contentQualityFlags?.titleMismatch
-  },
-  externalLinkPresent: {
-    category: 'E-E-A-T',
-    priority: 'medium',
-    issue: '缺乏外部引用降低可信度',
-    action: '補上至少 2 個外部權威出處（官方統計、專家評論），並標註連結。',
-    expectedScoreGain: '+4 分',
-    condition: ({ missingCritical }) => missingCritical?.externalLinksMissing === true
-  },
-  authorityLinkPresent: {
-    category: 'E-E-A-T',
-    priority: 'medium',
-    issue: '未引用權威來源或機構',
-    action: '連結到政府、學術或知名媒體等高可信度來源，補強權威度。',
-    expectedScoreGain: '+4 分',
-    condition: ({ missingCritical }) => missingCritical?.authorityLinksMissing === true
-  },
-  hasPublishedDate: {
-    category: '新鮮度',
-    priority: 'medium',
-    issue: '頁面缺少發布日期標記',
-    action: '在頁首或文末補上發布／更新日期，並以 Schema 標記時間。',
-    expectedScoreGain: '+3 分',
-    condition: ({ missingCritical }) => missingCritical?.publishedDate === true
-  },
-  hasVisibleDate: {
-    category: '新鮮度',
-    priority: 'medium',
-    issue: '缺乏可見的內容時間資訊',
-    action: '在文章中顯示最新更新日期與資訊來源年份，提升時效信任。',
-    expectedScoreGain: '+3 分',
-    condition: ({ missingCritical }) => missingCritical?.visibleDate === true
+    issue: 'HCU 自評顯示多數問題為「不符合」',
+    action: '針對 HCU 問卷中標記為 no 的題目，補上具體案例與使用者導向描述。',
+    expectedScoreGain: '+6 分',
+    condition: ({ hcuCounts }) => (hcuCounts?.no ?? 0) >= 1
   }
 }
 
 const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 }
+const RECOMMENDATION_METRIC_THRESHOLD = 8
+
+const FEATURE_METRIC_OVERRIDES = {
+  titleIntentMatch: ['內容意圖契合'],
+  qaFormatScore: ['內容意圖契合', '答案精準度'],
+  firstParagraphAnswerQuality: ['內容意圖契合', '答案精準度'],
+  semanticParagraphFocus: ['內容意圖契合', '精選摘要適配'],
+  topicCohesion: ['內容意圖契合', '敘事可信度'],
+  h2CountNorm: ['內容意圖契合', '精選摘要適配'],
+  actionableScoreNorm: ['內容意圖契合', '答案精準度'],
+  evidenceCountNorm: ['洞察與證據支持', '敘事可信度'],
+  experienceCueNorm: ['洞察與證據支持', '敘事可信度'],
+  entityRichnessNorm: ['洞察與證據支持', '敘事可信度', '精選摘要適配'],
+  paragraphExtractability: ['可讀性與敘事流暢', '答案精準度', '精選摘要適配'],
+  semanticNaturalness: ['可讀性與敘事流暢', '敘事可信度'],
+  avgSentenceLengthNorm: ['可讀性與敘事流暢'],
+  readabilityWeakFlag: ['可讀性與敘事流暢'],
+  longParagraphPenalty: ['可讀性與敘事流暢', '答案精準度', '精選摘要適配'],
+  paragraphsLongFlag: ['可讀性與敘事流暢', '答案精準度'],
+  hcuYesRatio: ['內容意圖契合', '洞察與證據支持', '答案精準度', '敘事可信度'],
+  hcuNoRatio: ['內容意圖契合', '洞察與證據支持', '答案精準度', '敘事可信度'],
+  depthLowFlag: ['內容意圖契合', '洞察與證據支持', '精選摘要適配'],
+  actionableWeakFlag: ['內容意圖契合', '答案精準度'],
+  freshnessWeakFlag: ['洞察與證據支持', '敘事可信度'],
+  uniqueWordRatio: ['洞察與證據支持', '敘事可信度', '可讀性與敘事流暢'],
+  referenceKeywordNorm: ['內容意圖契合'],
+  richSnippetFormat: ['精選摘要適配'],
+  headingHierarchyQuality: ['內容意圖契合', '精選摘要適配']
+}
 
 function pickLowScoringMetrics(metrics = [], lowThreshold = 6, limit = 4) {
   if (!Array.isArray(metrics)) return []
@@ -868,21 +921,14 @@ function buildMetricRecommendation(metric, modelContext, target = 'seo') {
 function normalizeMetricNameToFeature(name = '', target = 'seo') {
   const trimmed = name.trim()
   const seoMapping = {
-    'E-E-A-T 信任線索': 'hasAuthorInfo',
-    '內容品質與原創性': 'depthLowFlag',
-    '人本與主題一致性': 'titleIntentMatch',
-    '標題與承諾落實': 'metaDescriptionPresent',
-    '搜尋意圖契合度': 'actionableScoreNorm',
-    '新鮮度與時效性': 'recentYearNorm',
-    '使用者安全與風險': 'metaDescriptionPresent',
-    '結構與可讀性': 'readabilityWeakFlag'
+    '內容意圖契合': 'titleIntentMatch',
+    '洞察與證據支持': 'evidenceCountNorm',
+    '可讀性與敘事流暢': 'readabilityWeakFlag'
   }
   const aeoMapping = {
-    '段落獨立性': 'paragraphCountNorm',
-    '語言清晰度': 'avgSentenceLengthNorm',
-    '實體辨識': 'entityRichnessNorm',
-    '邏輯流暢度': 'actionableScoreNorm',
-    '可信度信號': 'evidenceCountNorm'
+    '答案精準度': 'actionableScoreNorm',
+    '精選摘要適配': 'paragraphExtractability',
+    '敘事可信度': 'semanticNaturalness'
   }
   if (target === 'seo') return seoMapping[trimmed] || trimmed
   if (target === 'aeo') return aeoMapping[trimmed] || trimmed
@@ -994,18 +1040,12 @@ const HCU_QUESTION_SET = [
 ]
 
 const HCU_METRIC_RULES = [
-  { scope: 'seo', metric: '人本與主題一致性', questions: ['H1', 'H2'], caps: { partial: 6, no: 4 } },
-  { scope: 'seo', metric: '搜尋意圖契合度', questions: ['H2', 'H3', 'C1'], caps: { partial: 6, no: 4 } },
-  { scope: 'seo', metric: '內容品質與原創性', questions: ['Q1', 'Q2', 'Q3', 'C1'], caps: { partial: 6, no: 4 } },
-  { scope: 'seo', metric: 'E-E-A-T 信任線索', questions: ['E1'], caps: { partial: 6, no: 4 } },
-  { scope: 'seo', metric: '標題與承諾落實', questions: ['H2'], caps: { partial: 6, no: 4 } },
-  { scope: 'seo', metric: '新鮮度與時效性', questions: ['E2'], caps: { partial: 6, no: 4 } },
-  { scope: 'seo', metric: '結構與可讀性', questions: ['P1'], caps: { partial: 6, no: 4 } },
-  { scope: 'seo', metric: '使用者安全與風險', questions: ['P2'], caps: { partial: 6, no: 5 } },
-  { scope: 'aeo', metric: '段落獨立性', questions: ['H3', 'Q2', 'Q3'], caps: { partial: 6, no: 5 } },
-  { scope: 'aeo', metric: '語言清晰度', questions: ['H1', 'P1'], caps: { partial: 6, no: 5 } },
-  { scope: 'aeo', metric: '邏輯流暢度', questions: ['H3'], caps: { partial: 6, no: 5 } },
-  { scope: 'aeo', metric: '可信度信號', questions: ['E1', 'E2'], caps: { partial: 5, no: 4 } }
+  { scope: 'seo', metric: '內容意圖契合', questions: ['H1', 'H2', 'H3'], caps: { partial: 6, no: 4 } },
+  { scope: 'seo', metric: '洞察與證據支持', questions: ['Q1', 'Q2', 'Q3', 'E2', 'C1'], caps: { partial: 6, no: 4 } },
+  { scope: 'seo', metric: '可讀性與敘事流暢', questions: ['P1', 'H3'], caps: { partial: 6, no: 4 } },
+  { scope: 'aeo', metric: '答案精準度', questions: ['H2', 'H3'], caps: { partial: 6, no: 4 } },
+  { scope: 'aeo', metric: '精選摘要適配', questions: ['H2', 'H3', 'P1'], caps: { partial: 6, no: 4 } },
+  { scope: 'aeo', metric: '敘事可信度', questions: ['E1', 'E2', 'Q3'], caps: { partial: 6, no: 4 } }
 ]
 
 function formatHcuQuestions(questionSet = HCU_QUESTION_SET) {
@@ -1829,6 +1869,30 @@ async function handleAnalyzePost(context, corsHeaders) {
       sourceUrl: requestBody.fetchedUrl || requestBody.contentUrl || requestBody.url || null
     })
 
+    const metadataKeys = ['hasMetaDescription', 'hasCanonical', 'hasAuthorInfo', 'hasPublisherInfo', 'hasPublishedDate', 'hasModifiedDate', 'hasVisibleDate']
+    const schemaKeys = ['hasFaqSchema', 'hasHowToSchema', 'hasArticleSchema', 'hasOrganizationSchema']
+    const isAllUnknown = (keys) => keys.every((key) => contentSignals[key] === 'unknown')
+    const primarySignalsUnknown = isAllUnknown(metadataKeys) && isAllUnknown(schemaKeys)
+
+    if (primarySignalsUnknown) {
+      const responsePayload = {
+        status: 'insufficient_metadata',
+        message: '缺少 HTML metadata，請提供原始頁面再檢測。',
+        contentSignals
+      }
+
+      return new Response(
+        JSON.stringify(responsePayload),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+    }
+
     const geminiApiKey = env.GEMINI_API_KEY
     console.log('GEMINI_API_KEY 長度:', geminiApiKey ? `${geminiApiKey.substring(0, 5)}...${geminiApiKey.substring(geminiApiKey.length - 3)}` : '未設置')
 
@@ -2104,28 +2168,21 @@ ${hcuQuestions}
   ],
   "metrics": {
     "aeo": [
-      { "name": "段落獨立性", "score": 整數(0-10), "description": "簡短描述" },
-      { "name": "語言清晰度", "score": 整數(0-10), "description": "簡短描述" },
-      { "name": "實體辨識", "score": 整數(0-10), "description": "簡短描述" },
-      { "name": "邏輯流暢度", "score": 整數(0-10), "description": "簡短描述" },
-      { "name": "可信度信號", "score": 整數(0-10), "description": "簡短描述" }
+      { "name": "答案精準度", "score": 整數(0-10), "description": "簡短描述" },
+      { "name": "精選摘要適配", "score": 整數(0-10), "description": "簡短描述" },
+      { "name": "敘事可信度", "score": 整數(0-10), "description": "簡短描述" }
     ],
     "seo": [
-      { "name": "E-E-A-T 信任線索", "weight": 18, "score": 整數(0-10), "description": "評估文本中呈現的專業背景、經驗與可信度證據（如作者簡介、引用來源）", "evidence": ["指出文本中的可信度線索，若缺少請說明"] },
-      { "name": "內容品質與原創性", "weight": 18, "score": 整數(0-10), "description": "衡量內容是否提供深度洞察、獨特案例或自家觀點，而非重複常識", "evidence": ["列出展現原創洞察或研究的段落"] },
-      { "name": "人本與主題一致性", "weight": 12, "score": 整數(0-10), "description": "判斷內容是否為真實使用者需求而寫，並與文中標題/主題保持一致", "evidence": ["說明內容如何回應使用者需求或指出偏離之處"] },
-      { "name": "標題與承諾落實", "weight": 10, "score": 整數(0-10), "description": "檢查標題或開頭承諾是否在正文中兌現，避免誇大", "evidence": ["比較標題/開頭與正文的對應關係"] },
-      { "name": "搜尋意圖契合度", "weight": 12, "score": 整數(0-10), "description": "衡量內容是否完整回答主要問題或達成相關任務", "evidence": ["指出滿足意圖的段落，或註記缺少資訊"] },
-      { "name": "新鮮度與時效性", "weight": 8, "score": 整數(0-10), "description": "檢視文本是否提供最新數據、更新時間或具時效性的資訊", "evidence": ["列出最新年份或說明資訊過時"] },
-      { "name": "使用者安全與風險", "weight": 12, "score": 整數(0-10), "description": "評估內容是否含有潛在誤導、風險或未標示的限制／免責", "evidence": ["指出危險段落或說明安全防護措施"] },
-      { "name": "結構與可讀性", "weight": 10, "score": 整數(0-10), "description": "判斷段落結構、排版提示、語句長度是否有利於閱讀與行動裝置瀏覽", "evidence": ["示例說明段落、列表或格式改善點"] }
+      { "name": "內容意圖契合", "weight": 34, "score": 整數(0-10), "description": "檢查內容是否回應搜尋意圖並兌現標題承諾", "evidence": ["說明對應段落或標示缺口"] },
+      { "name": "洞察與證據支持", "weight": 33, "score": 整數(0-10), "description": "評估是否提供原創洞察、案例或可信引用", "evidence": ["列出引用或案例，若缺少請說明"] },
+      { "name": "可讀性與敘事流暢", "weight": 33, "score": 整數(0-10), "description": "判斷段落結構、語句長度與可掃讀性", "evidence": ["指出段落或格式改善建議"] }
     ]
   },
   "perKeyword": [
     { "keyword": "...", "density": "...", "intentFit": "...", "coverage": "..." }
   ],
   "recommendations": [
-    { "priority": "high|medium|low", "category": "AEO|SEO|E-E-A-T|Safety", "title": "...", "description": "...", "example": "..." }
+    { "priority": "high|medium|low", "category": "SEO|AEO|Authority|Structure|Safety", "title": "...", "description": "...", "example": "..." }
   ],
   "highRiskFlags": [
     { "type": "harm|deception|spam", "severity": "critical|warning", "summary": "...", "action": "..." }
@@ -2138,7 +2195,7 @@ ${hcuQuestions}
 - 如頁面訊號顯示缺少某項結構(例如：缺少 FAQ schema 或作者資訊)，對應指標最高分僅能給 4 分。
 - 若內容不足以評估，請在描述與建議中明確指出不足與需要補充的資訊。
 - highRiskFlags 為必填欄位，若無風險請輸出空陣列。
-- 必須輸出上述 8 項 \`metrics.seo\` 指標，不可刪減或整併。
+- 必須輸出上述 3 項 `metrics.seo` 與 3 項 `metrics.aeo` 指標，不可刪減或整併。
 - 每項 description 請以 1–2 句繁體中文撰寫，總字數不超過 70 字。
 - 每項 evidence 最多 2 條，單條字數不超過 40 字。
 - 嚴禁輸出 Markdown 圍欄或額外文字，僅回傳合法 JSON。`;
@@ -2146,19 +2203,19 @@ ${hcuQuestions}
 
 function firstNonEmpty(...values) {
   for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value;
-    if (Array.isArray(value) && value.length) return value.join('\n');
+    if (typeof value === 'string' && value.trim()) return value
+    if (Array.isArray(value) && value.length) return value.join('\n')
   }
-  return '';
+  return ''
 }
 
 function coerceString(value) {
-  if (typeof value === 'string') return value;
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) return value.map(coerceString).join('\n');
-  if (typeof value === 'object' && typeof value.toString === 'function') return value.toString();
-  return '';
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.map(coerceString).join('\n')
+  if (typeof value === 'object' && value !== null && typeof value.toString === 'function') return value.toString()
+  return ''
 }
 
 function normalizeContentVariants(source = {}) {
@@ -2368,10 +2425,56 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
 
   const sourceHtml = html || ''
   const hasHtml = Boolean(sourceHtml.trim())
+  const hasHeadTag = hasHtml && /<head[^>]*>/i.test(sourceHtml)
+  const metadataInspectable = hasHtml && hasHeadTag
+  const schemaInspectable = hasHtml
+  const unknownSignals = new Set()
+
+  const markUnknown = (key) => {
+    signal[key] = 'unknown'
+    unknownSignals.add(key)
+  }
+
+  const setKnownBoolean = (key, value) => {
+    signal[key] = Boolean(value)
+    unknownSignals.delete(key)
+    return signal[key]
+  }
+
+  const ensureKnownFalse = (key) => setKnownBoolean(key, false)
+
   const htmlPlainFallback = hasHtml ? htmlToStructuredText(sourceHtml) : ''
 
   const paragraphSegments = []
   let primaryH1 = ''
+
+  const metadataFields = ['hasUniqueTitle', 'hasMetaDescription', 'hasCanonical']
+  const entityFields = ['hasAuthorInfo', 'hasPublisherInfo', 'hasPublishedDate', 'hasModifiedDate', 'hasVisibleDate']
+  const schemaFields = ['hasFaqSchema', 'hasHowToSchema', 'hasArticleSchema', 'hasOrganizationSchema']
+
+  metadataFields.forEach((key) => {
+    if (metadataInspectable) {
+      ensureKnownFalse(key)
+    } else {
+      markUnknown(key)
+    }
+  })
+
+  entityFields.forEach((key) => {
+    if (hasHtml) {
+      ensureKnownFalse(key)
+    } else {
+      markUnknown(key)
+    }
+  })
+
+  schemaFields.forEach((key) => {
+    if (schemaInspectable) {
+      ensureKnownFalse(key)
+    } else {
+      markUnknown(key)
+    }
+  })
 
   try {
     // 簡化版：使用正則表達式而非 DOM 解析以避免超時
@@ -2379,23 +2482,29 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
     
     if (hasHtml) {
       // 快速檢查基本標籤
-      signal.hasUniqueTitle = /<title[^>]*>(.{1,}?)<\/title>/i.test(sourceHtml)
-      signal.hasMetaDescription = /name=["']description["']\s+content=["'](.{30,}?)["']/i.test(sourceHtml)
-      signal.hasCanonical = /rel=["']canonical["']/i.test(sourceHtml)
+      if (metadataInspectable) {
+        setKnownBoolean('hasUniqueTitle', /<title[^>]*>(.{1,}?)<\/title>/i.test(sourceHtml))
+        setKnownBoolean('hasMetaDescription', /name=["']description["']\s+content=["'](.{30,}?)["']/i.test(sourceHtml))
+        setKnownBoolean('hasCanonical', /rel=["']canonical["']/i.test(sourceHtml))
+      }
 
       const authorMatches = /<(?:meta|span|div)[^>]*(?:name|itemprop|class|id)=["'](?:author|byline|writer)["'][^>]*>(.*?)<\//gi
-      signal.hasAuthorInfo = authorMatches.test(sourceHtml)
+      setKnownBoolean('hasAuthorInfo', authorMatches.test(sourceHtml))
 
       const publisherMatches = /<(?:meta|span|div)[^>]*(?:name|itemprop|class|id)=["'](?:publisher|organization|brand)["'][^>]*>/gi
-      signal.hasPublisherInfo = publisherMatches.test(sourceHtml)
+      setKnownBoolean('hasPublisherInfo', publisherMatches.test(sourceHtml))
 
-      if (!signal.hasPublishedDate) {
-        signal.hasPublishedDate = /(?:datePublished|pubdate|published_time)["']?\s*[:=]\s*["']?\d{4}/i.test(sourceHtml)
+      if (signal.hasPublishedDate !== 'unknown') {
+        setKnownBoolean('hasPublishedDate', /(?:datePublished|pubdate|published_time)["']?\s*[:=]\s*["']?\d{4}/i.test(sourceHtml))
+      } else {
+        setKnownBoolean('hasPublishedDate', /(?:datePublished|pubdate|published_time)["']?\s*[:=]\s*["']?\d{4}/i.test(sourceHtml))
       }
-      if (!signal.hasModifiedDate) {
-        signal.hasModifiedDate = /(?:dateModified|updated_time|modified_time)["']?\s*[:=]\s*["']?\d{4}/i.test(sourceHtml)
+      if (signal.hasModifiedDate !== 'unknown') {
+        setKnownBoolean('hasModifiedDate', /(?:dateModified|updated_time|modified_time)["']?\s*[:=]\s*["']?\d{4}/i.test(sourceHtml))
+      } else {
+        setKnownBoolean('hasModifiedDate', /(?:dateModified|updated_time|modified_time)["']?\s*[:=]\s*["']?\d{4}/i.test(sourceHtml))
       }
-      
+
       // 計數基本標籤
       const h1Matches = sourceHtml.match(/<h1[^>]*>(.*?)<\/h1>/gi) || []
       signal.h1Count = h1Matches.length
@@ -2415,23 +2524,42 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
       signal.imageCount = (sourceHtml.match(/<img[^>]*>/gi) || []).length
       
       // 檢查 Schema
-      const schemaMatches = sourceHtml.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || []
-      for (const match of schemaMatches) {
-        try {
-          const jsonStr = match.replace(/<script[^>]*>|<\/script>/gi, '')
-          const json = JSON.parse(jsonStr)
-          const type = json['@type'] || ''
-          if (type.includes('Article') || type.includes('BlogPosting')) signal.hasArticleSchema = true
-          if (type.includes('FAQPage')) signal.hasFaqSchema = true
-          if (type.includes('HowTo')) signal.hasHowToSchema = true
-        } catch (e) {
-          // 忽略解析錯誤
+      if (schemaInspectable) {
+        const schemaMatches = sourceHtml.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || []
+        for (const match of schemaMatches) {
+          try {
+            const jsonStr = match.replace(/<script[^>]*>|<\/script>/gi, '')
+            const json = JSON.parse(jsonStr)
+            const types = Array.isArray(json['@type']) ? json['@type'] : [json['@type'] || '']
+            types.forEach((type) => {
+              const value = typeof type === 'string' ? type : ''
+              if (!value) return
+              const normalized = value.toLowerCase()
+              if (normalized.includes('article') || normalized.includes('blogposting')) {
+                setKnownBoolean('hasArticleSchema', true)
+              }
+              if (normalized.includes('faqpage')) {
+                setKnownBoolean('hasFaqSchema', true)
+              }
+              if (normalized.includes('howto')) {
+                setKnownBoolean('hasHowToSchema', true)
+              }
+              if (normalized.includes('organization')) {
+                setKnownBoolean('hasOrganizationSchema', true)
+              }
+            })
+          } catch (e) {
+            // 忽略解析錯誤
+          }
         }
       }
-      
+
       // 檢查日期
-      signal.hasVisibleDate = /\d{4}[年\/-]/.test(sourceHtml)
-      signal.hasVisibleDate ||= /(?:發佈|發布|更新)[^\n]*\d{4}[年\/-]\d{1,2}[月\/-]\d{1,2}/.test(sourceHtml)
+      setKnownBoolean(
+        'hasVisibleDate',
+        /\d{4}[年\/-]/.test(sourceHtml) ||
+          /(?:發佈|發布|更新)[^\n]*\d{4}[年\/-]\d{1,2}[月\/-]\d{1,2}/.test(sourceHtml)
+      )
     }
 
     // 使用 plain text 計算字數和句子
@@ -2614,8 +2742,18 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
       })
       signal.titleIntentMatch = Number((overlap / titleKeywords.size).toFixed(2))
     }
+    if (signal.hasVisibleDate === 'unknown' && /\d{4}[年\/-]\d{1,2}[月\/-]?\d{0,2}/.test(plainTextSource)) {
+      setKnownBoolean('hasVisibleDate', true)
+    }
   } catch (error) {
     console.error('computeContentSignals failed', error)
+  }
+
+  signal.unknownSignals = Array.from(unknownSignals)
+  signal.inspectability = {
+    metadata: metadataInspectable ? 'available' : 'unavailable',
+    schema: schemaInspectable ? 'available' : 'unavailable',
+    rawHtmlProvided: hasHtml
   }
 
   return signal
@@ -2672,6 +2810,7 @@ function constrainLength(text, maxLength) {
 }
 
 function buildContentQualityFlags(contentSignals = {}) {
+  const isUnknown = (value) => value === 'unknown'
   const wordCount = Number(contentSignals.wordCount || 0)
   const paragraphCount = Number(contentSignals.paragraphCount || 0)
   const actionableScore = Number(contentSignals.actionableScore || 0)
@@ -2680,9 +2819,9 @@ function buildContentQualityFlags(contentSignals = {}) {
   const externalAuthorityLinkCount = Number(contentSignals.externalAuthorityLinkCount || 0)
   const recentYearCount = Number(contentSignals.recentYearCount || 0)
   const experienceCueCount = Number(contentSignals.experienceCueCount || 0)
-  const hasFirstPersonNarrative = Boolean(contentSignals.hasFirstPersonNarrative)
+  const hasFirstPersonNarrative = contentSignals.hasFirstPersonNarrative === 'unknown' ? false : Boolean(contentSignals.hasFirstPersonNarrative)
   const titleIntentMatch = Number(contentSignals.titleIntentMatch || 0)
-  const h1ContainsKeyword = contentSignals.h1ContainsKeyword
+  const h1ContainsKeyword = isUnknown(contentSignals.h1ContainsKeyword) ? null : contentSignals.h1ContainsKeyword
   const longParagraphCount = Number(contentSignals.longParagraphCount || 0)
   const avgSentenceLength = Number(contentSignals.avgSentenceLength || 0)
   const uniqueWordRatio = Number(contentSignals.uniqueWordRatio || 0)
@@ -2764,22 +2903,19 @@ function deriveFallbackMetricScore(metricName, scope, context = {}) {
   }
 
   switch (metricName) {
-    case 'E-E-A-T 信任線索': {
+    case '內容意圖契合': {
       let score = 10
-      if (missing.author) score -= 2
-      if (missing.publisher) score -= 2
-      if (missing.authorityLinksMissing) score -= 1
-      if (!signals.hasArticleSchema) score -= 1
-      const evidenceCount = num(signals.evidenceCount ?? flags.evidenceCount)
-      if (evidenceCount >= 4) score += 2
-      else if (evidenceCount >= 2) score += 1
-      const experienceCueCount = num(signals.experienceCueCount ?? flags.experienceCueCount)
-      if (experienceCueCount >= 2) score += 1
+      if (missing.h1Count || missing.h1Keyword) score -= 2
+      if (flags.titleMismatch) score -= 2
+      if (flags.actionableWeak) score -= 1
+      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
+      if (actionableScore >= 2) score += 1
       return clamp0to10(score)
     }
-    case '內容品質與原創性': {
+    case '洞察與證據支持': {
       let score = 10
-      if (flags.depthLow) score -= 2
+      if (missing.externalLinksMissing) score -= 2
+      if (flags.depthLow) score -= 1
       if (flags.uniqueWordLow) score -= 1
       const evidenceCount = num(signals.evidenceCount ?? flags.evidenceCount)
       if (evidenceCount === 0) score -= 2
@@ -2787,69 +2923,10 @@ function deriveFallbackMetricScore(metricName, scope, context = {}) {
       const experienceCueCount = num(signals.experienceCueCount ?? flags.experienceCueCount)
       if (experienceCueCount >= 3) score += 2
       else if (experienceCueCount >= 1) score += 1
-      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
-      if (actionableScore >= 2) score += 1
       return clamp0to10(score)
     }
-    case '人本與主題一致性': {
-      let score = 7
-      const titleIntentMatch = num(signals.titleIntentMatch ?? flags.titleIntentMatch)
-      if (titleIntentMatch >= 0.8) score += 2
-      else if (titleIntentMatch >= 0.6) score += 1
-      else if (titleIntentMatch < 0.3) score -= 2
-      if (flags.actionableWeak) score -= 2
-      if (missing.h1Keyword) score -= 2
-      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
-      if (actionableScore >= 2) score += 1
-      const referenceKeywordCount = num(signals.referenceKeywordCount)
-      if (referenceKeywordCount === 0) score -= 1
-      return clamp0to10(score)
-    }
-    case '標題與承諾落實': {
-      let score = 8
-      if (flags.titleMismatch) score -= 3
-      if (missing.h1Count) score -= 2
-      if (flags.actionableWeak) score -= 1
-      if (signals.hasMetaDescription) score += 1
-      if (signals.hasUniqueTitle) score += 1
-      return clamp0to10(score)
-    }
-    case '搜尋意圖契合度': {
-      let score = 8
-      if (missing.h2Coverage) score -= 3
-      if (flags.depthLow) score -= 2
-      if (flags.actionableWeak) score -= 1
-      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
-      if (actionableScore >= 2) score += 2
-      else if (actionableScore === 0) score -= 2
-      const paragraphCount = num(signals.paragraphCount)
-      if (paragraphCount >= 6) score += 1
-      else if (paragraphCount <= 2) score -= 1
-      return clamp0to10(score)
-    }
-    case '新鮮度與時效性': {
-      let score = 6
-      if (signals.hasPublishedDate) score += 2
-      if (signals.hasVisibleDate) score += 1
-      if (signals.hasModifiedDate) score += 1
-      const recentYearCount = num(signals.recentYearCount ?? flags.recentYearCount)
-      if (recentYearCount >= 2) score += 1
-      if (recentYearCount === 0) score -= 3
-      return clamp0to10(score)
-    }
-    case '使用者安全與風險': {
-      let score = 8
-      if (missing.metaDescription) score -= 3
-      if (missing.canonical) score -= 2
-      const evidenceCount = num(signals.evidenceCount ?? flags.evidenceCount)
-      if (evidenceCount === 0) score -= 2
-      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
-      if (actionableScore === 0) score -= 1
-      if (signals.externalAuthorityLinkCount > 0) score += 1
-      return clamp0to10(score)
-    }
-    case '結構與可讀性': {
-      let score = 8
+    case '可讀性與敘事流暢': {
+      let score = 10
       if (flags.readabilityWeak) score -= 4
       const paragraphCount = num(signals.paragraphCount)
       if (paragraphCount <= 1) score -= 3
@@ -2868,26 +2945,31 @@ function deriveFallbackMetricScore(metricName, scope, context = {}) {
 }
 
 function deriveMissingCriticalSignals(contentSignals = {}) {
+  const isUnknown = (value) => value === 'unknown'
+  const toBoolean = (value) => Boolean(value) && !isUnknown(value)
+  const toNumber = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0)
+
   return {
-    faq: !contentSignals.hasFaqSchema,
-    howto: !contentSignals.hasHowToSchema,
-    article: !contentSignals.hasArticleSchema,
-    author: !contentSignals.hasAuthorInfo,
-    publisher: !contentSignals.hasPublisherInfo,
-    publishedDate: !contentSignals.hasPublishedDate,
-    modifiedDate: !contentSignals.hasModifiedDate,
-    visibleDate: !contentSignals.hasVisibleDate,
-    metaDescription: !contentSignals.hasMetaDescription,
-    canonical: !contentSignals.hasCanonical,
-    h1Keyword: !contentSignals.h1ContainsKeyword,
-    h1Count: Number(contentSignals.h1Count || 0) !== 1,
-    h2Coverage: Number(contentSignals.h2Count || 0) < 2,
-    paragraphsLong: Number(contentSignals.paragraphAverageLength || 0) > 420,
-    listMissing: Number(contentSignals.listCount || 0) === 0,
-    tableMissing: Number(contentSignals.tableCount || 0) === 0,
-    imageAltMissing: Number(contentSignals.imageCount || 0) > 0 && Number(contentSignals.imageWithAltCount || 0) < Number(contentSignals.imageCount || 0),
-    externalLinksMissing: Number(contentSignals.externalLinkCount || 0) < 1,
-    authorityLinksMissing: Number(contentSignals.externalAuthorityLinkCount || 0) < 1
+    faq: !toBoolean(contentSignals.hasFaqSchema) && !isUnknown(contentSignals.hasFaqSchema),
+    howto: !toBoolean(contentSignals.hasHowToSchema) && !isUnknown(contentSignals.hasHowToSchema),
+    article: !toBoolean(contentSignals.hasArticleSchema) && !isUnknown(contentSignals.hasArticleSchema),
+    organization: !toBoolean(contentSignals.hasOrganizationSchema) && !isUnknown(contentSignals.hasOrganizationSchema),
+    author: !toBoolean(contentSignals.hasAuthorInfo) && !isUnknown(contentSignals.hasAuthorInfo),
+    publisher: !toBoolean(contentSignals.hasPublisherInfo) && !isUnknown(contentSignals.hasPublisherInfo),
+    publishedDate: !toBoolean(contentSignals.hasPublishedDate) && !isUnknown(contentSignals.hasPublishedDate),
+    modifiedDate: !toBoolean(contentSignals.hasModifiedDate) && !isUnknown(contentSignals.hasModifiedDate),
+    visibleDate: !toBoolean(contentSignals.hasVisibleDate) && !isUnknown(contentSignals.hasVisibleDate),
+    metaDescription: !toBoolean(contentSignals.hasMetaDescription) && !isUnknown(contentSignals.hasMetaDescription),
+    canonical: !toBoolean(contentSignals.hasCanonical) && !isUnknown(contentSignals.hasCanonical),
+    h1Keyword: !toBoolean(contentSignals.h1ContainsKeyword) && !isUnknown(contentSignals.h1ContainsKeyword),
+    h1Count: toNumber(contentSignals.h1Count) !== 1,
+    h2Coverage: toNumber(contentSignals.h2Count) < 2,
+    paragraphsLong: toNumber(contentSignals.paragraphAverageLength) > 420,
+    listMissing: toNumber(contentSignals.listCount) === 0,
+    tableMissing: toNumber(contentSignals.tableCount) === 0,
+    imageAltMissing: toNumber(contentSignals.imageCount) > 0 && toNumber(contentSignals.imageWithAltCount) < toNumber(contentSignals.imageCount),
+    externalLinksMissing: toNumber(contentSignals.externalLinkCount) < 1,
+    authorityLinksMissing: toNumber(contentSignals.externalAuthorityLinkCount) < 1
   }
 }
 
@@ -2970,32 +3052,35 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
         }
 
         if (Number.isFinite(guarded.score)) {
-          if (metric.name === '段落獨立性' && missingCritical.h2Coverage) {
+          if (metric.name === '答案精準度' && missingCritical.h2Coverage) {
             guarded.score = Math.min(guarded.score, 5)
           }
-          if (metric.name === '段落獨立性' && contentQualityFlags.depthVeryLow) {
+          if (metric.name === '答案精準度' && contentQualityFlags.depthVeryLow) {
             guarded.score = Math.min(guarded.score, 4)
           }
-          if (metric.name === '語言清晰度' && missingCritical.paragraphsLong) {
+          if (metric.name === '答案精準度' && contentQualityFlags.actionableWeak) {
             guarded.score = Math.min(guarded.score, 6)
           }
-          if (metric.name === '語言清晰度' && contentQualityFlags.readabilityWeak) {
+          if (metric.name === '精選摘要適配' && missingCritical.paragraphsLong) {
+            guarded.score = Math.min(guarded.score, 6)
+          }
+          if (metric.name === '精選摘要適配' && contentQualityFlags.readabilityWeak) {
             guarded.score = Math.min(guarded.score, 5)
           }
-          if (metric.name === '可信度信號' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
+          if (metric.name === '精選摘要適配' && missingCritical.listMissing) {
+            guarded.score = Math.min(guarded.score, 5)
+          }
+          if (metric.name === '精選摘要適配' && missingCritical.h2Coverage) {
+            guarded.score = Math.min(guarded.score, 6)
+          }
+          if (metric.name === '敘事可信度' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
             guarded.score = Math.min(guarded.score, 4)
           }
-          if (metric.name === '可信度信號' && contentQualityFlags.evidenceWeak) {
-            guarded.score = Math.min(guarded.score, 3)
+          if (metric.name === '敘事可信度' && contentQualityFlags.evidenceWeak) {
+            guarded.score = Math.min(guarded.score, 4)
           }
-          if (metric.name === '語言清晰度' && contentQualityFlags.uniqueWordLow) {
+          if (metric.name === '敘事可信度' && contentQualityFlags.uniqueWordLow) {
             guarded.score = Math.min(guarded.score, 6)
-          }
-          if (metric.name === '實體辨識' && contentQualityFlags.uniqueWordLow) {
-            guarded.score = Math.min(guarded.score, 5)
-          }
-          if (metric.name === '邏輯流暢度' && (contentQualityFlags.actionableWeak || contentQualityFlags.readabilityWeak)) {
-            guarded.score = Math.min(guarded.score, 5)
           }
           guarded.score = applyHcuCaps(guarded.score, metric.name, 'aeo')
           guarded.score = clampScore(guarded.score)
@@ -3032,45 +3117,26 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
           }
         }
         switch (metric.name) {
-          case 'E-E-A-T 信任線索':
-            if (missingCritical.author || missingCritical.publisher) lower(4)
-            if (missingCritical.authorityLinksMissing) lower(4)
+          case '內容意圖契合': {
+            if (missingCritical.h1Count || missingCritical.h1Keyword) lower(4)
+            if (contentQualityFlags.titleMismatch) lower(5)
+            if (contentQualityFlags.actionableWeak) lower(5)
             break
-          case '內容品質與原創性':
+          }
+          case '洞察與證據支持': {
             if (missingCritical.externalLinksMissing) lower(5)
             if (contentQualityFlags.depthLow) lower(6)
             if (contentQualityFlags.uniqueWordLow) lower(5)
             if (contentQualityFlags.experienceWeak) lower(5)
             break
-          case '人本與主題一致性':
-            if (missingCritical.h1Count || missingCritical.h1Keyword) lower(5)
-            if (contentQualityFlags.titleMismatch) lower(5)
-            if (contentQualityFlags.actionableWeak) lower(5)
-            break
-          case '標題與承諾落實':
-            if (missingCritical.h1Count) lower(6)
-            if (contentQualityFlags.titleMismatch) lower(4)
-            break
-          case '搜尋意圖契合度':
-            if (missingCritical.h2Coverage) lower(6)
-            if (contentQualityFlags.actionableWeak) lower(4)
-            if (contentQualityFlags.depthLow) lower(6)
-            break
-          case '新鮮度與時效性':
-            if (missingCritical.publishedDate || missingCritical.visibleDate) lower(3)
-            if (missingCritical.modifiedDate) lower(4)
-            if (contentQualityFlags.freshnessWeak) lower(3)
-            break
-          case '使用者安全與風險':
-            if (missingCritical.metaDescription || missingCritical.canonical) lower(6)
-            if (contentQualityFlags.evidenceWeak) lower(5)
-            break
-          case '結構與可讀性':
+          }
+          case '可讀性與敘事流暢': {
             if (missingCritical.listMissing) lower(5)
             if (missingCritical.tableMissing) lower(6)
             if (missingCritical.paragraphsLong) lower(5)
             if (contentQualityFlags.readabilityWeak) lower(4)
             break
+          }
           default:
             break
         }
@@ -3603,87 +3669,42 @@ function generateMockAnalysis(content, targetKeyword) {
     metrics: {
       aeo: [
         {
-          name: '段落獨立性',
+          name: '答案精準度',
           score: 8,
-          description: '段落主題明確，結構良好'
+          description: '開頭直接回覆問題並提供明確結論'
         },
         {
-          name: '語言清晰度',
+          name: '精選摘要適配',
           score: 7,
-          description: '語言表達清晰，但部分句子可以更簡潔'
+          description: '段落結構清楚，但仍可追加一步驟摘要'
         },
         {
-          name: '實體辨識',
-          score: 8,
-          description: '包含豐富的實體和專有名詞'
-        },
-        {
-          name: '邏輯流暢度',
-          score: 8,
-          description: '論述邏輯連貫，易於理解'
-        },
-        {
-          name: '可信度信號',
+          name: '敘事可信度',
           score: 7,
-          description: '建議增加更多數據和來源引用'
+          description: '語氣可信且提供部分引用，可再補強案例'
         }
       ],
       seo: [
         {
-          name: 'E-E-A-T 信任線索',
-          weight: 18,
-          score: 7,
-          description: '文本提供基本背景與來源，但仍可補充更多權威佐證',
-          evidence: ['導言段提到作者具多年經驗', '內文引用 1 筆 2023 年業界調查']
-        },
-        {
-          name: '內容品質與原創性',
-          weight: 18,
+          name: '內容意圖契合',
+          weight: 34,
           score: hasKeyword ? 7 : 6,
-          description: hasKeyword ? '主內容結構完整且包含親身案例' : '內容尚未針對目標關鍵字提供具體案例',
-          evidence: [wordCount > 500 ? '第三段描述實際實施流程' : '篇幅不足 500 字，缺少深度資訊']
+          description: hasKeyword ? '內容緊扣關鍵字需求並給出操作建議' : '尚未針對目標關鍵字整理專屬指引',
+          evidence: [hasKeyword ? '首段回覆「如何執行」流程' : '缺少與關鍵字對應的案例']
         },
         {
-          name: '人本與主題一致性',
-          weight: 12,
-          score: 7,
-          description: '全文聚焦解決使用者問題，無刻意堆疊關鍵字',
-          evidence: ['第二段直接回答「該怎麼做」的提問']
-        },
-        {
-          name: '標題與承諾落實',
-          weight: 10,
-          score: 7,
-          description: '標題承諾的步驟在正文中都有對應段落',
-          evidence: ['標題寫「三步驟」，內文第 3-5 段逐一說明']
-        },
-        {
-          name: '搜尋意圖契合度',
-          weight: 12,
-          score: 7,
-          description: '內容回答主要問題並提供操作步驟',
-          evidence: ['結論提供可執行清單對應讀者意圖']
-        },
-        {
-          name: '新鮮度與時效性',
-          weight: 8,
+          name: '洞察與證據支持',
+          weight: 33,
           score: wordCount > 500 ? 7 : 6,
-          description: wordCount > 500 ? '引用 2024 年資料維持時效性' : '缺少發布或更新時間資訊',
-          evidence: [wordCount > 500 ? '第四段引用「2024 年統計」' : '全文未標示年份']
+          description: wordCount > 500 ? '引用 1 筆 2024 年資料並附案例' : '需補充外部引用或數據佐證',
+          evidence: [wordCount > 500 ? '第四段提及 2024 年統計數據' : '全文缺乏來源引用']
         },
         {
-          name: '使用者安全與風險',
-          weight: 12,
-          score: 7,
-          description: '內容無明顯危害，但建議補充資料來源以降低誤導風險',
-          evidence: ['無極端承諾或危險指引', '建議加入引用佐證關鍵數據']
-        },
-        {
-          name: '結構與可讀性',
-          weight: 10,
+          name: '可讀性與敘事流暢',
+          weight: 33,
           score: 8,
-          description: '段落切分良好，適合行動裝置閱讀',
-          evidence: ['使用條列整理步驟', '句子長度適中，易於掃讀']
+          description: '段落分明、句子平均 30 字內，易於掃讀',
+          evidence: ['使用項目符號與小標清楚結構']
         }
       ]
     },
@@ -3842,22 +3863,15 @@ function computeWeightedScore(metrics) {
 }
 
 const AEO_METRIC_DEFAULTS = [
-  { name: '段落獨立性', description: '評估各段是否能獨立傳達重點，利於 AI 抽取答案。' },
-  { name: '語言清晰度', description: '檢查句構與用詞是否清晰易懂，避免曖昧語句。' },
-  { name: '實體辨識', description: '評估是否明確提及品牌、產品、地點等實體名稱。' },
-  { name: '邏輯流暢度', description: '判斷段落安排是否具備起承轉合，方便理解脈絡。' },
-  { name: '可信度信號', description: '檢視是否有數據、案例或來源支撐，提高可信度。' }
+  { name: '答案精準度', description: '開頭是否直接回答問題並提供可執行的指引。' },
+  { name: '精選摘要適配', description: '段落結構是否利於抽取，符合精選摘要格式。' },
+  { name: '敘事可信度', description: '語句是否自然並提供可信案例或引用。' }
 ]
 
 const SEO_METRIC_DEFAULTS = [
-  { name: 'E-E-A-T 信任線索', weight: 18, description: '作者、品牌背景與來源引用是否充分展現專業與可信度。' },
-  { name: '內容品質與原創性', weight: 18, description: '內容是否提供深度洞察、案例或自家觀點。' },
-  { name: '人本與主題一致性', weight: 12, description: '內容是否貼近讀者需求且與標題主題一致。' },
-  { name: '標題與承諾落實', weight: 10, description: '標題或開頭承諾是否在正文中兌現，避免誇大。' },
-  { name: '搜尋意圖契合度', weight: 12, description: '內容是否完整回應搜尋者意圖並提供後續行動。' },
-  { name: '新鮮度與時效性', weight: 8, description: '是否提供最新資料或標註更新時間。' },
-  { name: '使用者安全與風險', weight: 12, description: '內容是否避免錯誤指引並提供必要免責或安全提醒。' },
-  { name: '結構與可讀性', weight: 10, description: '段落、列表、排版是否利於掃讀與行動裝置瀏覽。' }
+  { name: '內容意圖契合', weight: 34, description: '內容是否回應搜尋意圖並兌現標題承諾。' },
+  { name: '洞察與證據支持', weight: 33, description: '是否提供原創洞察、案例與可信引用。' },
+  { name: '可讀性與敘事流暢', weight: 33, description: '段落結構與語言是否流暢易讀。' }
 ]
 
 function ensureMetricShape(metrics, defaults, scope) {

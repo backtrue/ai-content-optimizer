@@ -49,3 +49,36 @@
 - [x] 執行 analyze-worker 回歸測試並記錄結果
 - [x] 建立 `scripts/deploy-cloudflare.sh` 一鍵部署腳本並更新文件
 - [ ] 更新 scoring pipeline 文件與使用指引
+
+## 2025-11-02 Content Signals Remediation Session
+
+- [ ] 區分「未知」與「缺失」狀態
+  - [ ] 調整 `computeContentSignals` 對缺乏 `<head>` 或 schema 的輸入，將 `hasMetaDescription`、`hasCanonical`、`hasAuthorInfo` 等改為 `unknown`
+  - [ ] 在 `deriveMissingCriticalSignals` 中跳過 `unknown` 值，避免誤判為缺失
+- [ ] 強化建議生成的證據驗證
+  - [ ] 更新 `generateHeuristicRecommendations` 僅在 `contentSignals` / `modelContributions` 出現確切負向訊號時輸出建議
+  - [ ] 為每則建議附上觸發的欄位或內容片段，並整合到 `description` 或 `evidence` 欄位
+- [ ] 改善無法判斷時的 UX
+  - [ ] 在 compute/guard 結果皆為 `unknown` 時回傳「缺少 HTML metadata，請提供原始頁面再檢測」
+  - [ ] 調整前端 UI 顯示「偵測不到」提示，避免誤導性建議
+- [ ] 補充測試與文件
+  - [ ] 新增純文字輸入的回歸案例，確認不會產生錯誤建議
+  - [ ] 更新相關文件記錄偵測流程與 Unknown 狀態
+
+## 2025-11-03 Content Score Simplification
+
+- [ ] 重構 `scoring-model.js`，移除 HTML/Schema 依賴指標（結構與可讀性、新鮮度、安全、標題承諾等）
+- [ ] （2025-11-02 23:34）清點現行指標與 fallback 設定差異
+- [ ] 更新 `buildAnalysisPrompt` 與前端 `MetricsBreakdown`，同步精簡後的指標與說明
+- [ ] 調整 `deriveFallbackMetricScore` 與 `FEATURE_METRIC_OVERRIDES` 映射，對應新的指標集合
+- [ ] 清理 `generateModelRecommendations` 與 `FEATURE_RECOMMENDATION_MAP`，僅保留純內容建議
+- [ ] 以 `gpt-5-mini` 生成建議文案，確保描述聚焦文本內容並移除 HTML 指令
+- [ ] 補齊文件與 Changelog，說明評分縮減與建議調整
+- [ ] （2025-11-03 00:45）同步 `functions/api/[[path]].js` prompt、示例輸出與新指標命名
+- [ ] （2025-11-03 00:45）檢視前端 `MetricsBreakdown` 與文案是否需要同步更新
+
+## 2025-11-02 UI Input Simplification
+
+- [x] 停用「貼上網址」流程，僅保留貼上文字模式
+- [ ] 調整後端 `App.jsx` 相關呼叫與說明文字
+- [ ] 更新文件說明僅支援貼上文字的使用流程

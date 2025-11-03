@@ -13,7 +13,66 @@ export default function ResultsDashboard({
   feedbackContext,
   apiBaseUrl /*, history = [], onExportHistory, onClearHistory */
 }) {
-  const { overallScore, aeoScore, seoScore, metrics, chunks = [], recommendationsStatus } = results
+  if (results?.status === 'insufficient_metadata') {
+    const unknownSignals = Array.isArray(results?.contentSignals?.unknownSignals)
+      ? results.contentSignals.unknownSignals
+      : []
+    const inspectability = results?.contentSignals?.inspectability || {}
+
+    return (
+      <div className="space-y-6">
+        <div className="card border border-yellow-200 bg-yellow-50">
+          <div className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-yellow-800">無法評分：缺少 HTML metadata</h2>
+              <p className="text-sm text-yellow-700">
+                {results?.message || '偵測不到 `<head>` 區塊或結構化資料，請提供完整 HTML 後再重新檢測。'}
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-white border border-yellow-100 p-3 text-sm text-gray-700">
+              <p className="font-medium text-gray-800 mb-1">目前偵測狀態</p>
+              <div className="grid gap-2 md:grid-cols-2">
+                <div>
+                  <span className="font-semibold text-gray-600">Metadata 可檢測：</span>
+                  <span>{inspectability.metadata === 'available' ? '是' : '否'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-600">Schema 可檢測：</span>
+                  <span>{inspectability.schema === 'available' ? '是' : '否'}</span>
+                </div>
+              </div>
+              {unknownSignals.length > 0 && (
+                <div className="mt-3">
+                  <p className="font-semibold text-gray-600">無法判斷的項目：</p>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {unknownSignals.map((flag) => (
+                      <span key={flag} className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
+                        {flag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-500">
+              提示：請直接貼上完整頁面 HTML 或使用提供原始碼的 API，以便系統取用 Meta / Schema / 作者資訊等關鍵標記。
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const {
+    overallScore,
+    aeoScore,
+    seoScore,
+    metrics,
+    chunks = [],
+    recommendationsStatus
+  } = results
   const [selectedChunkIds, setSelectedChunkIds] = useState([])
 
   const getScoreColor = (score) => {
@@ -145,7 +204,10 @@ export default function ResultsDashboard({
               type="button"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold disabled:opacity-50"
               onClick={onGenerateRecommendations}
-              disabled={generatingRecommendations || recommendationsStatus === 'loading'}
+              disabled={
+                generatingRecommendations ||
+                recommendationsStatus === 'loading'
+              }
             >
               <Sparkles className="w-4 h-4" />
               {generatingRecommendations || recommendationsStatus === 'loading' ? '產生中…' : '產生優化建議'}
