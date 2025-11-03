@@ -77,6 +77,13 @@
 - [ ] （2025-11-03 00:45）同步 `functions/api/[[path]].js` prompt、示例輸出與新指標命名
 - [ ] （2025-11-03 00:45）檢視前端 `MetricsBreakdown` 與文案是否需要同步更新
 
+## 2025-11-03 Recommendation Cleanup Session
+
+- [ ] 調整 `buildAnalysisPrompt` 與 `normalizeRecommendation`，限制 LLM 輸出僅聚焦內容品質建議
+- [ ] 在 `mergeRecommendations` 前新增黑名單過濾，移除含 Meta/Canonical/FAQ Schema 等關鍵字的建議
+- [ ] 清理 `generateHeuristicRecommendations`，刪除 HTML/Schema 相關 heuristics，僅保留內容訊號
+- [ ] 新增建議匯出回歸測試（純文字輸入樣本），確認不再出現 HTML 設定項
+
 ## 2025-11-02 UI Input Simplification
 
 - [x] 停用「貼上網址」流程，僅保留貼上文字模式

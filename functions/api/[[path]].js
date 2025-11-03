@@ -475,22 +475,35 @@ function normalizeHcuEntry(entry = {}) {
 
 function normalizeRecommendation(entry = {}) {
   const allowedPriority = ['critical', 'high', 'medium', 'low']
-  const allowedCategory = ['SEO', 'AEO', 'Authority', 'Structure', 'Safety']
+  const allowedCategory = ['內容', '信任', '讀者體驗']
   const categoryAliases = {
-    內容: 'SEO',
-    結構: 'Structure',
-    'E-E-A-T': 'Authority',
-    技術: 'SEO',
-    風險: 'Safety'
+    SEO: '內容',
+    AEO: '內容',
+    Authority: '信任',
+    Structure: '讀者體驗',
+    Safety: '信任',
+    內容: '內容',
+    結構: '讀者體驗',
+    'E-E-A-T': '信任',
+    技術: '內容',
+    風險: '信任'
   }
   const priority = typeof entry.priority === 'string' ? entry.priority.trim().toLowerCase() : 'medium'
   const inputCategory = typeof entry.category === 'string' ? entry.category.trim() : ''
   const category = categoryAliases[inputCategory] || inputCategory
+  const normalizedCategory = allowedCategory.includes(category) ? category : '內容'
+  const issue = constrainLength(typeof entry.issue === 'string' ? entry.issue : '', 60)
+  const action = constrainLength(typeof entry.action === 'string' ? entry.action : '', 80)
+
+  if (containsHtmlEngineering(issue) || containsHtmlEngineering(action)) {
+    return null
+  }
+
   return {
     priority: allowedPriority.includes(priority) ? priority : 'medium',
-    category: allowedCategory.includes(category) ? category : 'SEO',
-    issue: constrainLength(typeof entry.issue === 'string' ? entry.issue : '', 60),
-    action: constrainLength(typeof entry.action === 'string' ? entry.action : '', 80),
+    category: normalizedCategory,
+    issue,
+    action,
     expectedScoreGain: coerceString(entry.expectedScoreGain).slice(0, 40)
   }
 }
@@ -601,10 +614,9 @@ function generateHeuristicRecommendations(payload = {}, contentSignals = {}) {
   const scoreGuards = payload.scoreGuards || {}
   const missing = scoreGuards.missingCritical || {}
   const flags = scoreGuards.contentQualityFlags || {}
-  const seoMetrics = Array.isArray(payload.metrics?.seo) ? payload.metrics.seo : []
-  const unknownSignals = new Set(Array.isArray(contentSignals.unknownSignals) ? contentSignals.unknownSignals : [])
 
-  function add(priority, category, issue, action, expectedScoreGain, evidence = []) {
+  const add = (priority, category, issue, action, expectedScoreGain, evidence = []) => {
+    if (containsHtmlEngineering(issue) || containsHtmlEngineering(action)) return
     const evidenceList = Array.isArray(evidence) ? evidence.filter(Boolean) : []
     recommendations.push({
       priority,
@@ -618,49 +630,74 @@ function generateHeuristicRecommendations(payload = {}, contentSignals = {}) {
     })
   }
 
-  const evidenceScore = seoMetrics.find((metric) => metric?.name === '洞察與證據支持')?.score ?? null
-  const authorUnknown = isUnknown(contentSignals.hasAuthorInfo)
-  const publisherUnknown = isUnknown(contentSignals.hasPublisherInfo)
-  const authorMissing = missing.author === true
-  const publisherMissing = missing.publisher === true
-  if (authorMissing || publisherMissing || (isFiniteNumber(evidenceScore) && evidenceScore <= 4)) {
-    if (authorUnknown && publisherUnknown && !missing.author && !missing.publisher) {
-      add(
-        'medium',
-        'Authority',
-        '無法判斷作者/品牌信任信號',
-        '需要原始 HTML 的 <head> 或作者區塊才能檢查作者與品牌資訊。',
-        '+0 分'
-      )
-    } else {
-      if (authorMissing || publisherMissing) {
-        const evidence = [
-          ...buildEvidenceEntries('author', contentSignals, scoreGuards),
-          ...buildEvidenceEntries('publisher', contentSignals, scoreGuards)
-        ]
-        add(
-          'critical',
-          'Authority',
-          '缺少作者與品牌信任信號',
-          formatActionWithEvidence('補充作者/品牌介紹、加入客服或社群管道，並於段落內引用可靠來源。', evidence),
-          '+8 分',
-          evidence
-        )
-      }
-    }
+  const evidence = buildEvidenceEntries('evidence', contentSignals, scoreGuards)
+  if (flags.evidenceWeak || (contentSignals.evidenceCount ?? 0) < 2) {
+    add(
+      'high',
+      '信任',
+      '缺少可信引用或佐證資料',
+      formatActionWithEvidence('在段落中加入最新數據、案例連結或權威引用，提升內容可信度。', evidence),
+      '+6 分',
+      evidence
+    )
   }
 
-  const metaUnknown = isUnknown(contentSignals.hasMetaDescription)
-  const canonicalUnknown = isUnknown(contentSignals.hasCanonical)
-  const depthFlags = scoreGuards.contentQualityFlags || {}
-
-  if (recommendations.length === 0 && unknownSignals.size > 0) {
+  if (flags.depthLow || (contentSignals.wordCount ?? 0) < 600) {
     add(
-      'low',
-      '資料不足',
-      '缺少 HTML metadata，請提供原始頁面再檢測',
-      `偵測到下列項目無法判斷：${Array.from(unknownSignals).join(', ')}`,
-      '+0 分'
+      'high',
+      '內容',
+      '主題深度不足',
+      '補充常見問題、比較表或實務範例，延伸說明讀者後續動作。',
+      '+6 分'
+    )
+  }
+
+  if (flags.readabilityWeak || (contentSignals.longParagraphCount ?? 0) > 0) {
+    const readabilityEvidence = buildEvidenceEntries('readability', contentSignals, scoreGuards)
+    add(
+      'medium',
+      '讀者體驗',
+      '段落結構影響可讀性',
+      formatActionWithEvidence('拆分長段、加入小標與項目符號，讓重點更易掃讀。', readabilityEvidence),
+      '+4 分',
+      readabilityEvidence
+    )
+  }
+
+  if (flags.experienceWeak) {
+    const experienceEvidence = buildEvidenceEntries('author', contentSignals, scoreGuards)
+    add(
+      'medium',
+      '信任',
+      '缺乏第一手經驗視角',
+      formatActionWithEvidence('補充實際案例、個人操作心得或客戶故事，彰顯內容可信度。', experienceEvidence),
+      '+4 分',
+      experienceEvidence
+    )
+  }
+
+  if (missing.author === true || missing.publisher === true) {
+    const trustEvidence = [
+      ...buildEvidenceEntries('author', contentSignals, scoreGuards),
+      ...buildEvidenceEntries('publisher', contentSignals, scoreGuards)
+    ]
+    add(
+      'high',
+      '信任',
+      '缺少作者或品牌身份資訊',
+      formatActionWithEvidence('在文章開頭或結尾標示作者背景、品牌介紹與聯絡管道。', trustEvidence),
+      '+6 分',
+      trustEvidence
+    )
+  }
+
+  if (flags.uniqueWordLow || (contentSignals.uniqueWordRatio ?? 1) < 0.25) {
+    add(
+      'medium',
+      '內容',
+      '敘述易重複，缺乏差異化',
+      '補充新觀點或替換重複句型，加入多元情境與角色視角。',
+      '+3 分'
     )
   }
 
@@ -1013,6 +1050,7 @@ function mergeRecommendations(primary = [], secondary = []) {
     if (!Array.isArray(list)) return
     list.forEach((item) => {
       if (!item || typeof item !== 'object') return
+      if (containsHtmlEngineering(item.issue) || containsHtmlEngineering(item.action)) return
       const key = `${item.category || ''}-${item.issue || item.title || ''}`
       if (seen.has(key)) return
       seen.add(key)
@@ -2134,7 +2172,7 @@ function extractTextFromRawResponse(rawResponse) {
 
 // Build the analysis prompt (multiple keywords)
 function buildAnalysisPrompt(content, targetKeywords, contentSignals = {}) {
-  const keywordsList = Array.isArray(targetKeywords) ? targetKeywords.filter(Boolean).join(', ') : '';
+  const keywordsList = Array.isArray(targetKeywords) ? targetKeywords.filter(Boolean).join(', ') : ''
   const signals = serializeContentSignals(contentSignals)
   const hcuQuestions = formatHcuQuestions()
   return `你是一位嚴謹的 SEO 與 AEO 分析專家。請僅依據使用者提供的目標關鍵字進行分析，不要臆測或自行假設任何關鍵字。
@@ -2158,7 +2196,7 @@ ${signals}
 ${hcuQuestions}
 每題必須輸出 "answer": "yes|partial|no" 以及 40 字內的說明；若資料不足必須回答 "no" 或 "partial"。
 
-請以 JSON 格式回傳分析結果，包含以下結構：
+請以 JSON 格式回傳分析結果，包含以下結構（所有建議聚焦內容品質或敘事調整，嚴禁提供任何 HTML 標籤、Schema、meta/canonical 指令或技術設定）：
 {
   "overallScore": 整數(0-100),
   "aeoScore": 整數(0-100),
@@ -2182,7 +2220,7 @@ ${hcuQuestions}
     { "keyword": "...", "density": "...", "intentFit": "...", "coverage": "..." }
   ],
   "recommendations": [
-    { "priority": "high|medium|low", "category": "SEO|AEO|Authority|Structure|Safety", "title": "...", "description": "...", "example": "..." }
+    { "priority": "high|medium|low", "category": "內容|信任|讀者體驗", "title": "...", "description": "...", "example": "..." }
   ],
   "highRiskFlags": [
     { "type": "harm|deception|spam", "severity": "critical|warning", "summary": "...", "action": "..." }
@@ -2198,6 +2236,7 @@ ${hcuQuestions}
 - 必須輸出上述 3 項 `metrics.seo` 與 3 項 `metrics.aeo` 指標，不可刪減或整併。
 - 每項 description 請以 1–2 句繁體中文撰寫，總字數不超過 70 字。
 - 每項 evidence 最多 2 條，單條字數不超過 40 字。
+- 建議僅限針對內容結構、敘事、證據、語氣與讀者體驗的調整；禁止輸出任何 HTML、meta 標籤、schema 或 canonical 相關操作。
 - 嚴禁輸出 Markdown 圍欄或額外文字，僅回傳合法 JSON。`;
 }
 
@@ -2216,6 +2255,29 @@ function coerceString(value) {
   if (Array.isArray(value)) return value.map(coerceString).join('\n')
   if (typeof value === 'object' && value !== null && typeof value.toString === 'function') return value.toString()
   return ''
+}
+
+const HTML_ENGINEERING_KEYWORDS = [
+  '<meta',
+  '<head',
+  'canonical',
+  'schema',
+  'faq schema',
+  'structured data',
+  'json-ld',
+  'open graph',
+  'meta ',
+  'meta·',
+  'robots',
+  'sitemap',
+  'og:'
+]
+
+function containsHtmlEngineering(text = '') {
+  if (typeof text !== 'string') return false
+  const lower = text.trim().toLowerCase()
+  if (!lower) return false
+  return HTML_ENGINEERING_KEYWORDS.some((keyword) => lower.includes(keyword))
 }
 
 function normalizeContentVariants(source = {}) {
