@@ -75,6 +75,15 @@
 - 安排人工標註流程，至少針對 50–100 筆內容標記 HCU / EEAT / AEO 等級，用於校準模型。
 - 與產品文件（如 `seo-review-guidelines.md`）同步，確保人工審查與模型策略一致。
 
+## 6. 建議生成規範（2025-11-03 更新）
+- **分類統一**：後端建議僅輸出「內容」「信任」「讀者體驗」三大類，`normalizeRecommendation` 會將舊有別名（如 SEO、結構、E-E-A-T 等）映射回這三類，避免技術向分類回流。@functions/api/[[path]].js#476-509
+- **黑名單過濾**：合併建議時透過 `containsHtmlEngineering` 判斷 `issue` 與 `action`，凡含 meta/canonical/schema/HTML 指令的項目直接丟棄，確保輸出僅聚焦文本調整。@functions/api/[[path]].js#498-505 @functions/api/[[path]].js#1049-1063
+- **Heuristic 限縮**：`generateHeuristicRecommendations` 僅針對內容深度、可信引用與可讀性痛點產生建議，移除原本的結構化標記與技術設定提示。@functions/api/[[path]].js#612-704
+- **Prompt 對齊**：`buildAnalysisPrompt` 已強調僅提供內容修正方針，並禁止 meta/canonical/schema 操作；LLM 回傳的建議仍會經上述過濾再輸出，降低技術建議外漏風險。@functions/api/[[path]].js#1745-2014
+- **後續事項**：
+  1. ✅ 前端建議分類標籤改為「內容／信任／讀者體驗」，並套用別名映射。@src/components/Recommendations.jsx#1-134
+  2. ⏳ 撰寫純文字輸入回歸測試，驗證建議輸出不再含 HTML/Schema 指令。@functions/api/[[path]].js#612-704
+
 ---
 
 > 此文件為草稿，後續根據模型結果與實務驗證持續修訂。

@@ -1,6 +1,42 @@
 import { useState } from 'react'
 import { AlertTriangle, AlertCircle, Info } from 'lucide-react'
 
+const CATEGORY_MAP = {
+  內容: {
+    label: '內容',
+    className: 'bg-blue-100 text-blue-800 border-blue-200'
+  },
+  信任: {
+    label: '信任',
+    className: 'bg-green-100 text-green-800 border-green-200'
+  },
+  讀者體驗: {
+    label: '讀者體驗',
+    className: 'bg-purple-100 text-purple-800 border-purple-200'
+  }
+}
+
+const CATEGORY_ALIASES = {
+  SEO: '內容',
+  AEO: '內容',
+  Authority: '信任',
+  Structure: '讀者體驗',
+  Safety: '信任',
+  內容: '內容',
+  結構: '讀者體驗',
+  'E-E-A-T': '信任',
+  技術: '內容',
+  風險: '信任'
+}
+
+const resolveCategory = (rawCategory) => {
+  if (!rawCategory || typeof rawCategory !== 'string') return null
+  const trimmed = rawCategory.trim()
+  const normalized = CATEGORY_MAP[trimmed] ? trimmed : CATEGORY_ALIASES[trimmed]
+  if (!normalized || !CATEGORY_MAP[normalized]) return null
+  return CATEGORY_MAP[normalized]
+}
+
 export default function Recommendations({ recommendations = [], feedbackContext, apiBaseUrl, selectedChunkIds = [] }) {
   const getPriorityIcon = (priority) => {
     switch (priority) {
@@ -89,11 +125,15 @@ export default function Recommendations({ recommendations = [], feedbackContext,
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   {getPriorityBadge(rec.priority)}
-                  {rec.category && (
-                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
-                      {rec.category}
-                    </span>
-                  )}
+                  {(() => {
+                    const categoryInfo = resolveCategory(rec.category)
+                    if (!categoryInfo) return null
+                    return (
+                      <span className={`px-2 py-1 rounded text-xs font-medium border ${categoryInfo.className}`}>
+                        {categoryInfo.label}
+                      </span>
+                    )
+                  })()}
                 </div>
                 <p className="text-gray-800 font-medium mb-1">{rec.title}</p>
                 <p className="text-sm text-gray-600">{rec.description}</p>

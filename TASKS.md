@@ -79,10 +79,11 @@
 
 ## 2025-11-03 Recommendation Cleanup Session
 
-- [ ] 調整 `buildAnalysisPrompt` 與 `normalizeRecommendation`，限制 LLM 輸出僅聚焦內容品質建議
-- [ ] 在 `mergeRecommendations` 前新增黑名單過濾，移除含 Meta/Canonical/FAQ Schema 等關鍵字的建議
-- [ ] 清理 `generateHeuristicRecommendations`，刪除 HTML/Schema 相關 heuristics，僅保留內容訊號
+- [x] 調整 `buildAnalysisPrompt` 與 `normalizeRecommendation`，限制 LLM 輸出僅聚焦內容品質建議
+- [x] 在 `mergeRecommendations` 前新增黑名單過濾，移除含 Meta/Canonical/FAQ Schema 等關鍵字的建議
+- [x] 清理 `generateHeuristicRecommendations`，刪除 HTML/Schema 相關 heuristics，僅保留內容訊號
 - [ ] 新增建議匯出回歸測試（純文字輸入樣本），確認不再出現 HTML 設定項
+- [x] 檢查前端建議分類顯示是否同步為「內容／信任／讀者體驗」（2025-11-03 完成）
 
 ## 2025-11-02 UI Input Simplification
 
