@@ -2258,7 +2258,7 @@ ${hcuQuestions}
 - 若訊號顯示缺乏案例、引用或更新年份，對應指標最高分僅能給 6 分，並在 evidence 中說明原因。
 - 若內容不足以評估，請在描述與建議中明確指出需要補充的資訊。
 - highRiskFlags 為必填欄位，若無風險請輸出空陣列。
-- 必須輸出上述 13 項 `metrics.seo` 與 4 項 `metrics.aeo` 指標，不可刪減或整併。
+- 必須輸出上述 13 項 metrics.seo 與 4 項 metrics.aeo 指標，不可刪減或整併。
 - 每項 description 請以 1–2 句繁體中文撰寫，總字數不超過 70 字；每項 evidence 最多 2 條，單條字數不超過 40 字。
 - 建議僅限針對內容結構、敘事、證據、語氣與讀者體驗的調整；禁止輸出任何 HTML、meta 標籤、schema 或 canonical 相關操作。
 - 嚴禁輸出 Markdown 圍欄或額外文字，僅回傳合法 JSON。`;
