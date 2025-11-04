@@ -67,15 +67,36 @@
 
 ## 2025-11-03 Content Score Simplification
 
-- [ ] 重構 `scoring-model.js`，移除 HTML/Schema 依賴指標（結構與可讀性、新鮮度、安全、標題承諾等）
-- [ ] （2025-11-02 23:34）清點現行指標與 fallback 設定差異
-- [ ] 更新 `buildAnalysisPrompt` 與前端 `MetricsBreakdown`，同步精簡後的指標與說明
-- [ ] 調整 `deriveFallbackMetricScore` 與 `FEATURE_METRIC_OVERRIDES` 映射，對應新的指標集合
-- [ ] 清理 `generateModelRecommendations` 與 `FEATURE_RECOMMENDATION_MAP`，僅保留純內容建議
-- [ ] 以 `gpt-5-mini` 生成建議文案，確保描述聚焦文本內容並移除 HTML 指令
-- [ ] 補齊文件與 Changelog，說明評分縮減與建議調整
-- [ ] （2025-11-03 00:45）同步 `functions/api/[[path]].js` prompt、示例輸出與新指標命名
-- [ ] （2025-11-03 00:45）檢視前端 `MetricsBreakdown` 與文案是否需要同步更新
+### 指標重整（17 項）
+- [x] HCU：Helpful Ratio 指標建置
+- [x] HCU：搜尋意圖契合指標建置（`titleIntentMatch`、`firstParagraphAnswerQuality`、`qaFormatScore`）
+- [x] HCU：內容覆蓋與深度指標建置（`wordCountNorm`、`topicCohesion`、`semanticParagraphFocus`）
+- [x] HCU：延伸疑問與關鍵字覆蓋指標建置（`referenceKeywordNorm` 等）
+- [x] HCU：行動可行性指標建置（`actionableScoreNorm`、`actionableStepCount`）
+- [x] HCU：可讀性與敘事節奏指標建置（`avgSentenceLengthNorm`、`longParagraphPenalty`）
+- [x] HCU：結構化重點提示指標建置（`listCount`、`tableCount`）
+- [x] EEAT：作者與品牌辨識指標建置
+- [x] EEAT：可信證據與引用指標建置（`evidenceCountNorm`、`externalCitationCount`）
+- [x] EEAT：第一手經驗與案例指標建置（`experienceCueNorm`、`caseStudyCount`）
+- [x] EEAT：敘事具體度與資訊密度指標建置（`uniqueWordRatio`、`entityRichnessNorm`）
+- [x] EEAT：時效與更新訊號指標建置（`recentYearCount`、`hasVisibleDate` 文本偵測）
+- [x] EEAT：專家觀點與判斷指標建置（專業語句、比較分析信號）
+- [x] AEO：答案可抽取性指標建置（`paragraphExtractability`、`longParagraphPenalty`）
+- [x] AEO：關鍵摘要與重點整理指標建置（首段/結尾摘要偵測）
+- [x] AEO：對話式語氣與指引指標建置（`semanticNaturalness`、讀者導向語句）
+- [x] AEO：讀者互動與後續引導指標建置（CTA、常見問題、行動呼籲語句）
+
+### 系統調整
+- [x] 重構 `scoring-model.js`，定義上述 17 項指標與權重，移除 HTML/Schema 依賴訊號
+- [x] 調整 `deriveFallbackMetricScore`、score guard 及 `FEATURE_METRIC_OVERRIDES`，改用純內容訊號
+- [x] 更新 `buildAnalysisPrompt`、`serializeContentSignals` 與示例輸出，對齊新指標
+- [x] 清理 `generateModelRecommendations` 與 `FEATURE_RECOMMENDATION_MAP`，僅保留內容/信任/讀者體驗建議（無 Schema/meta）
+- [x] 更新前端 `MetricsBreakdown`、`ResultsDashboard` 等顯示與文案
+- [ ] 補齊 `docs/product/HCU_EEAT_AEO_Scoring_Guide.md`、`docs/aeo-geo-chagpt.md` 與 Changelog 說明
+  - [ ] 重寫 `docs/product/HCU_EEAT_AEO_Scoring_Guide.md` 對應 17+4 指標
+  - [ ] 更新 `docs/aeo-geo-chagpt.md` 聚焦內容訊號與說明範例
+  - [ ] 統一更新變更記錄（Changelog）
+- [ ] 新增純文字回歸測試樣本，驗證評分及建議僅涵蓋內容向訊號
 
 ## 2025-11-03 Recommendation Cleanup Session
 

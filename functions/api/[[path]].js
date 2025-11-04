@@ -870,32 +870,44 @@ const FEATURE_RECOMMENDATION_MAP = {
 const PRIORITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 }
 const RECOMMENDATION_METRIC_THRESHOLD = 8
 
+// 新指標映射（17 項純內容向指標）
 const FEATURE_METRIC_OVERRIDES = {
-  titleIntentMatch: ['內容意圖契合'],
-  qaFormatScore: ['內容意圖契合', '答案精準度'],
-  firstParagraphAnswerQuality: ['內容意圖契合', '答案精準度'],
-  semanticParagraphFocus: ['內容意圖契合', '精選摘要適配'],
-  topicCohesion: ['內容意圖契合', '敘事可信度'],
-  h2CountNorm: ['內容意圖契合', '精選摘要適配'],
-  actionableScoreNorm: ['內容意圖契合', '答案精準度'],
-  evidenceCountNorm: ['洞察與證據支持', '敘事可信度'],
-  experienceCueNorm: ['洞察與證據支持', '敘事可信度'],
-  entityRichnessNorm: ['洞察與證據支持', '敘事可信度', '精選摘要適配'],
-  paragraphExtractability: ['可讀性與敘事流暢', '答案精準度', '精選摘要適配'],
-  semanticNaturalness: ['可讀性與敘事流暢', '敘事可信度'],
-  avgSentenceLengthNorm: ['可讀性與敘事流暢'],
-  readabilityWeakFlag: ['可讀性與敘事流暢'],
-  longParagraphPenalty: ['可讀性與敘事流暢', '答案精準度', '精選摘要適配'],
-  paragraphsLongFlag: ['可讀性與敘事流暢', '答案精準度'],
-  hcuYesRatio: ['內容意圖契合', '洞察與證據支持', '答案精準度', '敘事可信度'],
-  hcuNoRatio: ['內容意圖契合', '洞察與證據支持', '答案精準度', '敘事可信度'],
-  depthLowFlag: ['內容意圖契合', '洞察與證據支持', '精選摘要適配'],
-  actionableWeakFlag: ['內容意圖契合', '答案精準度'],
-  freshnessWeakFlag: ['洞察與證據支持', '敘事可信度'],
-  uniqueWordRatio: ['洞察與證據支持', '敘事可信度', '可讀性與敘事流暢'],
-  referenceKeywordNorm: ['內容意圖契合'],
-  richSnippetFormat: ['精選摘要適配'],
-  headingHierarchyQuality: ['內容意圖契合', '精選摘要適配']
+  // HCU 指標映射
+  hcuYesRatio: ['helpfulRatio', 'intentFit'],
+  hcuNoRatio: ['helpfulRatio', 'intentFit'],
+  hcuPartialRatio: ['helpfulRatio'],
+  titleIntentMatch: ['intentFit'],
+  firstParagraphAnswerQuality: ['intentFit', 'keySummary'],
+  qaFormatScore: ['intentFit', 'extractability'],
+  wordCountNorm: ['depthCoverage'],
+  topicCohesion: ['depthCoverage'],
+  semanticParagraphFocus: ['depthCoverage', 'extractability'],
+  referenceKeywordNorm: ['intentExpansion'],
+  actionableScoreNorm: ['actionability'],
+  avgSentenceLengthNorm: ['readabilityRhythm'],
+  longParagraphPenalty: ['readabilityRhythm', 'extractability'],
+  listCount: ['structureHighlights'],
+  tableCount: ['structureHighlights'],
+  authorMentionCount: ['authorBrandSignals'],
+  brandMentionCount: ['authorBrandSignals'],
+  evidenceCountNorm: ['evidenceSupport'],
+  externalCitationCount: ['evidenceSupport'],
+  experienceCueNorm: ['experienceSignals'],
+  caseStudyCount: ['experienceSignals'],
+  uniqueWordRatio: ['narrativeDensity'],
+  entityRichnessNorm: ['narrativeDensity'],
+  recentYearCount: ['freshnessSignals'],
+  hasVisibleDate: ['freshnessSignals'],
+  expertTermDensity: ['expertPerspective'],
+  comparisonCueCount: ['expertPerspective'],
+  // AEO 指標映射
+  paragraphExtractability: ['extractability'],
+  hasKeyTakeaways: ['keySummary'],
+  summaryCueCount: ['keySummary'],
+  semanticNaturalness: ['conversationalGuidance'],
+  readerCueCount: ['conversationalGuidance'],
+  ctaCueCount: ['readerActivation'],
+  questionCueCount: ['readerActivation']
 }
 
 function pickLowScoringMetrics(metrics = [], lowThreshold = 6, limit = 4) {
@@ -2182,21 +2194,23 @@ ${content}
 
 目標關鍵字（1-5 個，僅限以下清單）：${keywordsList}
 
-已解析的頁面結構與訊號（請務必據此評分，缺失即視為不符合）：
+已解析的內容訊號（請務必據此評分，缺失即視為不符合）：
 ${signals}
 
-請依照上述訊號遵循以下原則：
-- 篇幅不足（wordCount < 600 或 paragraphCount < 6）視為內容深度不足。
-- 行動性弱（actionableScore ≤ 1 或 actionableStepCount < 3）視為未完全回應使用者需求。
-- 若 evidenceCount < 2、recentYearCount = 0 或 externalAuthorityLinkCount = 0，可信度與 E-E-A-T 必須降為 partial/no。
-- 若 experienceCueCount < 1 或 hasFirstPersonNarrative = false，視為缺乏第一手經驗支撐。
-- titleIntentMatch < 0.4 或 h1ContainsKeyword = false 時，須在 HCU 問卷中標示為 partial/no。
+內容評估原則（僅聚焦文本表現與讀者體驗）：
+- Helpful Ratio 以 hcuYesRatio、hcuPartialRatio、hcuNoRatio 為準，無紀錄視為缺乏 helpful 性。
+- 篇幅不足（wordCount < 800 或 paragraphCount < 8）視為深度不足，score ≤ 5。
+- 行動性弱（actionableScoreNorm < 0.5 或 actionableStepCount < 3）視為尚需補強。
+- 若 evidenceCountNorm < 0.4 或 externalCitationCount = 0，可信證據需給出低分並於 evidence 註記「缺乏引用」。
+- experienceCueNorm < 0.4 或 caseStudyCount = 0 代表缺乏第一手經驗。
+- paragraphExtractability < 0.5、longParagraphPenalty > 0.4 時，摘要類指標分數須 ≤ 5。
+- semanticNaturalness < 0.5 或 avgSentenceLengthNorm > 0.6 時，可讀性需調降並提出語氣改善建議。
 
 請先依據以下 Helpful Content Update (HCU) 問卷逐題判斷內容是否符合：
 ${hcuQuestions}
 每題必須輸出 "answer": "yes|partial|no" 以及 40 字內的說明；若資料不足必須回答 "no" 或 "partial"。
 
-請以 JSON 格式回傳分析結果，包含以下結構（所有建議聚焦內容品質或敘事調整，嚴禁提供任何 HTML 標籤、Schema、meta/canonical 指令或技術設定）：
+請以 JSON 格式回傳分析結果，包含下列欄位（所有建議僅能聚焦內容品質、敘事與讀者體驗，嚴禁提供任何 HTML 標籤、Schema、meta/canonical 指令或技術設定）：
 {
   "overallScore": 整數(0-100),
   "aeoScore": 整數(0-100),
@@ -2205,15 +2219,26 @@ ${hcuQuestions}
     { "id": "...", "answer": "yes|partial|no", "explanation": "..." }
   ],
   "metrics": {
-    "aeo": [
-      { "name": "答案精準度", "score": 整數(0-10), "description": "簡短描述" },
-      { "name": "精選摘要適配", "score": 整數(0-10), "description": "簡短描述" },
-      { "name": "敘事可信度", "score": 整數(0-10), "description": "簡短描述" }
-    ],
     "seo": [
-      { "name": "內容意圖契合", "weight": 34, "score": 整數(0-10), "description": "檢查內容是否回應搜尋意圖並兌現標題承諾", "evidence": ["說明對應段落或標示缺口"] },
-      { "name": "洞察與證據支持", "weight": 33, "score": 整數(0-10), "description": "評估是否提供原創洞察、案例或可信引用", "evidence": ["列出引用或案例，若缺少請說明"] },
-      { "name": "可讀性與敘事流暢", "weight": 33, "score": 整數(0-10), "description": "判斷段落結構、語句長度與可掃讀性", "evidence": ["指出段落或格式改善建議"] }
+      { "name": "Helpful Ratio", "weight": 7, "score": 整數(0-10), "description": "以 HCU 問卷評估 helpful 與否", "evidence": ["指出 yes/partial/no 的理由"] },
+      { "name": "搜尋意圖契合", "weight": 15, "score": 整數(0-10), "description": "標題與首段是否直接回應問題", "evidence": ["列出開頭段或小節說明"] },
+      { "name": "內容覆蓋與深度", "weight": 12, "score": 整數(0-10), "description": "段落是否完整回答所有核心面向", "evidence": ["缺少的主題或需補充的段落"] },
+      { "name": "延伸疑問與關鍵字覆蓋", "weight": 8, "score": 整數(0-10), "description": "是否涵蓋相關長尾問題與關鍵詞", "evidence": ["尚未覆蓋的延伸疑問"] },
+      { "name": "行動可行性", "weight": 8, "score": 整數(0-10), "description": "是否提供可執行步驟與實務建議", "evidence": ["列出需要補強的行動指引"] },
+      { "name": "可讀性與敘事節奏", "weight": 7, "score": 整數(0-10), "description": "段落長度、句構與掃讀體驗", "evidence": ["需要拆分或改寫的段落"] },
+      { "name": "結構化重點提示", "weight": 6, "score": 整數(0-10), "description": "是否使用列表、表格凸顯重點", "evidence": ["應補充的列表或表格內容"] },
+      { "name": "作者與品牌辨識", "weight": 6, "score": 整數(0-10), "description": "是否清楚交代作者、品牌與資歷", "evidence": ["需補充的作者/品牌資訊"] },
+      { "name": "可信證據與引用", "weight": 10, "score": 整數(0-10), "description": "是否引用權威數據與來源", "evidence": ["缺乏引用的段落或主張"] },
+      { "name": "第一手經驗與案例", "weight": 11, "score": 整數(0-10), "description": "是否分享實際案例或心得", "evidence": ["應補充的案例或證言"] },
+      { "name": "敘事具體度與資訊密度", "weight": 10, "score": 整數(0-10), "description": "是否具體說明數據、名詞與細節", "evidence": ["資訊不足的段落"] },
+      { "name": "時效與更新訊號", "weight": 6, "score": 整數(0-10), "description": "是否標示最近年份與更新資訊", "evidence": ["建議補充的年份或更新說明"] },
+      { "name": "專家觀點與判斷", "weight": 11, "score": 整數(0-10), "description": "是否提供專業比較、判斷與建議", "evidence": ["需加入的專家觀點或比較"] }
+    ],
+    "aeo": [
+      { "name": "答案可抽取性", "weight": 12, "score": 整數(0-10), "description": "結論是否可被直接摘錄", "evidence": ["指出需重寫的段落或補充結論"] },
+      { "name": "關鍵摘要與重點整理", "weight": 9, "score": 整數(0-10), "description": "是否於首段或結尾整理重點", "evidence": ["需新增的摘要或重點列表"] },
+      { "name": "對話式語氣與指引", "weight": 9, "score": 整數(0-10), "description": "是否以自然語氣回答讀者疑問", "evidence": ["需改寫的生硬句或段落"] },
+      { "name": "讀者互動與後續引導", "weight": 9, "score": 整數(0-10), "description": "是否提供 CTA、常見問題或下一步指引", "evidence": ["建議補充的 CTA 或 FAQ"] }
     ]
   },
   "perKeyword": [
@@ -2227,15 +2252,14 @@ ${hcuQuestions}
   ]
 }
 
-重要：
-- 僅使用提供的目標關鍵字進行分析，不得臆測新增或替換。
-- 僅依據貼上內容本身的文字線索與上述「頁面訊號」進行評估；若文本未提供所需資訊，請於 description 與 evidence 中明確標註「文本未提供」。
-- 如頁面訊號顯示缺少某項結構(例如：缺少 FAQ schema 或作者資訊)，對應指標最高分僅能給 4 分。
-- 若內容不足以評估，請在描述與建議中明確指出不足與需要補充的資訊。
+重要提醒：
+- 僅使用提供的目標關鍵字進行分析，不得新增或替換。
+- 僅依據貼上內容本身的文字線索與上述「內容訊號」進行評估；若文本未提供所需資訊，請於 description 與 evidence 中明確標註「文本未提供」。
+- 若訊號顯示缺乏案例、引用或更新年份，對應指標最高分僅能給 6 分，並在 evidence 中說明原因。
+- 若內容不足以評估，請在描述與建議中明確指出需要補充的資訊。
 - highRiskFlags 為必填欄位，若無風險請輸出空陣列。
-- 必須輸出上述 3 項 `metrics.seo` 與 3 項 `metrics.aeo` 指標，不可刪減或整併。
-- 每項 description 請以 1–2 句繁體中文撰寫，總字數不超過 70 字。
-- 每項 evidence 最多 2 條，單條字數不超過 40 字。
+- 必須輸出上述 13 項 `metrics.seo` 與 4 項 `metrics.aeo` 指標，不可刪減或整併。
+- 每項 description 請以 1–2 句繁體中文撰寫，總字數不超過 70 字；每項 evidence 最多 2 條，單條字數不超過 40 字。
 - 建議僅限針對內容結構、敘事、證據、語氣與讀者體驗的調整；禁止輸出任何 HTML、meta 標籤、schema 或 canonical 相關操作。
 - 嚴禁輸出 Markdown 圍欄或額外文字，僅回傳合法 JSON。`;
 }
@@ -2823,8 +2847,42 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
 
 function serializeContentSignals(signals = {}) {
   try {
-    return JSON.stringify(signals, null, 2)
+    const pick = (keys = []) =>
+      keys.reduce((acc, key) => {
+        if (signals[key] !== undefined) acc[key] = signals[key]
+        return acc
+      }, {})
+
+    const summary = {
+      basics: pick(['wordCount', 'wordCountNorm', 'paragraphCount', 'paragraphCountNorm', 'avgSentenceLengthNorm']),
+      helpfulRatio: pick(['hcuYesRatio', 'hcuPartialRatio', 'hcuNoRatio', 'hcuContentHelpfulness']),
+      intentFit: pick(['titleIntentMatch', 'firstParagraphAnswerQuality', 'qaFormatScore']),
+      depthCoverage: pick(['topicCohesion', 'semanticParagraphFocus', 'referenceKeywordNorm']),
+      actionability: pick(['actionableScoreNorm', 'actionableStepCount']),
+      readability: pick(['longParagraphPenalty', 'paragraphExtractability', 'semanticNaturalness', 'readerCueCount']),
+      structureHighlights: pick(['listCount', 'tableCount', 'hasKeyTakeaways', 'summaryCueCount']),
+      trustSignals: pick(['authorMentionCount', 'brandMentionCount', 'evidenceCountNorm', 'externalCitationCount', 'experienceCueNorm', 'caseStudyCount', 'expertTermDensity', 'comparisonCueCount']),
+      freshness: pick(['recentYearCount', 'hasVisibleDate']),
+      keywordCoverage: {
+        targetKeywords: Array.isArray(signals.targetKeywords) ? signals.targetKeywords : undefined,
+        referenceKeywordCount: signals.referenceKeywordCount
+      },
+      unknownSignals: Array.isArray(signals.unknownSignals) ? signals.unknownSignals : undefined
+    }
+
+    Object.keys(summary).forEach((key) => {
+      if (summary[key] === undefined) {
+        delete summary[key]
+        return
+      }
+      if (summary[key] && typeof summary[key] === 'object' && !Array.isArray(summary[key]) && !Object.keys(summary[key]).length) {
+        delete summary[key]
+      }
+    })
+
+    return JSON.stringify(summary, null, 2)
   } catch (error) {
+    console.error('serializeContentSignals failed', error)
     return '{}'
   }
 }
@@ -2948,62 +3006,124 @@ function normalizeHcuReview(review, fallbackMap = null) {
 }
 
 function deriveFallbackMetricScore(metricName, scope, context = {}) {
-  if (scope !== 'seo') return null
-
   const signals = context.contentSignals || {}
-  const flags = context.contentQualityFlags || {}
-  const missing = context.missingCritical || {}
-
   const num = (value, fallback = 0) => {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : fallback
   }
-
   const clamp0to10 = (value) => {
     if (!Number.isFinite(value)) return null
     return Math.max(0, Math.min(10, value))
   }
 
-  switch (metricName) {
-    case '內容意圖契合': {
-      let score = 10
-      if (missing.h1Count || missing.h1Keyword) score -= 2
-      if (flags.titleMismatch) score -= 2
-      if (flags.actionableWeak) score -= 1
-      const actionableScore = num(signals.actionableScore ?? flags.actionableScore)
-      if (actionableScore >= 2) score += 1
-      return clamp0to10(score)
+  // HCU 指標
+  if (scope === 'seo') {
+    switch (metricName) {
+      case 'helpfulRatio': {
+        const yes = num(signals.hcuYesRatio)
+        const partial = num(signals.hcuPartialRatio)
+        const no = num(signals.hcuNoRatio)
+        if (!yes && !partial && !no) return null
+        return clamp0to10(10 * (yes + 0.5 * partial - no * 0.6))
+      }
+      case 'intentFit': {
+        const intent = num(signals.titleIntentMatch)
+        const first = num(signals.firstParagraphAnswerQuality)
+        const qa = num(signals.qaFormatScore)
+        const bonus = (intent >= 0.8 && first >= 0.8) ? 2 : (intent >= 0.7 && first >= 0.7) ? 1 : 0
+        return clamp0to10((intent * 4 + first * 4 + qa * 2) + bonus)
+      }
+      case 'depthCoverage': {
+        const word = Math.min(1, num(signals.wordCount) / 2000)
+        const cohesion = num(signals.topicCohesion)
+        const focus = num(signals.semanticParagraphFocus)
+        return clamp0to10(word * 4 + cohesion * 3 + focus * 3)
+      }
+      case 'intentExpansion': {
+        const ref = Math.min(1, num(signals.referenceKeywordCount) / 5)
+        const qa = num(signals.qaFormatScore)
+        return clamp0to10(ref * 6 + qa * 2)
+      }
+      case 'actionability': {
+        const actionable = num(signals.actionableScoreNorm)
+        const steps = Math.min(1, num(signals.actionableStepCount) / 10)
+        return clamp0to10(actionable * 6 + steps * 4)
+      }
+      case 'readabilityRhythm': {
+        const sentence = Math.min(1, num(signals.avgSentenceLength) / 25)
+        const longPenalty = Math.min(1, num(signals.longParagraphCount) / Math.max(2, Math.floor(num(signals.paragraphCount) * 0.5)))
+        return clamp0to10((1 - sentence) * 6 + (1 - longPenalty) * 4)
+      }
+      case 'structureHighlights': {
+        const list = Math.min(1, num(signals.listCount) / 5)
+        const table = Math.min(1, num(signals.tableCount) / 3)
+        return clamp0to10(list * 6 + table * 4)
+      }
+      case 'authorBrandSignals': {
+        const author = Math.min(1, num(signals.authorMentionCount) / 10)
+        const brand = Math.min(1, num(signals.brandMentionCount) / 10)
+        return clamp0to10(author * 6 + brand * 4)
+      }
+      case 'evidenceSupport': {
+        const evidence = Math.min(1, num(signals.evidenceCount) / 8)
+        const citation = Math.min(1, num(signals.externalCitationCount) / 10)
+        return clamp0to10(evidence * 6 + citation * 4)
+      }
+      case 'experienceSignals': {
+        const experience = Math.min(1, num(signals.experienceCueCount) / 5)
+        const cases = Math.min(1, num(signals.caseStudyCount) / 3)
+        return clamp0to10(experience * 7 + cases * 3)
+      }
+      case 'narrativeDensity': {
+        const unique = num(signals.uniqueWordRatio)
+        const entity = Math.min(1, num(signals.entityRichnessCount) / 15)
+        return clamp0to10(unique * 5 + entity * 5)
+      }
+      case 'freshnessSignals': {
+        const years = Math.min(1, num(signals.recentYearCount) / 3)
+        const visible = signals.hasVisibleDate ? 1 : 0
+        return clamp0to10(years * 7 + visible * 3)
+      }
+      case 'expertPerspective': {
+        const expert = num(signals.expertTermDensity)
+        const comparison = Math.min(1, num(signals.comparisonCueCount) / 3)
+        return clamp0to10(expert * 6 + comparison * 4)
+      }
+      default:
+        return null
     }
-    case '洞察與證據支持': {
-      let score = 10
-      if (missing.externalLinksMissing) score -= 2
-      if (flags.depthLow) score -= 1
-      if (flags.uniqueWordLow) score -= 1
-      const evidenceCount = num(signals.evidenceCount ?? flags.evidenceCount)
-      if (evidenceCount === 0) score -= 2
-      else if (evidenceCount < 2) score -= 1
-      const experienceCueCount = num(signals.experienceCueCount ?? flags.experienceCueCount)
-      if (experienceCueCount >= 3) score += 2
-      else if (experienceCueCount >= 1) score += 1
-      return clamp0to10(score)
-    }
-    case '可讀性與敘事流暢': {
-      let score = 10
-      if (flags.readabilityWeak) score -= 4
-      const paragraphCount = num(signals.paragraphCount)
-      if (paragraphCount <= 1) score -= 3
-      else if (paragraphCount <= 3) score -= 1
-      const listCount = num(signals.listCount)
-      if (listCount > 0) score += 1
-      const tableCount = num(signals.tableCount)
-      if (tableCount > 0) score += 1
-      const longParagraphCount = num(signals.longParagraphCount)
-      if (longParagraphCount > Math.max(2, Math.floor(paragraphCount * 0.5))) score -= 1
-      return clamp0to10(score)
-    }
-    default:
-      return null
   }
+
+  // AEO 指標
+  if (scope === 'aeo') {
+    switch (metricName) {
+      case 'extractability': {
+        const extractability = num(signals.paragraphExtractability)
+        const longPenalty = Math.min(1, num(signals.longParagraphCount) / Math.max(2, Math.floor(num(signals.paragraphCount) * 0.5)))
+        return clamp0to10(extractability * 7 + (1 - longPenalty) * 3)
+      }
+      case 'keySummary': {
+        const takeaways = signals.hasKeyTakeaways ? 1 : 0
+        const summary = Math.min(1, num(signals.summaryCueCount) / 3)
+        const intro = num(signals.firstParagraphAnswerQuality)
+        return clamp0to10(takeaways * 4 + summary * 3 + intro * 3)
+      }
+      case 'conversationalGuidance': {
+        const natural = num(signals.semanticNaturalness)
+        const reader = Math.min(1, num(signals.readerCueCount) / 5)
+        return clamp0to10(natural * 6 + reader * 4)
+      }
+      case 'readerActivation': {
+        const cta = Math.min(1, num(signals.ctaCueCount) / 3)
+        const question = Math.min(1, num(signals.questionCueCount) / 5)
+        return clamp0to10(cta * 6 + question * 4)
+      }
+      default:
+        return null
+    }
+  }
+
+  return null
 }
 
 function deriveMissingCriticalSignals(contentSignals = {}) {

@@ -11,6 +11,51 @@ import {
   predictAeoMetricScores,
   predictSeoMetricScores
 } from './scoring-model'
+const SEO_METRIC_ORDER = [
+  'Helpful Ratio',
+  '搜尋意圖契合',
+  '內容覆蓋與深度',
+  '延伸疑問與關鍵字覆蓋',
+  '行動可行性',
+  '可讀性與敘事節奏',
+  '結構化重點提示',
+  '作者與品牌辨識',
+  '可信證據與引用',
+  '第一手經驗與案例',
+  '敘事具體度與資訊密度',
+  '時效與更新訊號',
+  '專家觀點與判斷'
+]
+
+const AEO_METRIC_ORDER = [
+  '答案可抽取性',
+  '關鍵摘要與重點整理',
+  '對話式語氣與指引',
+  '讀者互動與後續引導'
+]
+
+const SEO_METRIC_DESCRIPTIONS = {
+  'Helpful Ratio': '綜合 HCU yes/partial/no 比例評估 helpful 程度。',
+  '搜尋意圖契合': '檢查標題、首段與問答格式是否兌現搜尋意圖。',
+  '內容覆蓋與深度': '衡量段落是否完整回答所有核心面向。',
+  '延伸疑問與關鍵字覆蓋': '評估是否涵蓋延伸疑問與相關長尾關鍵詞。',
+  '行動可行性': '檢視是否提供可操作步驟、清單或指引。',
+  '可讀性與敘事節奏': '判斷句長與段落節奏是否易於掃讀。',
+  '結構化重點提示': '確認是否使用列表、表格等強調重點。',
+  '作者與品牌辨識': '檢查作者、品牌與來源資訊是否清晰。',
+  '可信證據與引用': '評估是否引用可信來源或統計數據。',
+  '第一手經驗與案例': '檢查是否分享案例、實務經驗或證言。',
+  '敘事具體度與資訊密度': '衡量內容是否具體並包含足夠實體細節。',
+  '時效與更新訊號': '確認是否提及最近年份或更新資訊。',
+  '專家觀點與判斷': '評估是否提供比較、評析與專家觀點。'
+}
+
+const AEO_METRIC_DESCRIPTIONS = {
+  '答案可抽取性': '確認段落結論是否易於直接引用。',
+  '關鍵摘要與重點整理': '檢查首段或結尾是否整理核心重點。',
+  '對話式語氣與指引': '衡量語句是否自然並回應讀者提問。',
+  '讀者互動與後續引導': '評估是否提供 CTA、FAQ 或下一步指引。'
+}
 
 // Import main analysis logic from [[path]].js
 // Note: This is a simplified version - in production, refactor shared logic into modules
@@ -128,12 +173,16 @@ async function handleAnalyzeRequest(requestBody, env, ctx) {
       hcuCounts
     }
 
-    const aeoPredictions = isScoringModelReady() ? predictAeoMetricScores(modelContext) : null
-    const seoPredictions = isScoringModelReady() ? predictSeoMetricScores(modelContext) : null
+    const aeoSup = isScoringModelReady() ? predictAeoMetricScores(modelContext) : null
+    const seoSup = isScoringModelReady() ? predictSeoMetricScores(modelContext) : null
 
     // Build metrics first
-    const aeoMetrics = buildMetricsFromPredictions(aeoPredictions, 'aeo')
-    const seoMetrics = buildMetricsFromPredictions(seoPredictions, 'seo')
+    const aeoMetrics = buildMetricsFromPredictions(aeoSup, 'aeo')
+    const seoMetrics = buildMetricsFromPredictions(seoSup, 'seo')
+
+    const aeoScore = computeWeightedScore(aeoMetrics)
+    const seoScore = computeWeightedScore(seoMetrics)
+    const overallScore = computeOverallScore({ aeoScore, seoScore })
 
     // Build response
     const response = {
@@ -150,8 +199,9 @@ async function handleAnalyzeRequest(requestBody, env, ctx) {
         hcuCounts
       },
       hcuReview,
-      aeoScore: computeAverageScore(aeoMetrics),
-      seoScore: computeWeightedScore(seoMetrics)
+      aeoScore,
+      seoScore,
+      overallScore
     }
 
     if (returnChunks) {
@@ -359,40 +409,29 @@ function buildMissingCritical(signals) {
  * Build metrics from predictions
  */
 function buildMetricsFromPredictions(predictions, scope) {
-  if (!predictions) return []
+  const entries = Array.isArray(predictions?.predictions) ? [...predictions.predictions] : []
+  if (!entries.length) return []
 
-  const metricNames = scope === 'aeo'
-    ? ['段落獨立性', '語言清晰度', '實體辨識', '邏輯流暢度', '可信度信號']
-    : ['E-E-A-T 信任線索', '內容品質與原創性', '人本與主題一致性', '標題與承諾落實', '搜尋意圖契合度', '新鮮度與時效性', '使用者安全與風險', '結構與可讀性']
+  const order = scope === 'aeo' ? AEO_METRIC_ORDER : SEO_METRIC_ORDER
+  const descriptions = scope === 'aeo' ? AEO_METRIC_DESCRIPTIONS : SEO_METRIC_DESCRIPTIONS
 
-  return metricNames.map((name) => {
-    const pred = predictions.get(name)
+  entries.sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name))
+
+  return entries.map((pred) => {
+    const rawScore = Number(pred?.score)
+    const score = Number.isFinite(rawScore) ? Math.round(rawScore * 10) / 10 : null
     return {
-      name,
-      score: pred?.score || 0,
-      description: '',
+      name: pred?.name ?? '未知指標',
+      score: score ?? 0,
+      weight: pred?.weight,
+      description: descriptions[pred?.name] || '',
       evidence: [],
-      modelVersion: pred?.modelVersion,
-      modelRawScore: pred?.rawScore,
-      modelContributions: pred?.contributions
+      features: pred?.features || [],
+      modelVersion: predictions?.version,
+      modelRawScore: rawScore,
+      modelContributions: pred?.contributions || null
     }
   })
-}
-
-/**
- * Compute average score
- */
-function computeAverageScore(metrics) {
-  if (!Array.isArray(metrics) || metrics.length === 0) return null
-  let total = 0
-  let count = 0
-  metrics.forEach((m) => {
-    if (Number.isFinite(m.score)) {
-      total += m.score
-      count += 1
-    }
-  })
-  return count > 0 ? Math.round((total / count) * 10) : null
 }
 
 /**
@@ -403,26 +442,33 @@ function computeWeightedScore(metrics) {
   let weightedSum = 0
   let totalWeight = 0
 
-  const weights = {
-    'E-E-A-T 信任線索': 18,
-    '內容品質與原創性': 18,
-    '人本與主題一致性': 12,
-    '標題與承諾落實': 10,
-    '搜尋意圖契合度': 12,
-    '新鮮度與時效性': 8,
-    '使用者安全與風險': 12,
-    '結構與可讀性': 10
-  }
-
   metrics.forEach((m) => {
-    const weight = weights[m.name] || 1
-    if (Number.isFinite(m.score)) {
-      weightedSum += m.score * weight
-      totalWeight += weight
-    }
+    const score = Number(m?.score)
+    const weight = Number(m?.weight)
+    if (!Number.isFinite(score)) return
+    const safeWeight = Number.isFinite(weight) && weight > 0 ? weight : 1
+    weightedSum += score * safeWeight
+    totalWeight += safeWeight
   })
 
-  return totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 10) : null
+  if (totalWeight <= 0) return null
+  const average = weightedSum / totalWeight
+  return Math.round(average * 10)
+}
+
+function computeOverallScore({ aeoScore, seoScore }) {
+  const hasAeo = Number.isFinite(aeoScore)
+  const hasSeo = Number.isFinite(seoScore)
+  if (!hasAeo && !hasSeo) return null
+
+  const weightAeo = hasAeo ? 0.45 : 0
+  const weightSeo = hasSeo ? 0.55 : 0
+  const weightSum = weightAeo + weightSeo
+  const base = weightSum > 0
+    ? ((hasAeo ? aeoScore * weightAeo : 0) + (hasSeo ? seoScore * weightSeo : 0)) / weightSum
+    : 0
+  const clamped = Math.max(0, Math.min(100, base))
+  return Math.round(clamped)
 }
 
 function normalizeError(error) {

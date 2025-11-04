@@ -1,311 +1,213 @@
-const SEO_TARGETS = new Set([
-  'score_hcu_proxy',
-  'score_eeat_proxy'
-])
-
-const AEO_TARGETS = new Set(['score_aeo_proxy'])
-
-const TARGET_DISPLAY_NAMES = {
-  score_hcu_proxy: 'HCU Helpful Content Proxy',
-  score_eeat_proxy: 'E-E-A-T Proxy',
-  score_aeo_proxy: 'AEO Proxy'
-}
-
 const DEFAULT_MODEL = {
-  version: '2025-11-02-serp-page1',
-  createdAt: '2025-11-02T03:58:46Z',
-  description: 'Logistic re-calibration from SERP page-one positives (HCU/EEAT/AEO proxies)',
-  trainingMetadata: {
-    samples: 1345,
-    features: 73,
-    modelType: 'logistic-regression',
-    notes: '手動推導自 XGBoost 特徵重要性與正例資料集，保留原有線性評分流程'
-  },
-  dataset: {
-    path: 'ml/page1_positive_samples.csv',
-    records: 1345,
-    feature_columns: [
-      'serp_rank',
-      'target_score',
-      'wordCountNorm',
-      'paragraphCountNorm',
-      'h2CountNorm',
-      'actionableScoreNorm',
-      'evidenceCountNorm',
-      'experienceCueNorm',
-      'recentYearNorm',
-      'uniqueWordRatio',
-      'titleIntentMatch',
-      'referenceKeywordNorm',
-      'hasH1Keyword',
-      'hasUniqueTitle',
-      'hasAuthorInfo',
-      'hasPublisherInfo',
-      'externalLinkPresent',
-      'authorityLinkPresent',
-      'listPresent',
-      'tablePresent',
-      'longParagraphPenalty',
-      'avgSentenceLengthNorm',
-      'depthLowFlag',
-      'readabilityWeakFlag',
-      'actionableWeakFlag',
-      'freshnessWeakFlag',
-      'titleMismatchFlag',
-      'hcuYesRatio',
-      'hcuNoRatio',
-      'hcuPartialRatio',
-      'hcuContentHelpfulness',
-      'qaFormatScore',
-      'firstParagraphAnswerQuality',
-      'semanticParagraphFocus',
-      'headingHierarchyQuality',
-      'topicCohesion',
-      'authorInfoPresent',
-      'brandEntityClarity',
-      'externalCitationCount',
-      'socialMediaLinksPresent',
-      'reviewRatingPresent',
-      'semanticNaturalness',
-      'paragraphExtractability',
-      'richSnippetFormat',
-      'analysis_http_status',
-      'analysis_error_code',
-      'analysis_attempts',
-      'entityRichnessNorm',
-      'missingAuthorFlag',
-      'missingPublisherFlag',
-      'missingH1Flag',
-      'h2CoverageMissing',
-      'paragraphsLongFlag'
-    ]
-  },
-  hyperparameters: {
-    n_estimators: 200,
-    max_depth: 5,
-    learning_rate: 0.08,
-    subsample: 0.8,
-    colsample_bytree: 0.8,
-    random_state: 42,
-    reg_lambda: 1,
-    min_child_weight: 1
-  },
-  targets: {
-    score_hcu_proxy: {
-      metrics: {
-        train_rmse: 0.14636306390866977,
-        train_mae: 0.1096221872677064,
-        train_r2: 0.9996996807193225,
-        test_rmse: 1.038821306504367,
-        test_mae: 0.6645446047664398,
-        test_r2: 0.9792769933946864,
-        cv_r2_mean: 0.9272366070042087,
-        cv_r2_std: 0.11611927512133675
-      },
-      featureImportance: {
-        hcuNoRatio: 0.38592976331710815,
-        listPresent: 0.1817331463098526,
-        hcuYesRatio: 0.17839081585407257,
-        hcuContentHelpfulness: 0.0823281854391098,
-        tablePresent: 0.04384326562285423,
-        hcuPartialRatio: 0.028851637616753578,
-        wordCountNorm: 0.02698330767452717,
-        avgSentenceLengthNorm: 0.017625009641051292,
-        h2CountNorm: 0.008576633408665657,
-        hasArticleSchema: 0.00808789674192667,
-        metaDescriptionPresent: 0.007322113029658794,
-        canonicalPresent: 0.00580165209248662,
-        uniqueWordRatio: 0.005308046936988831,
-        target_score: 0.004979643505066633,
-        hasH1Keyword: 0.00462878355756402,
-        referenceKeywordNorm: 0.003904263488948345,
-        hasVisibleDate: 0.0022170410957187414,
-        hasUniqueTitle: 0.0011213389225304127,
-        analysis_attempts: 0.0008962113060988486,
-        serp_rank: 0.0008150492212735116
-      },
-      modelPath: 'ml/models/score_hcu_proxy.json'
-    },
-    score_eeat_proxy: {
-      metrics: {
-        train_rmse: 0.15678635971082622,
-        train_mae: 0.050606046803595824,
-        train_r2: 0.9999851144907551,
-        test_rmse: 0.3694621697622902,
-        test_mae: 0.12338946797770704,
-        test_r2: 0.9999207725492337,
-        cv_r2_mean: 0.9639808330168096,
-        cv_r2_std: 0.0638254604472671
-      },
-      featureImportance: {
-        depthLowFlag: 0.9575852155685425,
-        uniqueWordRatio: 0.03359594941139221,
-        avgSentenceLengthNorm: 0.00450942711904645,
-        hasVisibleDate: 0.002495763124898076,
-        canonicalPresent: 0.0007051031570881605,
-        hasUniqueTitle: 0.0006417009863071144,
-        referenceKeywordNorm: 0.0001980849337996915,
-        metaDescriptionPresent: 0.00014637813728768378,
-        hasH1Keyword: 0.000054810756410006434,
-        readabilityWeakFlag: 0.000023275380954146385,
-        hcuNoRatio: 0.000009716589374875184,
-        h2CountNorm: 0.000008846269338391721,
-        hcuContentHelpfulness: 0.000007927957994979806,
-        wordCountNorm: 0.000004394982170197181,
-        listPresent: 0.000004061183517478639,
-        hcuPartialRatio: 0.0000037918721318419557,
-        hcuYesRatio: 0.0000016812450667202938,
-        serp_rank: 0.000001201063582811912,
-        analysis_attempts: 0.0000011106247939096647,
-        target_score: 0.0000007476599535038986
-      },
-      modelPath: 'ml/models/score_eeat_proxy.json'
-    },
-    score_aeo_proxy: {
-      metrics: {
-        train_rmse: 0.06933942385947502,
-        train_mae: 0.03926012172544234,
-        train_r2: 0.9998377736000212,
-        test_rmse: 2.954804829861603,
-        test_mae: 0.6689611039502176,
-        test_r2: 0.8090589102216745,
-        cv_r2_mean: 0.7371266106518123,
-        cv_r2_std: 0.24633728947132386
-      },
-      featureImportance: {
-        listPresent: 0.3809288740158081,
-        metaDescriptionPresent: 0.2833498418331146,
-        tablePresent: 0.09195628762245178,
-        hcuYesRatio: 0.06168481707572937,
-        hcuContentHelpfulness: 0.055709585547447205,
-        hcuPartialRatio: 0.03291266784071922,
-        hasUniqueTitle: 0.031187327578663826,
-        hcuNoRatio: 0.008556314744055271,
-        hasH1Keyword: 0.008518756367266178,
-        hasArticleSchema: 0.007287164684385061,
-        wordCountNorm: 0.0058289142325520515,
-        uniqueWordRatio: 0.005277007352560759,
-        serp_rank: 0.004822743125259876,
-        hasVisibleDate: 0.004676505457609892,
-        target_score: 0.00456983270123601,
-        avgSentenceLengthNorm: 0.004107132088392973,
-        referenceKeywordNorm: 0.0036843735724687576,
-        canonicalPresent: 0.0022990084253251553,
-        h2CountNorm: 0.0012330744648352265,
-        readabilityWeakFlag: 0.0007190345786511898
-      },
-      modelPath: 'ml/models/score_aeo_proxy.json'
-    }
-  },
+  version: '2025-11-03-content-quality-v1',
+  createdAt: '2025-11-03T15:20:00Z',
+  description: 'Rule-based content quality scoring (HCU/EEAT/AEO) 無依賴 HTML/Schema 指標',
   seo: {
     metrics: {
-      intentCoverage: {
-        name: '內容意圖契合',
-        intercept: 1.6,
-        activation: 'sigmoid',
-        weights: {
-          wordCountNorm: 1.1,
-          paragraphCountNorm: 0.9,
-          h2CountNorm: 0.7,
-          titleIntentMatch: 1.3,
-          qaFormatScore: 0.9,
-          firstParagraphAnswerQuality: 0.9,
-          semanticParagraphFocus: 0.8,
-          topicCohesion: 0.7,
-          hcuContentHelpfulness: 0.8,
-          hcuYesRatio: 0.6,
-          hcuNoRatio: -1.3,
-          depthLowFlag: -1.1,
-          titleMismatchFlag: -1.0
+      helpfulRatio: {
+        name: 'Helpful Ratio',
+        weight: 7,
+        features: ['hcuYesRatio', 'hcuPartialRatio', 'hcuNoRatio'],
+        score: ({ contentSignals }) => {
+          const yes = clamp01(contentSignals.hcuYesRatio ?? 0)
+          const partial = clamp01(contentSignals.hcuPartialRatio ?? 0)
+          const no = clamp01(contentSignals.hcuNoRatio ?? 0)
+          if (!yes && !partial && !no) return null
+          return clamp0to10(10 * (yes + 0.5 * partial - no * 0.6))
+        }
+      },
+      intentFit: {
+        name: '搜尋意圖契合',
+        weight: 15,
+        features: ['titleIntentMatch', 'firstParagraphAnswerQuality', 'qaFormatScore'],
+        score: ({ contentSignals }) => {
+          const intent = clamp01(contentSignals.titleIntentMatch ?? 0)
+          const first = clamp01(contentSignals.firstParagraphAnswerQuality ?? 0)
+          const qa = clamp01(contentSignals.qaFormatScore ?? 0)
+          return clamp0to10((intent * 4 + first * 4 + qa * 2) + bonusIfHigh(intent, first))
+        }
+      },
+      depthCoverage: {
+        name: '內容覆蓋與深度',
+        weight: 12,
+        features: ['wordCountNorm', 'topicCohesion', 'semanticParagraphFocus'],
+        score: ({ contentSignals }) => {
+          const word = clamp01(contentSignals.wordCountNorm ?? normalizeWordCount(contentSignals.wordCount))
+          const cohesion = clamp01(contentSignals.topicCohesion ?? 0)
+          const focus = clamp01(contentSignals.semanticParagraphFocus ?? 0)
+          return clamp0to10(word * 4 + cohesion * 3 + focus * 3)
+        }
+      },
+      intentExpansion: {
+        name: '延伸疑問與關鍵字覆蓋',
+        weight: 8,
+        features: ['referenceKeywordNorm', 'qaFormatScore'],
+        score: ({ contentSignals }) => {
+          const ref = clamp01(contentSignals.referenceKeywordNorm ?? normalizeReferenceKeyword(contentSignals.referenceKeywordCount))
+          const qa = clamp01(contentSignals.qaFormatScore ?? 0)
+          return clamp0to10(ref * 6 + qa * 2)
+        }
+      },
+      actionability: {
+        name: '行動可行性',
+        weight: 8,
+        features: ['actionableScoreNorm', 'actionableStepCount'],
+        score: ({ contentSignals }) => {
+          const actionable = clamp01(contentSignals.actionableScoreNorm ?? normalizeActionableScore(contentSignals.actionableScore))
+          const steps = clamp01(normalizeStepCount(contentSignals.actionableStepCount))
+          return clamp0to10(actionable * 6 + steps * 4)
+        }
+      },
+      readabilityRhythm: {
+        name: '可讀性與敘事節奏',
+        weight: 7,
+        features: ['avgSentenceLengthNorm', 'longParagraphPenalty'],
+        score: ({ contentSignals }) => {
+          const sentence = clamp01(1 - (contentSignals.avgSentenceLengthNorm ?? normalizeSentenceLength(contentSignals.avgSentenceLength)))
+          const longPenalty = clamp01(1 - normalizeLongParagraphPenalty(contentSignals.longParagraphCount, contentSignals.paragraphCount))
+          return clamp0to10(sentence * 6 + longPenalty * 4)
+        }
+      },
+      structureHighlights: {
+        name: '結構化重點提示',
+        weight: 6,
+        features: ['listCount', 'tableCount'],
+        score: ({ contentSignals }) => {
+          const listScore = clamp01(normalizeListCount(contentSignals.listCount))
+          const tableScore = clamp01(normalizeTableCount(contentSignals.tableCount))
+          return clamp0to10(listScore * 6 + tableScore * 4)
+        }
+      },
+      authorBrandSignals: {
+        name: '作者與品牌辨識',
+        weight: 6,
+        features: ['authorMentionCount', 'brandMentionCount'],
+        score: ({ contentSignals }) => {
+          const author = clamp01(normalizeEntityMention(contentSignals.authorMentionCount))
+          const brand = clamp01(normalizeEntityMention(contentSignals.brandMentionCount))
+          return clamp0to10(author * 6 + brand * 4)
         }
       },
       evidenceSupport: {
-        name: '洞察與證據支持',
-        intercept: 1.7,
-        activation: 'sigmoid',
-        weights: {
-          evidenceCountNorm: 1.4,
-          experienceCueNorm: 1.2,
-          actionableScoreNorm: 1.0,
-          entityRichnessNorm: 0.9,
-          referenceKeywordNorm: 0.5,
-          hcuContentHelpfulness: 0.7,
-          hcuYesRatio: 0.4,
-          hcuNoRatio: -1.1,
-          actionableWeakFlag: -1.0,
-          readabilityWeakFlag: -0.6,
-          freshnessWeakFlag: -0.6
+        name: '可信證據與引用',
+        weight: 10,
+        features: ['evidenceCountNorm', 'externalCitationCount'],
+        score: ({ contentSignals }) => {
+          const evidence = clamp01(contentSignals.evidenceCountNorm ?? normalizeEvidenceCount(contentSignals.evidenceCount))
+          const citation = clamp01(normalizeCitationCount(contentSignals.externalCitationCount))
+          return clamp0to10(evidence * 6 + citation * 4)
         }
       },
-      readabilityFlow: {
-        name: '可讀性與敘事流暢',
-        intercept: 1.5,
-        activation: 'sigmoid',
-        weights: {
-          avgSentenceLengthNorm: -1.2,
-          readabilityWeakFlag: -1.5,
-          longParagraphPenalty: -1.3,
-          paragraphExtractability: 0.9,
-          semanticNaturalness: 0.8,
-          headingHierarchyQuality: 0.6,
-          topicCohesion: 0.6,
-          paragraphsLongFlag: -0.8,
-          hcuNoRatio: -1.0
+      experienceSignals: {
+        name: '第一手經驗與案例',
+        weight: 11,
+        features: ['experienceCueNorm', 'caseStudyCount'],
+        score: ({ contentSignals }) => {
+          const experience = clamp01(contentSignals.experienceCueNorm ?? normalizeExperienceCue(contentSignals.experienceCueCount))
+          const cases = clamp01(normalizeCaseCount(contentSignals.caseStudyCount))
+          return clamp0to10(experience * 7 + cases * 3)
+        }
+      },
+      narrativeDensity: {
+        name: '敘事具體度與資訊密度',
+        weight: 10,
+        features: ['uniqueWordRatio', 'entityRichnessNorm'],
+        score: ({ contentSignals }) => {
+          const unique = clamp01(contentSignals.uniqueWordRatio ?? 0)
+          const entity = clamp01(contentSignals.entityRichnessNorm ?? normalizeEntityRichness(contentSignals.entityRichnessCount))
+          return clamp0to10(unique * 5 + entity * 5)
+        }
+      },
+      freshnessSignals: {
+        name: '時效與更新訊號',
+        weight: 6,
+        features: ['recentYearCount', 'hasVisibleDate'],
+        score: ({ contentSignals }) => {
+          const years = clamp01(normalizeRecentYearCount(contentSignals.recentYearCount))
+          const visibleDate = contentSignals.hasVisibleDate === true ? 1 : 0
+          return clamp0to10(years * 7 + visibleDate * 3)
+        }
+      },
+      expertPerspective: {
+        name: '專家觀點與判斷',
+        weight: 11,
+        features: ['expertTermDensity', 'comparisonCueCount'],
+        score: ({ contentSignals }) => {
+          const expert = clamp01(normalizeExpertTermDensity(contentSignals.expertTermDensity))
+          const comparison = clamp01(normalizeComparisonCue(contentSignals.comparisonCueCount))
+          return clamp0to10(expert * 6 + comparison * 4)
         }
       }
     }
   },
   aeo: {
     metrics: {
-      answerPrecision: {
-        name: '答案精準度',
-        intercept: 1.7,
-        activation: 'sigmoid',
-        weights: {
-          paragraphExtractability: 1.2,
-          qaFormatScore: 1.0,
-          firstParagraphAnswerQuality: 1.0,
-          actionableScoreNorm: 0.9,
-          evidenceCountNorm: 0.8,
-          hcuYesRatio: 0.5,
-          hcuNoRatio: -1.2,
-          actionableWeakFlag: -1.0,
-          paragraphsLongFlag: -0.7
+      extractability: {
+        name: '答案可抽取性',
+        weight: 12,
+        features: ['paragraphExtractability', 'longParagraphPenalty'],
+        score: ({ contentSignals }) => {
+          const extractability = clamp01(contentSignals.paragraphExtractability ?? normalizeExtractability(contentSignals.paragraphExtractability))
+          const longPenalty = clamp01(1 - normalizeLongParagraphPenalty(contentSignals.longParagraphCount, contentSignals.paragraphCount))
+          return clamp0to10(extractability * 7 + longPenalty * 3)
         }
       },
-      snippetReadiness: {
-        name: '精選摘要適配',
-        intercept: 1.6,
-        activation: 'sigmoid',
-        weights: {
-          paragraphCountNorm: 0.9,
-          semanticParagraphFocus: 0.9,
-          headingHierarchyQuality: 0.7,
-          topicCohesion: 0.8,
-          richSnippetFormat: 0.9,
-          longParagraphPenalty: -1.1,
-          depthLowFlag: -1.0,
-          hcuNoRatio: -1.1
+      keySummary: {
+        name: '關鍵摘要與重點整理',
+        weight: 9,
+        features: ['hasKeyTakeaways', 'summaryCueCount', 'firstParagraphAnswerQuality'],
+        score: ({ contentSignals }) => {
+          const takeaways = contentSignals.hasKeyTakeaways ? 1 : 0
+          const summaryCues = clamp01(normalizeSummaryCue(contentSignals.summaryCueCount))
+          const intro = clamp01(contentSignals.firstParagraphAnswerQuality ?? 0)
+          return clamp0to10(takeaways * 4 + summaryCues * 3 + intro * 3)
         }
       },
-      narrativeCredibility: {
-        name: '敘事可信度',
-        intercept: 1.5,
-        activation: 'sigmoid',
-        weights: {
-          semanticNaturalness: 1.0,
-          uniqueWordRatio: 1.1,
-          experienceCueNorm: 1.0,
-          entityRichnessNorm: 0.9,
-          citabilityTrustScore: 0.8,
-          hcuContentHelpfulness: 0.6,
-          readabilityWeakFlag: -1.0,
-          freshnessWeakFlag: -0.7,
-          hcuNoRatio: -1.1
+      conversationalGuidance: {
+        name: '對話式語氣與指引',
+        weight: 9,
+        features: ['semanticNaturalness', 'readerCueCount'],
+        score: ({ contentSignals }) => {
+          const natural = clamp01(contentSignals.semanticNaturalness ?? 0)
+          const readerCue = clamp01(normalizeReaderCue(contentSignals.readerCueCount))
+          return clamp0to10(natural * 6 + readerCue * 4)
+        }
+      },
+      readerActivation: {
+        name: '讀者互動與後續引導',
+        weight: 9,
+        features: ['ctaCueCount', 'questionCueCount'],
+        score: ({ contentSignals }) => {
+          const cta = clamp01(normalizeCtaCue(contentSignals.ctaCueCount))
+          const question = clamp01(normalizeQuestionCue(contentSignals.questionCueCount))
+          return clamp0to10(cta * 6 + question * 4)
         }
       }
     }
   }
+}
+
+const SEO_TARGETS = new Set(Object.keys(DEFAULT_MODEL.seo.metrics || {}))
+const AEO_TARGETS = new Set(Object.keys(DEFAULT_MODEL.aeo.metrics || {}))
+
+const TARGET_DISPLAY_NAMES = {
+  HelpfulRatio: 'Helpful Ratio',
+  intentFit: '搜尋意圖契合',
+  depthCoverage: '內容覆蓋與深度',
+  intentExpansion: '延伸疑問與關鍵字覆蓋',
+  actionability: '行動可行性',
+  readabilityRhythm: '可讀性與敘事節奏',
+  structureHighlights: '結構化重點提示',
+  authorBrandSignals: '作者與品牌辨識',
+  evidenceSupport: '可信證據與引用',
+  experienceSignals: '第一手經驗與案例',
+  narrativeDensity: '敘事具體度與資訊密度',
+  freshnessSignals: '時效與更新訊號',
+  expertPerspective: '專家觀點與判斷',
+  extractability: '答案可抽取性',
+  keySummary: '關鍵摘要與重點整理',
+  conversationalGuidance: '對話式語氣與指引',
+  readerActivation: '讀者互動與後續引導'
 }
 
 let cachedModel = null
@@ -338,24 +240,10 @@ function loadConfiguredModel() {
 }
 
 function getModel() {
-
-  const weights = {
-    '內容意圖契合': 34,
-    '洞察與證據支持': 33,
-    '可讀性與敘事流暢': 33,
-    '答案精準度': 34,
-    '精選摘要適配': 33,
-    '敘事可信度': 33
+  if (!cachedModel) {
+    cachedModel = loadConfiguredModel()
   }
-
-  metrics.forEach((metric) => {
-    const weight = weights[metric.name]
-    if (weight) {
-      weightedSum += metric.score * weight
-      totalWeight += weight
-    }
-  })
-  return map
+  return cachedModel
 }
 
 export function isScoringModelReady() {
@@ -367,26 +255,179 @@ export function predictSeoMetricScores(context = {}) {
   const model = getModel()
   const metricConfigs = resolveMetricConfigs(model?.seo)
   if (!metricConfigs.length) return null
-  const features = buildFeatureVector(context)
-  const results = metricConfigs.map((metricConfig) => {
-    const { score, rawScore, contributions } = computeMetricScore(metricConfig, features)
-    return { name: metricConfig.name, score, rawScore, contributions }
+  const scores = metricConfigs.map((metricConfig) => {
+    const score = metricConfig.score(context)
+    return {
+      name: metricConfig.name,
+      score,
+      weight: metricConfig.weight,
+      features: metricConfig.features
+    }
   })
-  return createPredictionMap(results, model.version)
+  return createPredictionMap(scores, model.version, 'seo')
 }
 
 export function predictAeoMetricScores(context = {}) {
   const model = getModel()
   const metricConfigs = resolveMetricConfigs(model?.aeo)
   if (!metricConfigs.length) return null
-  const features = buildFeatureVector(context)
-  const results = metricConfigs.map((metricConfig) => {
-    const { score, rawScore, contributions } = computeMetricScore(metricConfig, features)
-    return { name: metricConfig.name, score, rawScore, contributions }
+  const scores = metricConfigs.map((metricConfig) => {
+    const score = metricConfig.score(context)
+    return {
+      name: metricConfig.name,
+      score,
+      weight: metricConfig.weight,
+      features: metricConfig.features
+    }
   })
-  return createPredictionMap(results, model.version)
+  return createPredictionMap(scores, model.version, 'aeo')
 }
 
 export function resetScoringModelCache() {
   cachedModel = null
+}
+
+// ============ 輔助函式 ============
+
+function clamp01(value) {
+  if (value == null || !Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(1, value))
+}
+
+function clamp0to10(value) {
+  if (value == null || !Number.isFinite(value)) return null
+  return Math.max(0, Math.min(10, value))
+}
+
+function bonusIfHigh(intent, first) {
+  if (intent >= 0.8 && first >= 0.8) return 2
+  if (intent >= 0.7 && first >= 0.7) return 1
+  return 0
+}
+
+function normalizeWordCount(count) {
+  if (!count) return 0
+  return Math.min(1, count / 2000)
+}
+
+function normalizeReferenceKeyword(count) {
+  if (!count) return 0
+  return Math.min(1, count / 5)
+}
+
+function normalizeActionableScore(score) {
+  return clamp01(score)
+}
+
+function normalizeStepCount(count) {
+  if (!count) return 0
+  return Math.min(1, count / 10)
+}
+
+function normalizeSentenceLength(length) {
+  if (!length) return 0
+  return Math.min(1, length / 25)
+}
+
+function normalizeLongParagraphPenalty(longCount, totalCount) {
+  if (!totalCount || totalCount === 0) return 0
+  return Math.min(1, longCount / Math.max(2, totalCount * 0.5))
+}
+
+function normalizeListCount(count) {
+  if (!count) return 0
+  return Math.min(1, count / 5)
+}
+
+function normalizeTableCount(count) {
+  if (!count) return 0
+  return Math.min(1, count / 3)
+}
+
+function normalizeEntityMention(count) {
+  if (!count) return 0
+  return Math.min(1, count / 10)
+}
+
+function normalizeEvidenceCount(count) {
+  if (!count) return 0
+  return Math.min(1, count / 8)
+}
+
+function normalizeCitationCount(count) {
+  if (!count) return 0
+  return Math.min(1, count / 10)
+}
+
+function normalizeExperienceCue(count) {
+  if (!count) return 0
+  return Math.min(1, count / 5)
+}
+
+function normalizeCaseCount(count) {
+  if (!count) return 0
+  return Math.min(1, count / 3)
+}
+
+function normalizeEntityRichness(count) {
+  if (!count) return 0
+  return Math.min(1, count / 15)
+}
+
+function normalizeRecentYearCount(count) {
+  if (!count) return 0
+  return Math.min(1, count / 3)
+}
+
+function normalizeExtractability(value) {
+  return clamp01(value)
+}
+
+function normalizeSummaryCue(count) {
+  if (!count) return 0
+  return Math.min(1, count / 3)
+}
+
+function normalizeReaderCue(count) {
+  if (!count) return 0
+  return Math.min(1, count / 5)
+}
+
+function normalizeCtaCue(count) {
+  if (!count) return 0
+  return Math.min(1, count / 3)
+}
+
+function normalizeQuestionCue(count) {
+  if (!count) return 0
+  return Math.min(1, count / 5)
+}
+
+function normalizeExpertTermDensity(density) {
+  return clamp01(density)
+}
+
+function normalizeComparisonCue(count) {
+  if (!count) return 0
+  return Math.min(1, count / 3)
+}
+
+function resolveMetricConfigs(metricsObj) {
+  if (!metricsObj || typeof metricsObj !== 'object') return []
+  return Object.values(metricsObj).filter(m => m && typeof m === 'object')
+}
+
+function createPredictionMap(scores, version, target) {
+  if (!Array.isArray(scores)) return null
+  return {
+    version,
+    target,
+    predictions: scores.map(s => ({
+      name: s.name,
+      score: s.score,
+      weight: s.weight,
+      features: s.features
+    })),
+    timestamp: new Date().toISOString()
+  }
 }

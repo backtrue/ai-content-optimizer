@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertCircle, XCircle } from 'lucide-react'
+import { CheckCircle2, AlertCircle, XCircle, Sparkles } from 'lucide-react'
 
 export default function MetricsBreakdown({ metrics }) {
   const aeoMetrics = Array.isArray(metrics?.aeo) ? metrics.aeo : []
@@ -29,6 +29,33 @@ export default function MetricsBreakdown({ metrics }) {
     )
   }
 
+  const renderFeatures = (features = []) => {
+    const items = Array.isArray(features)
+      ? features.filter(item => typeof item === 'string' && item.trim())
+      : []
+
+    if (!items.length) return null
+
+    return (
+      <div className="text-[11px] text-gray-500 ml-7">
+        <div className="flex items-center gap-1 font-semibold text-gray-600 mb-1">
+          <Sparkles className="w-3 h-3" />
+          <span>關鍵訊號</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {items.map((item, idx) => (
+            <span
+              key={idx}
+              className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const getScoreIcon = (score) => {
     if (score >= 8) return <CheckCircle2 className="w-5 h-5 text-green-600" />
     if (score >= 6) return <AlertCircle className="w-5 h-5 text-yellow-600" />
@@ -47,11 +74,14 @@ export default function MetricsBreakdown({ metrics }) {
   return (
     <div className="card">
       <h3 className="text-xl font-bold text-gray-800 mb-6">內容指標分析</h3>
-      
+
       <div className="space-y-6">
         {/* AEO Metrics */}
         <div>
-          <h4 className="font-semibold text-gray-700 mb-3 text-lg">AEO 評估（答案精準度 / 精選摘要適配 / 敘事可信度）</h4>
+          <div className="flex items-baseline justify-between mb-3">
+            <h4 className="font-semibold text-gray-700 text-lg">AEO 評估（4 項指標）</h4>
+            <p className="text-xs text-gray-500">聚焦答案抽取、摘要整理、語氣與互動指引</p>
+          </div>
           <div className="space-y-3">
             {aeoMetrics.map((metric, index) => (
               <div key={index} className="space-y-1">
@@ -61,6 +91,11 @@ export default function MetricsBreakdown({ metrics }) {
                     <span className="text-sm font-medium text-gray-700">
                       {metric.name}
                     </span>
+                    {formatWeight(metric.weight) && (
+                      <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                        權重 {formatWeight(metric.weight)}
+                      </span>
+                    )}
                   </div>
                   <span className="text-sm font-bold text-gray-900">
                     {metric.score}/10
@@ -75,6 +110,7 @@ export default function MetricsBreakdown({ metrics }) {
                 {metric.description && (
                   <p className="text-xs text-gray-500 ml-7">{metric.description}</p>
                 )}
+                {renderFeatures(metric.features)}
                 {renderEvidence(metric.evidence)}
               </div>
             ))}
@@ -86,12 +122,15 @@ export default function MetricsBreakdown({ metrics }) {
 
         {/* SEO Metrics */}
         <div>
-          <h4 className="font-semibold text-gray-700 mb-3 text-lg">SEO 評估（內容意圖契合 / 洞察與證據支持 / 可讀性與敘事流暢）</h4>
+          <div className="flex items-baseline justify-between mb-3">
+            <h4 className="font-semibold text-gray-700 text-lg">SEO 評估（13 項指標）</h4>
+            <p className="text-xs text-gray-500">涵蓋 helpfulness、意圖契合、深度、信任與專家性</p>
+          </div>
           <div className="space-y-3">
             {seoMetrics.map((metric, index) => (
               <div key={index} className="space-y-1">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {getScoreIcon(metric.score)}
                     <span className="text-sm font-medium text-gray-700">
                       {metric.name}
@@ -115,6 +154,7 @@ export default function MetricsBreakdown({ metrics }) {
                 {metric.description && (
                   <p className="text-xs text-gray-500 ml-7">{metric.description}</p>
                 )}
+                {renderFeatures(metric.features)}
                 {renderEvidence(metric.evidence)}
               </div>
             ))}
