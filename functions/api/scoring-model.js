@@ -436,16 +436,32 @@ function resolveMetricConfigs(metricsObj) {
 }
 
 function createPredictionMap(scores, version, target) {
-  if (!Array.isArray(scores)) return null
+  if (!Array.isArray(scores) || !scores.length) return null
+
+  const entries = scores.map((s) => ({
+    name: s.name,
+    score: s.score,
+    weight: s.weight,
+    features: s.features
+  }))
+
+  const map = new Map(entries.map((entry) => [entry.name, {
+    score: entry.score,
+    weight: entry.weight,
+    features: entry.features
+  }]))
+
   return {
     version,
     target,
-    predictions: scores.map(s => ({
-      name: s.name,
-      score: s.score,
-      weight: s.weight,
-      features: s.features
-    })),
+    predictions: entries,
+    predictionMap: map,
+    get(name) {
+      return this.predictionMap.get(name) || null
+    },
+    has(name) {
+      return this.predictionMap.has(name)
+    },
     timestamp: new Date().toISOString()
   }
 }
