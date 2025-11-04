@@ -123,11 +123,6 @@ export default function InputSection({ onAnalyze, isLoading }) {
   return (
     <div className="card">
       <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <div className="rounded-lg border border-primary-600 bg-primary-50 px-4 py-3 text-sm text-primary-700">
-            目前僅支援貼上文章內容進行評分，網址擷取功能暫時停用。
-          </div>
-        </div>
 
         <div className="mb-6">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
