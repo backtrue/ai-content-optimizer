@@ -22,43 +22,63 @@ function App() {
 
     const removeLegacyUrlElements = () => {
       try {
+        // 移除所有包含「貼上網址」或「貼上文字」文字的按鈕
         const buttons = Array.from(document.querySelectorAll('button'))
-        buttons
-          .filter((btn) => btn.textContent?.trim() === '貼上網址')
-          .forEach((btn) => {
-            const container = btn.parentElement
+        buttons.forEach((btn) => {
+          const text = btn.textContent?.trim() || ''
+          if (text === '貼上網址' || text === '貼上文字') {
+            console.log(`[RemoveLegacy] Removing button: "${text}"`)
             btn.remove()
-            if (container && !container.querySelector('button')) {
-              container.remove()
-            }
-          })
+          }
+        })
 
-        const urlInputs = Array.from(document.querySelectorAll('input'))
-        urlInputs
-          .filter((input) => {
-            const type = input.getAttribute('type')?.toLowerCase()
-            const placeholder = input.getAttribute('placeholder') || ''
-            return type === 'url' || placeholder.includes('http://') || placeholder.includes('https://')
+        // 移除所有 URL 類型的輸入框
+        const urlInputs = Array.from(document.querySelectorAll('input[type="url"]'))
+        urlInputs.forEach((input) => {
+          console.log('[RemoveLegacy] Removing URL input')
+          const group = input.closest('.mb-6') || input.closest('div[class*="mb-"]') || input.parentElement
+          if (group && group !== document.body) {
+            group.remove()
+          } else {
+            input.remove()
+          }
+        })
+
+        // 移除可能的 tab 容器（包含「貼上網址」或「貼上文字」的按鈕組）
+        const allDivs = Array.from(document.querySelectorAll('div'))
+        allDivs.forEach((div) => {
+          const btns = div.querySelectorAll('button')
+          const hasLegacyTabs = Array.from(btns).some((btn) => {
+            const text = btn.textContent?.trim() || ''
+            return text === '貼上網址' || text === '貼上文字'
           })
-          .forEach((input) => {
-            const group = input.closest('.mb-6') || input.parentElement
-            if (group) {
-              group.remove()
-            } else {
-              input.remove()
-            }
-          })
+          if (hasLegacyTabs && btns.length <= 3) {
+            // 假設 tab 容器最多只有 2-3 個按鈕
+            console.log('[RemoveLegacy] Removing tab container')
+            div.remove()
+          }
+        })
       } catch (error) {
         console.warn('removeLegacyUrlElements failed', error)
       }
     }
 
+    // 立即執行一次
     removeLegacyUrlElements()
 
-    const observer = new MutationObserver(() => removeLegacyUrlElements())
-    observer.observe(document.body, { childList: true, subtree: true })
+    // 持續監聽 DOM 變化
+    const observer = new MutationObserver(() => {
+      removeLegacyUrlElements()
+    })
+    observer.observe(document.body, { childList: true, subtree: true, attributes: false })
 
-    return () => observer.disconnect()
+    // 額外的定時檢查（防止某些動態渲染的情況）
+    const interval = setInterval(removeLegacyUrlElements, 500)
+
+    return () => {
+      observer.disconnect()
+      clearInterval(interval)
+    }
   }, [])
 
   // 帶有重試機制的 API 請求函數

@@ -21,3 +21,6 @@
     @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200;
   }
 }
+
+/* 強制隱藏舊版「貼上網址」相關 UI 元素 - 使用 JavaScript 處理 */
+/* CSS 無法直接選擇文字內容，改由 App.jsx 的 useEffect 處理 */
