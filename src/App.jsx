@@ -250,6 +250,15 @@ function App() {
         contentSignals,
         chunks
       } = analysisResults || {}
+      // 過濾掉不可序列化的物件（如函數）
+      const serializableScoreGuards = scoreGuards ? JSON.parse(JSON.stringify(scoreGuards, (key, value) => {
+        return typeof value === 'function' ? undefined : value
+      })) : undefined
+      
+      const serializableContentSignals = contentSignals ? JSON.parse(JSON.stringify(contentSignals, (key, value) => {
+        return typeof value === 'function' ? undefined : value
+      })) : undefined
+
       const response = await fetchWithRetry(
         `${apiUrl}/api/analyze`,
         {
@@ -270,8 +279,8 @@ function App() {
             sessionId,
             includeRecommendations: true,
             returnChunks: Boolean(chunks?.length),
-            scoreGuards,
-            contentSignals
+            scoreGuards: serializableScoreGuards,
+            contentSignals: serializableContentSignals
           })
         },
         2,
