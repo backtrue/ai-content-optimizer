@@ -213,9 +213,25 @@ const TARGET_DISPLAY_NAMES = {
 let cachedModel = null
 
 function cloneModel(model) {
-  if (!model) return null
-  if (typeof structuredClone === 'function') return structuredClone(model)
-  return JSON.parse(JSON.stringify(model))
+  if (model === null || model === undefined) return model
+
+  if (typeof model !== 'object') {
+    return model
+  }
+
+  if (Array.isArray(model)) {
+    return model.map((item) => cloneModel(item))
+  }
+
+  const cloned = {}
+  for (const [key, value] of Object.entries(model)) {
+    if (typeof value === 'function') {
+      cloned[key] = value
+    } else {
+      cloned[key] = cloneModel(value)
+    }
+  }
+  return cloned
 }
 
 function loadConfiguredModel() {
