@@ -432,7 +432,16 @@ function normalizeComparisonCue(count) {
 
 function resolveMetricConfigs(metricsObj) {
   if (!metricsObj || typeof metricsObj !== 'object') return []
-  return Object.values(metricsObj).filter(m => m && typeof m === 'object')
+
+  const container = typeof metricsObj.metrics === 'object' && metricsObj.metrics
+    ? metricsObj.metrics
+    : metricsObj
+
+  const entries = Array.isArray(container)
+    ? container
+    : Object.values(container)
+
+  return entries.filter((metric) => metric && typeof metric === 'object' && typeof metric.score === 'function')
 }
 
 function createPredictionMap(scores, version, target) {
