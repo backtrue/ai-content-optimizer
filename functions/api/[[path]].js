@@ -4045,15 +4045,26 @@ function computeWeightedScore(metrics) {
 }
 
 const AEO_METRIC_DEFAULTS = [
-  { name: '答案精準度', description: '開頭是否直接回答問題並提供可執行的指引。' },
-  { name: '精選摘要適配', description: '段落結構是否利於抽取，符合精選摘要格式。' },
-  { name: '敘事可信度', description: '語句是否自然並提供可信案例或引用。' }
+  { name: '答案可抽取性', weight: 12, description: '結論是否濃縮易摘錄，段落結構是否利於抽取。' },
+  { name: '關鍵摘要與重點整理', weight: 9, description: '是否提供重點摘要、段落要點與快速複習。' },
+  { name: '對話式語氣與指引', weight: 9, description: '語句是否自然、親切，並提供具體操作提示。' },
+  { name: '讀者互動與後續引導', weight: 9, description: '是否引導讀者採取下一步並維繫互動。' }
 ]
 
 const SEO_METRIC_DEFAULTS = [
-  { name: '內容意圖契合', weight: 34, description: '內容是否回應搜尋意圖並兌現標題承諾。' },
-  { name: '洞察與證據支持', weight: 33, description: '是否提供原創洞察、案例與可信引用。' },
-  { name: '可讀性與敘事流暢', weight: 33, description: '段落結構與語言是否流暢易讀。' }
+  { name: 'Helpful Ratio', weight: 7, description: 'HCU 問卷整體 helpful 表現與違規比例。' },
+  { name: '搜尋意圖契合', weight: 15, description: '內容是否滿足搜尋意圖並快速回答核心問題。' },
+  { name: '內容覆蓋與深度', weight: 12, description: '篇幅、主題聚焦與段落細節是否充足。' },
+  { name: '延伸疑問與關鍵字覆蓋', weight: 8, description: '是否回應關聯問題並涵蓋關鍵詞脈絡。' },
+  { name: '行動可行性', weight: 8, description: '是否提供明確可執行步驟與實作建議。' },
+  { name: '可讀性與敘事節奏', weight: 7, description: '句長、段落節奏與長段落比例是否友善。' },
+  { name: '結構化重點提示', weight: 6, description: '是否善用條列、表格等結構強調重點。' },
+  { name: '作者與品牌辨識', weight: 6, description: '是否明示作者、品牌或來源背景。' },
+  { name: '可信證據與引用', weight: 10, description: '是否使用外部引用、數據與可信來源。' },
+  { name: '第一手經驗與案例', weight: 11, description: '是否展現實務經驗、案例或獨特觀點。' },
+  { name: '敘事具體度與資訊密度', weight: 10, description: '是否具體描述，資訊充足且有差異化。' },
+  { name: '時效與更新訊號', weight: 6, description: '是否有近期年份、更新提醒或可見日期。' },
+  { name: '專家觀點與判斷', weight: 11, description: '是否展現專家語彙、比較與專業判斷。' }
 ]
 
 function ensureMetricShape(metrics, defaults, scope) {
