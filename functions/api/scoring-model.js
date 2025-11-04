@@ -272,7 +272,8 @@ export function predictSeoMetricScores(context = {}) {
   const metricConfigs = resolveMetricConfigs(model?.seo)
   if (!metricConfigs.length) return null
   const scores = metricConfigs.map((metricConfig) => {
-    const score = metricConfig.score(context)
+    const scoreFn = typeof metricConfig.score === 'function' ? metricConfig.score : null
+    const score = scoreFn ? scoreFn(context) : null
     return {
       name: metricConfig.name,
       score,
@@ -288,7 +289,8 @@ export function predictAeoMetricScores(context = {}) {
   const metricConfigs = resolveMetricConfigs(model?.aeo)
   if (!metricConfigs.length) return null
   const scores = metricConfigs.map((metricConfig) => {
-    const score = metricConfig.score(context)
+    const scoreFn = typeof metricConfig.score === 'function' ? metricConfig.score : null
+    const score = scoreFn ? scoreFn(context) : null
     return {
       name: metricConfig.name,
       score,
