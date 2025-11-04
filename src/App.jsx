@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Header from './components/Header'
 import InputSection from './components/InputSection'
 import ResultsDashboard from './components/ResultsDashboard'
@@ -16,6 +16,50 @@ function App() {
   const sessionId = useMemo(() => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`), [])
   const apiUrl = useMemo(() => (import.meta?.env?.VITE_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')), [])
   const [feedbackContext, setFeedbackContext] = useState(null)
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    const removeLegacyUrlElements = () => {
+      try {
+        const buttons = Array.from(document.querySelectorAll('button'))
+        buttons
+          .filter((btn) => btn.textContent?.trim() === '貼上網址')
+          .forEach((btn) => {
+            const container = btn.parentElement
+            btn.remove()
+            if (container && !container.querySelector('button')) {
+              container.remove()
+            }
+          })
+
+        const urlInputs = Array.from(document.querySelectorAll('input'))
+        urlInputs
+          .filter((input) => {
+            const type = input.getAttribute('type')?.toLowerCase()
+            const placeholder = input.getAttribute('placeholder') || ''
+            return type === 'url' || placeholder.includes('http://') || placeholder.includes('https://')
+          })
+          .forEach((input) => {
+            const group = input.closest('.mb-6') || input.parentElement
+            if (group) {
+              group.remove()
+            } else {
+              input.remove()
+            }
+          })
+      } catch (error) {
+        console.warn('removeLegacyUrlElements failed', error)
+      }
+    }
+
+    removeLegacyUrlElements()
+
+    const observer = new MutationObserver(() => removeLegacyUrlElements())
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => observer.disconnect()
+  }, [])
 
   // 帶有重試機制的 API 請求函數
   const fetchWithRetry = async (url, options, retries = 2, delay = 1000) => {
