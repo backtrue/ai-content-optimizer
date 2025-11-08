@@ -23,6 +23,7 @@ import {
   stripHtmlTags,
   stripMarkdown
 } from './content-signals'
+import { calculateStructureScore } from './structure-score'
 
 // Cloudflare Workers API endpoint for content analysis
 
@@ -2189,6 +2190,23 @@ async function handleAnalyzePost(context, corsHeaders) {
       payload.recommendationsStatus = 'not_requested'
     }
 
+    // v5：計算結構分與策略分
+    const structureScoreResult = calculateStructureScore(contentSignals, contentSignals.contentFormatHint || 'plain')
+    const strategyScoreResult = analysisResult?.strategyAnalysis ? {
+      why: analysisResult.strategyAnalysis.why?.score || 5,
+      how: analysisResult.strategyAnalysis.how?.score || 5,
+      what: analysisResult.strategyAnalysis.what?.score || 5,
+      overallScore: analysisResult.overallStrategicScore || 50
+    } : {
+      why: 5, how: 5, what: 5, overallScore: 50
+    }
+    
+    // 計算總分：40% 結構分 + 60% 策略分
+    const v5Score = Math.round(
+      (structureScoreResult.score * 0.4) + 
+      (strategyScoreResult.overallScore * 10 * 0.6)
+    )
+
     if (returnChunks && chunkSourceText) {
       const chunks = chunkContent(chunkSourceText, {
         format: chunkSourceFormat,
@@ -2205,6 +2223,21 @@ async function handleAnalyzePost(context, corsHeaders) {
 
     payload = { ...payload, contentSignals }
     payload = { ...payload, includeRecommendations }
+    
+    // 新增 v5 評分結果
+    payload = { 
+      ...payload, 
+      v5Scores: {
+        structureScore: structureScoreResult.score,
+        strategyScore: strategyScoreResult.overallScore,
+        overallScore: v5Score,
+        breakdown: {
+          structure: structureScoreResult.breakdown,
+          strategy: strategyScoreResult
+        },
+        recommendations: structureScoreResult.recommendations
+      }
+    }
 
     return new Response(
       JSON.stringify(payload),

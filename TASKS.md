@@ -3,17 +3,17 @@
 ## 2025-11-09 v5 自適應混合評分導入
 
 ### 1. 後端：AI 策略分（60%）
-- [ ] 實作 `extractKeyPassages`，輸出首段、末段與含經驗/佐證訊號的段落
-- [ ] 重寫 `buildAnalysisPrompt`，改為 WHY / HOW / WHAT 策略師提示並移除舊訊號指令
+- [x] 實作 `extractKeyPassages`，輸出首段、末段與含經驗/佐證訊號的段落
+- [x] 重寫 `buildAnalysisPrompt`，改為 WHY / HOW / WHAT 策略師提示並移除舊訊號指令
 - [ ] 更新 `analyzeWithGemini` 以採用新提示、驗證輸出 JSON 並強化錯誤處理
 - [ ] 建立 Gemini 回應記錄與重試機制，確保延遲或配額錯誤時的 fallback 策略
 
 ### 2. 後端：結構分（40%）
-- [ ] 支援 `contentFormatHint`，自動辨識 HTML 與純文字來源（Worker / Functions 同步）
-- [ ] 改寫 `computeContentSignals`，移除 Schema/Meta 檢查並僅保留內容向訊號
-- [ ] 建立 Mode A（HTML）內容訊號計算：H1/H2、清單、表格、作者/日期文字等
-- [ ] 建立 Mode B（Plain Text）內容訊號計算：字數、長段落、佐證、經驗、年份等
-- [ ] 更新 `scoring-model.js`，實作雙模式 40% 結構分與策略分整合的權重配置
+- [x] 支援 `contentFormatHint`，自動辨識 HTML 與純文字來源（Worker / Functions 同步）
+- [x] 改寫 `computeContentSignals`，移除 Schema/Meta 檢查並僅保留內容向訊號
+- [x] 建立 Mode A（HTML）內容訊號計算：H1/H2、清單、表格、作者/日期文字等
+- [x] 建立 Mode B（Plain Text）內容訊號計算：字數、長段落、佐證、經驗、年份等
+- [ ] 整合 `structure-score.js` 到主分析流程，計算 40% 結構分
 
 ### 3. 前端：呈現與建議
 - [ ] 更新 `ResultsDashboard`，顯示結構分（40%）與策略分（60%）以及各自子指標
