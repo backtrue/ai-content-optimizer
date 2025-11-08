@@ -31,13 +31,14 @@
 - [ ] 覆蓋非同步流程 E2E 測試：提交 → 排程 → Email → 結果頁檢視
 
 ### 5. 文件與對外溝通
+- [x] 撰寫 v5 模型變更 Changelog（V5_CHANGELOG.md）
+- [x] 建立使用指南（V5_USAGE_GUIDE.md），含 FAQ 與最佳實踐
 - [ ] 更新 `docs/product/HCU_EEAT_AEO_Scoring_Guide.md`，納入 Mode A / Mode B 與 WHY / HOW / WHAT 說明
-- [ ] 撰寫 v5 模型變更 Changelog 與落地紀錄
 - [ ] 更新部署與使用指南（含 Cloudflare Worker / 前端），說明雙軌評分流程與操作步驟
-- [ ] 新增非同步分析與 Email 通知使用指南（含 FAQ 與成本說明）
 
 ### 6. 非同步通知與結果交付
-- [ ] 設計與實作任務排程：提交後排入背景分析、狀態持久化
-- [ ] 建立 Email 通知服務，寄送含分析結果連結與摘要的信件
-- [ ] 實作結果檢視端點／頁面，讓使用者透過信中連結追蹤進度與最終建議
+- [x] 設計與實作任務排程：queue-handler.js 實作提交後排入背景分析
+- [x] 建立 Email 通知服務，使用 Resend 寄送結果連結
+- [x] 實作結果檢視端點（results/[taskId].js），讓使用者透過信中連結查詢
 - [ ] 整合錯誤追蹤與使用者重試流程，包含配額不足與分析失敗情境
+- [ ] 建立 Email 模板與結果頁面樣式
