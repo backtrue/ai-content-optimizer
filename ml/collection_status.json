@@ -1,9 +1,9 @@
 {
-  "timestamp": "2025-11-01T04:13:48.405108",
-  "total_records": 1345,
-  "unique_keywords": 170,
+  "timestamp": "2025-11-04T22:53:15.184356",
+  "total_records": 1354,
+  "unique_keywords": 171,
   "current_keyword": null,
-  "current_keyword_index": 66,
-  "progress_percent": 257.58,
+  "current_keyword_index": 1,
+  "progress_percent": 17100.0,
   "remaining_keywords": 0
 }

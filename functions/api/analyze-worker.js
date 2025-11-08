@@ -11,6 +11,10 @@ import {
   predictAeoMetricScores,
   predictSeoMetricScores
 } from './scoring-model'
+import {
+  computeContentSignals,
+  normalizeContentVariants
+} from './content-signals'
 const SEO_METRIC_ORDER = [
   'Helpful Ratio',
   '搜尋意圖契合',
@@ -161,7 +165,14 @@ async function handleAnalyzeRequest(requestBody, env, ctx) {
     }
 
     // Build analysis context
-    const contentSignals = computeContentSignals(html || plain, targetKeywords)
+    const variants = normalizeContentVariants({ html, plain, content: plain, rawHtml: html })
+    const contentSignals = computeContentSignals({
+      plain: variants,
+      html,
+      markdown: '',
+      targetKeywords,
+      sourceUrl: contentUrl
+    })
     const hcuReview = [] // Simplified - in production, call Gemini API
     const hcuCounts = { yes: 0, partial: 0, no: 0 }
 

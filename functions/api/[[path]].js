@@ -1,10 +1,28 @@
 import { Readability } from '@mozilla/readability'
+
+console.log('[[path]].js module 初始化')
 import { parseHTML } from 'linkedom'
 import {
   isScoringModelReady,
   predictAeoMetricScores,
   predictSeoMetricScores
 } from './scoring-model'
+import {
+  coerceString,
+  decodeBasicEntities,
+  extractKeywordSet,
+  extractSentences,
+  extractWords,
+  firstNonEmpty,
+  harmonizeParagraphBreaks,
+  htmlToStructuredText,
+  markdownToPlain,
+  markdownToStructuredText,
+  normalizeContentVariants,
+  normalizeWhitespace,
+  stripHtmlTags,
+  stripMarkdown
+} from './content-signals'
 
 // Cloudflare Workers API endpoint for content analysis
 
@@ -76,6 +94,52 @@ const EXCLUDED_ROLE_PATTERNS = new Set([
 const RATE_LIMIT_CONFIG = {
   session: { limit: 20, windowSeconds: 24 * 60 * 60 },
   ip: { limit: 40, windowSeconds: 60 * 60 }
+};
+
+export const onRequest = async (context) => {
+  console.log('onRequest 入口被呼叫')
+  return onRequestPost(context)
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    console.log('default.fetch 收到請求', {
+      url: request.url,
+      method: request.method
+    })
+
+    // 建立與 onRequestPost 相容的 context
+    const context = {
+      request,
+      env,
+      ctx,
+      data: {},
+      waitUntil: (promise) => ctx?.waitUntil?.(promise)
+    }
+
+    try {
+      const response = await onRequestPost(context)
+      console.log('default.fetch 正常結束', {
+        status: response?.status
+      })
+      return response
+    } catch (error) {
+      console.error('default.fetch 發生未捕捉錯誤', {
+        message: error?.message,
+        stack: error?.stack
+      })
+      return new Response(
+        JSON.stringify({ error: 'Internal server error' }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': 'https://ragseo.thinkwithblack.com'
+          }
+        }
+      )
+    }
+  }
 }
 
 function buildFallbackHcuAnswers(contentSignals = {}, contentFlags = {}, missingCritical = {}) {
@@ -1423,10 +1487,17 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
   try {
     console.log('Starting Gemini API call...');
     
+    const firstKeyword = Array.isArray(targetKeywords) && targetKeywords.length ? targetKeywords[0] : '';
     const apiKey = env && env.GEMINI_API_KEY ? env.GEMINI_API_KEY : null;
-    
+    const forceMock = String(env?.USE_GEMINI_MOCK || '').toLowerCase() === 'true';
+
     if (!apiKey) {
       console.error('Gemini API key is missing');
+    }
+
+    if (forceMock || !apiKey) {
+      console.warn('USE_GEMINI_MOCK 啟用或缺少 API key，本次改用模擬分析結果');
+      return generateMockAnalysis(content || '', firstKeyword);
     }
 
     // 控制輸入長度避免超出總tokens
@@ -1545,8 +1616,8 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
         const parts = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) ? data.candidates[0].content.parts : [];
         const textPart = Array.isArray(parts) ? parts.find(p => typeof p.text === 'string') : undefined;
         if (!textPart || !textPart.text) {
-          console.warn('No text part found in response. Returning raw response for debugging.');
-          return { rawResponse: data };
+          console.warn('No text part found in response，改用模擬分析結果');
+          return generateMockAnalysis(content || '', firstKeyword);
         }
 
         // Try to parse JSON from text
@@ -1559,8 +1630,14 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
           const parsed = JSON.parse(jsonString);
           return parsed;
         } catch (e) {
-          console.error('Failed to parse JSON from text part, returning raw text.', e);
-          return { rawText: textPart.text, rawResponse: data };
+          console.warn('Failed to parse JSON from text part，嘗試修復', e);
+          const repaired = tryParseJson(jsonString);
+          if (repaired) {
+            console.log('tryParseJson 成功修復 Gemini 回應');
+            return repaired;
+          }
+          console.warn('Gemini 回應仍不可解析，改用模擬分析結果');
+          return generateMockAnalysis(content || '', firstKeyword);
         }
       }
 
@@ -1590,15 +1667,20 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
         
         const errorMessage = `Gemini API 錯誤 (${response.status} ${response.statusText}): ${errorDetails}`;
         console.error(errorMessage);
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          console.warn(`Gemini 客戶端錯誤 ${response.status}，改用模擬分析結果`);
+          const firstKeyword = Array.isArray(targetKeywords) && targetKeywords.length ? targetKeywords[0] : '';
+          return generateMockAnalysis(content || '', firstKeyword);
+        }
         throw new Error(errorMessage);
       }
     }
   } catch (error) {
     console.error('Unexpected error in analyzeWithGemini:', error);
     // Fallback: if model is overloaded or rate-limited, return mock to keep UX responsive
-    if (String(error.message || '').includes('503') || String(error.message || '').includes('429')) {
-      console.warn('Gemini overloaded/rate-limited, falling back to mock analysis (outer catch)');
-      const firstKeyword = Array.isArray(targetKeywords) && targetKeywords.length ? targetKeywords[0] : '';
+    const message = String(error.message || '');
+    if (message.includes('503') || message.includes('429') || message.includes('401') || message.includes('403')) {
+      console.warn('Gemini 服務異常或拒絕，改用模擬分析結果（outer catch）');
       return generateMockAnalysis(content || '', firstKeyword);
     }
     throw error;
@@ -1652,6 +1734,11 @@ function tryParseJson(text) {
 export async function onRequestPost(context) {
   const { request } = context
 
+  console.log('onRequestPost 進入', {
+    url: request.url,
+    method: request.method
+  })
+
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://ragseo.thinkwithblack.com',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -1671,7 +1758,20 @@ export async function onRequestPost(context) {
     return handleFetchContent(context, corsHeaders)
   }
 
-  return handleAnalyzePost(context, corsHeaders)
+  console.log('路由至 handleAnalyzePost')
+
+  try {
+    return await handleAnalyzePost(context, corsHeaders)
+  } catch (error) {
+    console.error('handleAnalyzePost 發生未捕捉錯誤', {
+      message: error?.message,
+      stack: error?.stack
+    })
+    return new Response(
+      JSON.stringify({ error: error?.message || 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 }
 
 async function handleFetchContent(context, corsHeaders) {
@@ -1835,42 +1935,47 @@ async function handleAnalyzePost(context, corsHeaders) {
       }
     }
 
-    let contentVariants = normalizeContentVariants(requestBody)
-    if (contentVariants.hint !== 'html' || !contentVariants.html.trim()) {
+    const contentVariants = normalizeContentVariants({
+      contentPlain: requestBody.contentPlain,
+      contentHtml: requestBody.contentHtml,
+      contentMarkdown: requestBody.contentMarkdown,
+      plain: requestBody.plain,
+      html: requestBody.html,
+      markdown: requestBody.markdown,
+      content: requestBody.content,
+      text: requestBody.text,
+      hint: requestBody.contentFormatHint,
+      rawHtml: requestBody.rawHtml
+    })
+
+    const normalizedContentVariants = {
+      plain: contentVariants?.plain ?? '',
+      html: contentVariants?.html ?? '',
+      markdown: contentVariants?.markdown ?? '',
+      hint: contentVariants?.hint ?? ''
+    }
+
+    if (normalizedContentVariants.hint !== 'html' || !normalizedContentVariants.html) {
       if (requestBody.contentUrl) {
         try {
           const extracted = await fetchAndExtractContent(requestBody.contentUrl)
-          contentVariants = {
-            ...contentVariants,
-            html: extracted.html || contentVariants.html,
-            plain: extracted.plain || contentVariants.plain,
-            markdown: contentVariants.markdown,
-            hint: 'html'
-          }
+          normalizedContentVariants.html = extracted.html || normalizedContentVariants.html || ''
+          normalizedContentVariants.plain = extracted.plain || normalizedContentVariants.plain || ''
+          normalizedContentVariants.hint = 'html'
         } catch (error) {
           console.warn('Failed to fetch content for URL hint recovery', error)
         }
       }
     }
-    const {
-      plain: contentPlain,
-      html: contentHtml,
-      markdown: contentMarkdown,
-      hint: contentFormatHint
-    } = contentVariants
-    const primaryContent = derivePrimaryPlainContent(contentVariants)
-    const normalizedContentVariants = {
-      ...contentVariants,
-      plain: primaryContent
-    }
+
     const chunkSourceText = deriveChunkSourceText(normalizedContentVariants)
     const chunkSourceFormat = guessChunkSourceFormat(normalizedContentVariants)
 
     console.log('請求體解析成功:', JSON.stringify({
       contentLengthLegacy: typeof requestBody.content === 'string' ? requestBody.content.length : 0,
-      contentPlainLength: normalizedContentVariants.plain.length,
-      contentHtmlLength: normalizedContentVariants.html.length,
-      contentMarkdownLength: normalizedContentVariants.markdown.length,
+      contentPlainLength: typeof normalizedContentVariants.plain === 'string' ? normalizedContentVariants.plain.length : 0,
+      contentHtmlLength: typeof normalizedContentVariants.html === 'string' ? normalizedContentVariants.html.length : 0,
+      contentMarkdownLength: typeof normalizedContentVariants.markdown === 'string' ? normalizedContentVariants.markdown.length : 0,
       contentFormatHint: normalizedContentVariants.hint,
       hasTargetKeywords: Array.isArray(requestBody.targetKeywords),
       targetKeywordLegacy: !!requestBody.targetKeyword
@@ -1911,20 +2016,32 @@ async function handleAnalyzePost(context, corsHeaders) {
 
     const returnChunks = Boolean(requestBody.returnChunks)
 
-    const contentSignals = computeContentSignals({
-      plain: normalizedContentVariants.plain,
-      html: normalizedContentVariants.html,
-      markdown: normalizedContentVariants.markdown,
-      targetKeywords,
-      sourceUrl: requestBody.fetchedUrl || requestBody.contentUrl || requestBody.url || null
-    })
+    let contentSignals
+    try {
+      contentSignals = computeContentSignals({
+        plain: normalizedContentVariants.plain,
+        html: normalizedContentVariants.html,
+        markdown: normalizedContentVariants.markdown,
+        targetKeywords,
+        sourceUrl: requestBody.fetchedUrl || requestBody.contentUrl || requestBody.url || null
+      })
+    } catch (error) {
+      console.error('computeContentSignals 失敗', {
+        errorMessage: error?.message,
+        plainLength: normalizedContentVariants.plain?.length,
+        htmlLength: normalizedContentVariants.html?.length,
+        markdownLength: normalizedContentVariants.markdown?.length
+      })
+      throw new Error(`computeContentSignals failed: ${error.message}`)
+    }
 
     const metadataKeys = ['hasMetaDescription', 'hasCanonical', 'hasAuthorInfo', 'hasPublisherInfo', 'hasPublishedDate', 'hasModifiedDate', 'hasVisibleDate']
     const schemaKeys = ['hasFaqSchema', 'hasHowToSchema', 'hasArticleSchema', 'hasOrganizationSchema']
     const isAllUnknown = (keys) => keys.every((key) => contentSignals[key] === 'unknown')
     const primarySignalsUnknown = isAllUnknown(metadataKeys) && isAllUnknown(schemaKeys)
+    const hasHtmlContent = typeof normalizedContentVariants.html === 'string' && normalizedContentVariants.html.trim().length > 0
 
-    if (primarySignalsUnknown) {
+    if (primarySignalsUnknown && hasHtmlContent) {
       const responsePayload = {
         status: 'insufficient_metadata',
         message: '缺少 HTML metadata，請提供原始頁面再檢測。',
@@ -1944,14 +2061,19 @@ async function handleAnalyzePost(context, corsHeaders) {
     }
 
     const geminiApiKey = env.GEMINI_API_KEY
+    const useGeminiMock = String(env?.USE_GEMINI_MOCK || '').toLowerCase() === 'true'
     console.log('GEMINI_API_KEY 長度:', geminiApiKey ? `${geminiApiKey.substring(0, 5)}...${geminiApiKey.substring(geminiApiKey.length - 3)}` : '未設置')
 
-    if (!geminiApiKey) {
-      console.error('GEMINI_API_KEY is not set in environment variables')
+    if (!geminiApiKey && !useGeminiMock) {
+      console.error('GEMINI_API_KEY is not set in environment variables，且未啟用模擬模式')
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    if (!geminiApiKey && useGeminiMock) {
+      console.warn('GEMINI_API_KEY 缺失，但 USE_GEMINI_MOCK 為 true，將改用模擬分析結果')
     }
 
     console.log('開始處理分析請求...')
@@ -1960,6 +2082,12 @@ async function handleAnalyzePost(context, corsHeaders) {
       analysisResult = await analyzeWithGemini(normalizedContentVariants.plain, targetKeywords, env, contentSignals)
       console.log('分析成功完成')
       analysisResult = coerceAnalysisResult(analysisResult)
+      console.log('analysisResult 結構摘要:', {
+        hasMetrics: Boolean(analysisResult?.metrics),
+        seoMetricCount: Array.isArray(analysisResult?.metrics?.seo) ? analysisResult.metrics.seo.length : 0,
+        aeoMetricCount: Array.isArray(analysisResult?.metrics?.aeo) ? analysisResult.metrics.aeo.length : 0,
+        keys: Object.keys(analysisResult || {})
+      })
     } catch (error) {
       console.error('分析過程中出錯:', error)
       const msg = String(error && error.message ? error.message : '')
@@ -1967,12 +2095,26 @@ async function handleAnalyzePost(context, corsHeaders) {
         console.warn('偵測到模型過載/速率限制，改用模擬分析結果以維持體驗')
         const firstKeyword = Array.isArray(targetKeywords) && targetKeywords.length ? targetKeywords[0] : ''
         analysisResult = generateMockAnalysis(normalizedContentVariants.plain, firstKeyword)
+        console.log('已改用模擬分析結果')
       } else {
         throw new Error(`分析失敗: ${error.message}`)
       }
     }
 
-    let payload = normalizeAnalysisResult(analysisResult, contentSignals)
+    let payload
+    try {
+      payload = normalizeAnalysisResult(analysisResult, contentSignals)
+    } catch (error) {
+      console.error('normalizeAnalysisResult 失敗', {
+        errorMessage: error?.message,
+        analysisResultKeys: Object.keys(analysisResult || {}),
+        metricsPreview: {
+          seo: Array.isArray(analysisResult?.metrics?.seo) ? analysisResult.metrics.seo.map((m) => m?.name) : 'none',
+          aeo: Array.isArray(analysisResult?.metrics?.aeo) ? analysisResult.metrics.aeo.map((m) => m?.name) : 'none'
+        }
+      })
+      throw new Error(`normalizeAnalysisResult failed: ${error.message}`)
+    }
 
     let openAiAugmentation = null
     if (includeRecommendations) {
@@ -1993,7 +2135,23 @@ async function handleAnalyzePost(context, corsHeaders) {
       }
     }
 
-    payload = applyScoreGuards(payload, contentSignals, targetKeywords)
+    try {
+      payload = applyScoreGuards(payload, contentSignals, targetKeywords)
+    } catch (error) {
+      console.error('applyScoreGuards 失敗', {
+        errorMessage: error?.message,
+        payloadKeys: Object.keys(payload || {}),
+        seoMetrics: Array.isArray(payload?.metrics?.seo) ? payload.metrics.seo.map((metric) => ({
+          name: metric?.name,
+          score: metric?.score
+        })) : 'none',
+        aeoMetrics: Array.isArray(payload?.metrics?.aeo) ? payload.metrics.aeo.map((metric) => ({
+          name: metric?.name,
+          score: metric?.score
+        })) : 'none'
+      })
+      throw new Error(`applyScoreGuards failed: ${error.message}`)
+    }
     const seoPredictions = payload?.scoreGuards?.seoPredictions || null
     const aeoPredictions = payload?.scoreGuards?.aeoPredictions || null
     const modelContext = payload?.scoreGuards?.modelContext || null
@@ -2264,23 +2422,6 @@ ${hcuQuestions}
 - 嚴禁輸出 Markdown 圍欄或額外文字，僅回傳合法 JSON。`;
 }
 
-function firstNonEmpty(...values) {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value
-    if (Array.isArray(value) && value.length) return value.join('\n')
-  }
-  return ''
-}
-
-function coerceString(value) {
-  if (typeof value === 'string') return value
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  if (Array.isArray(value)) return value.map(coerceString).join('\n')
-  if (typeof value === 'object' && value !== null && typeof value.toString === 'function') return value.toString()
-  return ''
-}
-
 const HTML_ENGINEERING_KEYWORDS = [
   '<meta',
   '<head',
@@ -2302,26 +2443,6 @@ function containsHtmlEngineering(text = '') {
   const lower = text.trim().toLowerCase()
   if (!lower) return false
   return HTML_ENGINEERING_KEYWORDS.some((keyword) => lower.includes(keyword))
-}
-
-function normalizeContentVariants(source = {}) {
-  const plain = firstNonEmpty(
-    source.contentPlain,
-    source.plain,
-    typeof source.content === 'string' ? source.content : '',
-    source.text
-  );
-  const html = firstNonEmpty(source.contentHtml, source.html, source.rawHtml);
-  const markdown = firstNonEmpty(source.contentMarkdown, source.markdown, source.rawMarkdown);
-  const hintSource = coerceString(source.contentFormatHint || source.hint || '');
-  const hint = hintSource.trim().toLowerCase();
-
-  return {
-    plain: coerceString(plain),
-    html: coerceString(html),
-    markdown: coerceString(markdown),
-    hint: hint === 'html' || hint === 'markdown' || hint === 'plain' ? hint : ''
-  };
 }
 
 function derivePrimaryPlainContent(variants) {
@@ -2364,103 +2485,11 @@ function guessChunkSourceFormat(variants) {
   return 'plain';
 }
 
-function htmlToStructuredText(html) {
-  if (typeof html !== 'string' || !html.trim()) return '';
-  let output = html.replace(/\r\n/g, '\n');
-  output = output.replace(/<\s*(script|style)[^>]*>[\s\S]*?<\/\s*\1>/gi, '');
-
-  output = output.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, inner) => {
-    const prefix = '#'.repeat(Number(level) || 1);
-    const headingText = stripHtmlTags(inner).trim();
-    return `\n${prefix} ${headingText}\n`;
-  });
-
-  const blockTags = [
-    'p', 'div', 'section', 'article', 'header', 'footer', 'aside', 'nav',
-    'li', 'ul', 'ol', 'blockquote', 'pre', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
-    'figure', 'figcaption'
-  ];
-  for (const tag of blockTags) {
-    const regex = new RegExp(`<\\s*${tag}[^>]*>`, 'gi');
-    output = output.replace(regex, '\n');
-    const closeRegex = new RegExp(`<\\/\\s*${tag}\\s*>`, 'gi');
-    output = output.replace(closeRegex, '\n');
-  }
-
-  output = output.replace(/<br\s*\/?\s*>/gi, '\n');
-  output = stripHtmlTags(output);
-  output = decodeBasicEntities(output);
-  return normalizeWhitespace(output);
-}
-
-function markdownToStructuredText(markdown) {
-  if (typeof markdown !== 'string') return '';
-  return normalizeWhitespace(markdown.replace(/\r\n/g, '\n'));
-}
-
-function markdownToPlain(markdown) {
-  const structured = markdownToStructuredText(markdown);
-  return normalizeWhitespace(stripMarkdown(structured));
-}
-
-function stripMarkdown(markdown) {
-  if (!markdown) return '';
-  return markdown
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/^\s{0,3}(#{1,6})\s+/gm, '')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/_([^_]+)_/g, '$1')
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-    .replace(/^\s{0,3}[-*+]\s+/gm, '')
-    .replace(/^\s{0,3}\d+\.\s+/gm, '')
-    .replace(/>\s?/g, '')
-    .replace(/\|\s?\|/g, ' ');
-}
-
-function stripHtmlTags(html) {
-  if (!html) return '';
-  return html.replace(/<[^>]+>/g, ' ');
-}
-
-function decodeBasicEntities(text) {
-  if (typeof text !== 'string') return '';
-  return text
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'");
-}
-
-function normalizeWhitespace(text) {
-  if (typeof text !== 'string') return '';
-  return text
-    .replace(/\r\n/g, '\n')
-    .replace(/\t/g, ' ')
-    .replace(/\u00a0/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \f\v]{2,}/g, ' ')
-    .trim();
-}
-
-function harmonizeParagraphBreaks(text) {
-  if (typeof text !== 'string') return ''
-  return text
-    .replace(/\r\n/g, '\n')
-    .replace(/<br\s*\/?>(?=\s*\n?)/gi, '\n')
-    .replace(/([。！？!?])(?!\s*\n)/g, '$1\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]+\n/g, '\n')
-    .trim()
-}
-
 function computeContentSignals({ plain = '', html = '', markdown = '', targetKeywords = [], sourceUrl = null }) {
   // 簡化版本：只計算基本信號以避免 Worker 超時
   // 完整版本應在後端服務中計算
   const signal = {
+    // ... (rest of the code remains the same)
     hasHtml: Boolean(html && html.trim()),
     hasMarkdown: Boolean(markdown && markdown.trim()),
     hasPlain: Boolean(plain && plain.trim()),
@@ -2887,33 +2916,6 @@ function serializeContentSignals(signals = {}) {
   }
 }
 
-function extractSentences(text) {
-  if (typeof text !== 'string' || !text.trim()) return []
-  const normalized = text.replace(/\r\n/g, '\n').replace(/\s+/g, ' ').trim()
-  if (!normalized) return []
-  const matches = normalized.match(/[^。！？!?\.]+[。！？!?\.]?/g)
-  return matches ? matches.map((sentence) => sentence.trim()).filter(Boolean) : [normalized]
-}
-
-function extractWords(text) {
-  if (typeof text !== 'string' || !text.trim()) return []
-  const matches = text.match(/[A-Za-z\u4e00-\u9fff0-9]+/g)
-  return matches ? matches : []
-}
-
-function extractKeywordSet(text) {
-  const keywords = new Set()
-  if (typeof text !== 'string') return keywords
-  const words = extractWords(text)
-  words.forEach((word) => {
-    const normalized = word.toLowerCase()
-    if (normalized.length >= 2 && !/^[0-9]+$/.test(normalized)) {
-      keywords.add(normalized)
-    }
-  })
-  return keywords
-}
-
 function normalizeHcuAnswer(answer) {
   if (typeof answer !== 'string') return 'no'
   const normalized = answer.trim().toLowerCase()
@@ -3016,9 +3018,44 @@ function deriveFallbackMetricScore(metricName, scope, context = {}) {
     return Math.max(0, Math.min(10, value))
   }
 
+  const seoNameMap = {
+    'Helpful Ratio': 'helpfulRatio',
+    '內容意圖契合': 'intentFit',
+    '搜尋意圖契合': 'intentFit',
+    '內容覆蓋與深度': 'depthCoverage',
+    '延伸疑問與關鍵字覆蓋': 'intentExpansion',
+    '行動可行性': 'actionability',
+    '可讀性與敘事節奏': 'readabilityRhythm',
+    '可讀性與敘事流暢': 'readabilityRhythm',
+    '結構化重點提示': 'structureHighlights',
+    '作者與品牌辨識': 'authorBrandSignals',
+    '可信證據與引用': 'evidenceSupport',
+    '洞察與證據支持': 'evidenceSupport',
+    '第一手經驗與案例': 'experienceSignals',
+    '敘事具體度與資訊密度': 'narrativeDensity',
+    '時效與更新訊號': 'freshnessSignals',
+    '專家觀點與判斷': 'expertPerspective'
+  }
+
+  const aeoNameMap = {
+    '答案可抽取性': 'extractability',
+    '答案精準度': 'extractability',
+    '關鍵摘要與重點整理': 'keySummary',
+    '精選摘要適配': 'keySummary',
+    '對話式語氣與指引': 'conversationalGuidance',
+    '敘事可信度': 'conversationalGuidance',
+    '讀者互動與後續引導': 'readerActivation'
+  }
+
+  const resolveName = (name, map) => {
+    if (typeof name !== 'string') return name
+    return map[name.trim()] || name.trim()
+  }
+
   // HCU 指標
   if (scope === 'seo') {
-    switch (metricName) {
+    const normalized = resolveName(metricName, seoNameMap)
+    switch (normalized) {
       case 'helpfulRatio': {
         const yes = num(signals.hcuYesRatio)
         const partial = num(signals.hcuPartialRatio)
@@ -3096,7 +3133,8 @@ function deriveFallbackMetricScore(metricName, scope, context = {}) {
 
   // AEO 指標
   if (scope === 'aeo') {
-    switch (metricName) {
+    const normalized = resolveName(metricName, aeoNameMap)
+    switch (normalized) {
       case 'extractability': {
         const extractability = num(signals.paragraphExtractability)
         const longPenalty = Math.min(1, num(signals.longParagraphCount) / Math.max(2, Math.floor(num(signals.paragraphCount) * 0.5)))
@@ -3234,35 +3272,22 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
         }
 
         if (Number.isFinite(guarded.score)) {
-          if (metric.name === '答案精準度' && missingCritical.h2Coverage) {
-            guarded.score = Math.min(guarded.score, 5)
+          if (metric.name === '答案可抽取性') {
+            if (missingCritical.h2Coverage || missingCritical.paragraphsLong) guarded.score = Math.min(guarded.score, 6)
+            if (contentQualityFlags.readabilityWeak) guarded.score = Math.min(guarded.score, 6)
           }
-          if (metric.name === '答案精準度' && contentQualityFlags.depthVeryLow) {
-            guarded.score = Math.min(guarded.score, 4)
+          if (metric.name === '關鍵摘要與重點整理') {
+            if (missingCritical.listMissing) guarded.score = Math.min(guarded.score, 6)
+            if (contentQualityFlags.titleMismatch) guarded.score = Math.min(guarded.score, 6)
+            if (missingCritical.h2Coverage) guarded.score = Math.min(guarded.score, 6)
           }
-          if (metric.name === '答案精準度' && contentQualityFlags.actionableWeak) {
-            guarded.score = Math.min(guarded.score, 6)
+          if (metric.name === '對話式語氣與指引') {
+            if (contentQualityFlags.semanticToneFormal) guarded.score = Math.min(guarded.score, 6)
+            if (contentQualityFlags.readabilityWeak) guarded.score = Math.min(guarded.score, 5)
           }
-          if (metric.name === '精選摘要適配' && missingCritical.paragraphsLong) {
-            guarded.score = Math.min(guarded.score, 6)
-          }
-          if (metric.name === '精選摘要適配' && contentQualityFlags.readabilityWeak) {
-            guarded.score = Math.min(guarded.score, 5)
-          }
-          if (metric.name === '精選摘要適配' && missingCritical.listMissing) {
-            guarded.score = Math.min(guarded.score, 5)
-          }
-          if (metric.name === '精選摘要適配' && missingCritical.h2Coverage) {
-            guarded.score = Math.min(guarded.score, 6)
-          }
-          if (metric.name === '敘事可信度' && (missingCritical.externalLinksMissing || missingCritical.authorityLinksMissing)) {
-            guarded.score = Math.min(guarded.score, 4)
-          }
-          if (metric.name === '敘事可信度' && contentQualityFlags.evidenceWeak) {
-            guarded.score = Math.min(guarded.score, 4)
-          }
-          if (metric.name === '敘事可信度' && contentQualityFlags.uniqueWordLow) {
-            guarded.score = Math.min(guarded.score, 6)
+          if (metric.name === '讀者互動與後續引導') {
+            if (contentQualityFlags.actionableWeak) guarded.score = Math.min(guarded.score, 5)
+            if (missingCritical.ctaMissing) guarded.score = Math.min(guarded.score, 4)
           }
           guarded.score = applyHcuCaps(guarded.score, metric.name, 'aeo')
           guarded.score = clampScore(guarded.score)
@@ -3299,24 +3324,66 @@ function applyScoreGuards(payload, contentSignals = {}, targetKeywords = []) {
           }
         }
         switch (metric.name) {
-          case '內容意圖契合': {
-            if (missingCritical.h1Count || missingCritical.h1Keyword) lower(4)
-            if (contentQualityFlags.titleMismatch) lower(5)
-            if (contentQualityFlags.actionableWeak) lower(5)
+          case 'Helpful Ratio': {
+            if (hcuCounts.no >= 1) lower(6)
+            if (contentQualityFlags.hcuInconsistent) lower(7)
             break
           }
-          case '洞察與證據支持': {
-            if (missingCritical.externalLinksMissing) lower(5)
+          case '搜尋意圖契合': {
+            if (missingCritical.h1Count || missingCritical.h1Keyword) lower(5)
+            if (contentQualityFlags.titleMismatch) lower(6)
+            break
+          }
+          case '內容覆蓋與深度': {
             if (contentQualityFlags.depthLow) lower(6)
-            if (contentQualityFlags.uniqueWordLow) lower(5)
-            if (contentQualityFlags.experienceWeak) lower(5)
+            if (missingCritical.paragraphsShort) lower(6)
             break
           }
-          case '可讀性與敘事流暢': {
-            if (missingCritical.listMissing) lower(5)
+          case '延伸疑問與關鍵字覆蓋': {
+            if (contentQualityFlags.intentNarrow) lower(6)
+            break
+          }
+          case '行動可行性': {
+            if (contentQualityFlags.actionableWeak) lower(5)
+            if (missingCritical.ctaMissing) lower(5)
+            break
+          }
+          case '可讀性與敘事節奏': {
+            if (missingCritical.listMissing) lower(6)
             if (missingCritical.tableMissing) lower(6)
             if (missingCritical.paragraphsLong) lower(5)
             if (contentQualityFlags.readabilityWeak) lower(4)
+            break
+          }
+          case '結構化重點提示': {
+            if (missingCritical.listMissing && missingCritical.tableMissing) lower(4)
+            break
+          }
+          case '作者與品牌辨識': {
+            if (missingCritical.author) lower(4)
+            if (missingCritical.publisher) lower(4)
+            break
+          }
+          case '可信證據與引用': {
+            if (missingCritical.externalLinksMissing) lower(5)
+            if (contentQualityFlags.evidenceWeak) lower(5)
+            break
+          }
+          case '第一手經驗與案例': {
+            if (contentQualityFlags.experienceWeak) lower(5)
+            break
+          }
+          case '敘事具體度與資訊密度': {
+            if (contentQualityFlags.uniqueWordLow) lower(6)
+            if (contentQualityFlags.semanticDrift) lower(6)
+            break
+          }
+          case '時效與更新訊號': {
+            if (contentQualityFlags.freshnessWeak) lower(6)
+            break
+          }
+          case '專家觀點與判斷': {
+            if (contentQualityFlags.expertVoiceWeak) lower(6)
             break
           }
           default:

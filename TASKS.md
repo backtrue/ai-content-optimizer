@@ -65,6 +65,19 @@
   - [ ] 新增純文字輸入的回歸案例，確認不會產生錯誤建議
   - [ ] 更新相關文件記錄偵測流程與 Unknown 狀態
 
+## 2025-11-04 Content Signals & Guard Alignment Session
+
+- [ ] 抽出 `computeContentSignals` 公用模組供 Worker/Functions 共用
+- [ ] 更新 analyze-worker 導入完整內容訊號計算
+- [ ] 調整 `applyScoreGuards` 與 AEO/SEO 新指標對齊
+- [ ] 進行「葉黃素推薦」案例驗證與結果記錄
+
+## 2025-11-05 Analyze Worker 驗證 Session
+
+- [ ] 建立本地分析流程（複製金鑰、啟動 worker、確認健康）
+- [ ] 撰寫批次腳本抓取「葉黃素推薦」SERP 前十並呼叫 /api/analyze
+- [ ] 匯總 SEO/AEO 分數並回報
+
 ## 2025-11-03 Content Score Simplification
 
 ### 指標重整（17 項）
