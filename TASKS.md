@@ -33,8 +33,8 @@
 ### 5. 文件與對外溝通
 - [x] 撰寫 v5 模型變更 Changelog（V5_CHANGELOG.md）
 - [x] 建立使用指南（V5_USAGE_GUIDE.md），含 FAQ 與最佳實踐
+- [x] 建立部署檢查清單（V5_DEPLOYMENT_CHECKLIST.md）
 - [ ] 更新 `docs/product/HCU_EEAT_AEO_Scoring_Guide.md`，納入 Mode A / Mode B 與 WHY / HOW / WHAT 說明
-- [ ] 更新部署與使用指南（含 Cloudflare Worker / 前端），說明雙軌評分流程與操作步驟
 
 ### 6. 非同步通知與結果交付
 - [x] 設計與實作任務排程：queue-handler.js 實作提交後排入背景分析
