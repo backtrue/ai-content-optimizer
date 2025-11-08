@@ -2018,12 +2018,15 @@ async function handleAnalyzePost(context, corsHeaders) {
 
     let contentSignals
     try {
+      // v5：支援 contentFormatHint 自動辨識 HTML vs 純文字
+      const contentFormatHint = requestBody.contentFormatHint || 'auto'
       contentSignals = computeContentSignals({
         plain: normalizedContentVariants.plain,
         html: normalizedContentVariants.html,
         markdown: normalizedContentVariants.markdown,
         targetKeywords,
-        sourceUrl: requestBody.fetchedUrl || requestBody.contentUrl || requestBody.url || null
+        sourceUrl: requestBody.fetchedUrl || requestBody.contentUrl || requestBody.url || null,
+        contentFormatHint
       })
     } catch (error) {
       console.error('computeContentSignals 失敗', {
@@ -2340,85 +2343,103 @@ function extractTextFromRawResponse(rawResponse) {
   }
 }
 
-// Build the analysis prompt (multiple keywords)
+/**
+ * 萃取關鍵段落供 AI 策略分析
+ * 返回首段、末段、以及含經驗/佐證訊號的段落
+ */
+function extractKeyPassages(content, contentSignals = {}) {
+  if (!content || typeof content !== 'string') {
+    return { firstParagraph: '', lastParagraph: '', evidenceParagraphs: [] }
+  }
+
+  const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 0)
+  if (paragraphs.length === 0) {
+    return { firstParagraph: '', lastParagraph: '', evidenceParagraphs: [] }
+  }
+
+  const firstParagraph = paragraphs[0].trim()
+  const lastParagraph = paragraphs[paragraphs.length - 1].trim()
+
+  // 尋找含經驗/佐證訊號的段落
+  const evidenceParagraphs = []
+  const experienceCueCount = contentSignals.experienceCueCount || 0
+  const evidenceCount = contentSignals.evidenceCountNorm || 0
+
+  if (experienceCueCount > 0 || evidenceCount > 0.3) {
+    // 簡單啟發式：尋找包含「案例」、「例如」、「根據」、「研究」等關鍵詞的段落
+    const keywords = ['案例', '例如', '根據', '研究', '數據', '發現', '證實', '表明', '實驗', '測試', '驗證', '證明']
+    for (let i = 1; i < paragraphs.length - 1; i++) {
+      const para = paragraphs[i].trim()
+      if (keywords.some(kw => para.includes(kw)) && para.length > 50) {
+        evidenceParagraphs.push(para)
+        if (evidenceParagraphs.length >= 3) break
+      }
+    }
+  }
+
+  return { firstParagraph, lastParagraph, evidenceParagraphs }
+}
+
+// Build the v5 analysis prompt with WHY / HOW / WHAT strategy framework
 function buildAnalysisPrompt(content, targetKeywords, contentSignals = {}) {
   const keywordsList = Array.isArray(targetKeywords) ? targetKeywords.filter(Boolean).join(', ') : ''
-  const signals = serializeContentSignals(contentSignals)
-  const hcuQuestions = formatHcuQuestions()
-  return `你是一位嚴謹的 SEO 與 AEO 分析專家。請僅依據使用者提供的目標關鍵字進行分析，不要臆測或自行假設任何關鍵字。
+  const passages = extractKeyPassages(content, contentSignals)
+  
+  // 組合關鍵段落供 AI 評估
+  const keyPassagesText = [
+    passages.firstParagraph ? `【首段】\n${passages.firstParagraph}` : '',
+    passages.lastParagraph ? `【末段】\n${passages.lastParagraph}` : '',
+    passages.evidenceParagraphs.length > 0 ? `【佐證段落】\n${passages.evidenceParagraphs.join('\n\n')}` : ''
+  ].filter(Boolean).join('\n\n')
 
-文章內容：
-${content}
+  return `你是一位內容策略師，專門評估文章是否能被 AI 搜尋引擎引用與信任。
 
-目標關鍵字（1-5 個，僅限以下清單）：${keywordsList}
+目標關鍵字：${keywordsList}
 
-已解析的內容訊號（請務必據此評分，缺失即視為不符合）：
-${signals}
+【待評估的關鍵段落】
+${keyPassagesText}
 
-內容評估原則（僅聚焦文本表現與讀者體驗）：
-- Helpful Ratio 以 hcuYesRatio、hcuPartialRatio、hcuNoRatio 為準，無紀錄視為缺乏 helpful 性。
-- 篇幅不足（wordCount < 800 或 paragraphCount < 8）視為深度不足，score ≤ 5。
-- 行動性弱（actionableScoreNorm < 0.5 或 actionableStepCount < 3）視為尚需補強。
-- 若 evidenceCountNorm < 0.4 或 externalCitationCount = 0，可信證據需給出低分並於 evidence 註記「缺乏引用」。
-- experienceCueNorm < 0.4 或 caseStudyCount = 0 代表缺乏第一手經驗。
-- paragraphExtractability < 0.5、longParagraphPenalty > 0.4 時，摘要類指標分數須 ≤ 5。
-- semanticNaturalness < 0.5 或 avgSentenceLengthNorm > 0.6 時，可讀性需調降並提出語氣改善建議。
+【評估框架：WHY / HOW / WHAT】
 
-請先依據以下 Helpful Content Update (HCU) 問卷逐題判斷內容是否符合：
-${hcuQuestions}
-每題必須輸出 "answer": "yes|partial|no" 以及 40 字內的說明；若資料不足必須回答 "no" 或 "partial"。
+請根據以下三個維度對上述段落進行質化評分（各 1-10 分）：
 
-請以 JSON 格式回傳分析結果，包含下列欄位（所有建議僅能聚焦內容品質、敘事與讀者體驗，嚴禁提供任何 HTML 標籤、Schema、meta/canonical 指令或技術設定）：
+1. **Problem Definition (WHY)** - 文章是否清楚描繪讀者的痛點與問題背景？
+   - 評分標準：是否開篇即交代「為什麼讀者需要這篇文章」？
+   - 高分特徵：具體指出讀者面臨的挑戰、痛點或疑問。
+   - 低分特徵：直接進入解決方案，缺乏問題鋪陳。
+
+2. **Implication (HOW)** - 文章是否解釋解決方案的原理與步驟？
+   - 評分標準：是否提供「如何」執行或理解的具體指引？
+   - 高分特徵：分步驟說明、提供實務建議、舉例說明。
+   - 低分特徵：僅列舉結論，缺乏執行細節或原理說明。
+
+3. **Solution Fit (WHAT)** - 文章的解決方案是否切實回應初始問題？
+   - 評分標準：是否清楚總結「解決方案是什麼」及其價值？
+   - 高分特徵：結尾明確總結方案、強調其對讀者的實際幫助。
+   - 低分特徵：解決方案模糊、與問題脫節、缺乏結論。
+
+【輸出格式】
+請以 JSON 格式回傳：
 {
-  "overallScore": 整數(0-100),
-  "aeoScore": 整數(0-100),
-  "seoScore": 整數(0-100),
-  "hcuReview": [
-    { "id": "...", "answer": "yes|partial|no", "explanation": "..." }
-  ],
-  "metrics": {
-    "seo": [
-      { "name": "Helpful Ratio", "weight": 7, "score": 整數(0-10), "description": "以 HCU 問卷評估 helpful 與否", "evidence": ["指出 yes/partial/no 的理由"] },
-      { "name": "搜尋意圖契合", "weight": 15, "score": 整數(0-10), "description": "標題與首段是否直接回應問題", "evidence": ["列出開頭段或小節說明"] },
-      { "name": "內容覆蓋與深度", "weight": 12, "score": 整數(0-10), "description": "段落是否完整回答所有核心面向", "evidence": ["缺少的主題或需補充的段落"] },
-      { "name": "延伸疑問與關鍵字覆蓋", "weight": 8, "score": 整數(0-10), "description": "是否涵蓋相關長尾問題與關鍵詞", "evidence": ["尚未覆蓋的延伸疑問"] },
-      { "name": "行動可行性", "weight": 8, "score": 整數(0-10), "description": "是否提供可執行步驟與實務建議", "evidence": ["列出需要補強的行動指引"] },
-      { "name": "可讀性與敘事節奏", "weight": 7, "score": 整數(0-10), "description": "段落長度、句構與掃讀體驗", "evidence": ["需要拆分或改寫的段落"] },
-      { "name": "結構化重點提示", "weight": 6, "score": 整數(0-10), "description": "是否使用列表、表格凸顯重點", "evidence": ["應補充的列表或表格內容"] },
-      { "name": "作者與品牌辨識", "weight": 6, "score": 整數(0-10), "description": "是否清楚交代作者、品牌與資歷", "evidence": ["需補充的作者/品牌資訊"] },
-      { "name": "可信證據與引用", "weight": 10, "score": 整數(0-10), "description": "是否引用權威數據與來源", "evidence": ["缺乏引用的段落或主張"] },
-      { "name": "第一手經驗與案例", "weight": 11, "score": 整數(0-10), "description": "是否分享實際案例或心得", "evidence": ["應補充的案例或證言"] },
-      { "name": "敘事具體度與資訊密度", "weight": 10, "score": 整數(0-10), "description": "是否具體說明數據、名詞與細節", "evidence": ["資訊不足的段落"] },
-      { "name": "時效與更新訊號", "weight": 6, "score": 整數(0-10), "description": "是否標示最近年份與更新資訊", "evidence": ["建議補充的年份或更新說明"] },
-      { "name": "專家觀點與判斷", "weight": 11, "score": 整數(0-10), "description": "是否提供專業比較、判斷與建議", "evidence": ["需加入的專家觀點或比較"] }
-    ],
-    "aeo": [
-      { "name": "答案可抽取性", "weight": 12, "score": 整數(0-10), "description": "結論是否可被直接摘錄", "evidence": ["指出需重寫的段落或補充結論"] },
-      { "name": "關鍵摘要與重點整理", "weight": 9, "score": 整數(0-10), "description": "是否於首段或結尾整理重點", "evidence": ["需新增的摘要或重點列表"] },
-      { "name": "對話式語氣與指引", "weight": 9, "score": 整數(0-10), "description": "是否以自然語氣回答讀者疑問", "evidence": ["需改寫的生硬句或段落"] },
-      { "name": "讀者互動與後續引導", "weight": 9, "score": 整數(0-10), "description": "是否提供 CTA、常見問題或下一步指引", "evidence": ["建議補充的 CTA 或 FAQ"] }
-    ]
+  "strategyScores": {
+    "why": 整數(1-10),
+    "how": 整數(1-10),
+    "what": 整數(1-10)
   },
-  "perKeyword": [
-    { "keyword": "...", "density": "...", "intentFit": "...", "coverage": "..." }
-  ],
+  "strategyAnalysis": {
+    "why": { "score": 整數(1-10), "explanation": "...", "evidence": "..." },
+    "how": { "score": 整數(1-10), "explanation": "...", "evidence": "..." },
+    "what": { "score": 整數(1-10), "explanation": "...", "evidence": "..." }
+  },
+  "overallStrategicScore": 整數(1-10),
   "recommendations": [
-    { "priority": "high|medium|low", "category": "內容|信任|讀者體驗", "title": "...", "description": "...", "example": "..." }
-  ],
-  "highRiskFlags": [
-    { "type": "harm|deception|spam", "severity": "critical|warning", "summary": "...", "action": "..." }
+    { "dimension": "WHY|HOW|WHAT", "priority": "high|medium|low", "suggestion": "..." }
   ]
 }
 
-重要提醒：
-- 僅使用提供的目標關鍵字進行分析，不得新增或替換。
-- 僅依據貼上內容本身的文字線索與上述「內容訊號」進行評估；若文本未提供所需資訊，請於 description 與 evidence 中明確標註「文本未提供」。
-- 若訊號顯示缺乏案例、引用或更新年份，對應指標最高分僅能給 6 分，並在 evidence 中說明原因。
-- 若內容不足以評估，請在描述與建議中明確指出需要補充的資訊。
-- highRiskFlags 為必填欄位，若無風險請輸出空陣列。
-- 必須輸出上述 13 項 metrics.seo 與 4 項 metrics.aeo 指標，不可刪減或整併。
-- 每項 description 請以 1–2 句繁體中文撰寫，總字數不超過 70 字；每項 evidence 最多 2 條，單條字數不超過 40 字。
-- 建議僅限針對內容結構、敘事、證據、語氣與讀者體驗的調整；禁止輸出任何 HTML、meta 標籤、schema 或 canonical 相關操作。
+【重要提醒】
+- 僅依據提供的段落進行評估，不要臆測全文內容。
+- 若段落不足以評估某一維度，請在 explanation 中明確標註「段落不足」。
 - 嚴禁輸出 Markdown 圍欄或額外文字，僅回傳合法 JSON。`;
 }
 
@@ -2485,14 +2506,26 @@ function guessChunkSourceFormat(variants) {
   return 'plain';
 }
 
-function computeContentSignals({ plain = '', html = '', markdown = '', targetKeywords = [], sourceUrl = null }) {
-  // 簡化版本：只計算基本信號以避免 Worker 超時
-  // 完整版本應在後端服務中計算
+function computeContentSignals({ plain = '', html = '', markdown = '', targetKeywords = [], sourceUrl = null, contentFormatHint = 'auto' }) {
+  // v5 版本：支援 contentFormatHint 自動辨識 HTML vs 純文字
+  // contentFormatHint: 'html' | 'plain' | 'auto'（預設自動判斷）
+  
+  // 自動判斷內容格式
+  let detectedFormat = contentFormatHint
+  if (contentFormatHint === 'auto') {
+    const hasHtmlTags = html && /<[a-z][^>]*>/i.test(html)
+    const hasHeadTag = html && /<head[^>]*>/i.test(html)
+    detectedFormat = (hasHtmlTags || hasHeadTag) ? 'html' : 'plain'
+  }
+  
   const signal = {
-    // ... (rest of the code remains the same)
+    // 基本訊號
+    contentFormatHint: detectedFormat,
     hasHtml: Boolean(html && html.trim()),
     hasMarkdown: Boolean(markdown && markdown.trim()),
     hasPlain: Boolean(plain && plain.trim()),
+    
+    // 技術性訊號（Mode A HTML 時計算，Mode B 時標記 unknown）
     hasFaqSchema: false,
     hasHowToSchema: false,
     hasArticleSchema: false,
@@ -2504,6 +2537,9 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
     hasVisibleDate: false,
     hasMetaDescription: false,
     hasUniqueTitle: false,
+    hasCanonical: false,
+    
+    // 內容訊號（兩種模式都計算）
     h1Count: 0,
     h1ContainsKeyword: false,
     h2Count: 0,
@@ -2516,7 +2552,6 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
     internalLinkCount: 0,
     externalLinkCount: 0,
     externalAuthorityLinkCount: 0,
-    hasCanonical: false,
     paragraphCount: 0,
     longParagraphCount: 0,
     wordCount: 0,
