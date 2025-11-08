@@ -4,6 +4,7 @@
  */
 
 import { Resend } from 'resend'
+import { generateResultEmailHtml, generateResultEmailText } from './email-template'
 
 /**
  * 主要 Queue 消費者：處理分析任務
@@ -77,43 +78,18 @@ async function performAnalysis(payload, env) {
 async function sendResultEmail(payload, result, env) {
   const resend = new Resend(env.RESEND_API_KEY)
   
-  const resultUrl = `${env.SITE_URL}/results/${payload.taskId}`
+  const siteUrl = env.SITE_URL || 'https://content-optimizer.ai'
   
-  const emailHtml = `
-    <h2>您的內容分析結果已完成</h2>
-    <p>親愛的使用者，</p>
-    <p>您提交的內容分析已完成。以下是摘要：</p>
-    
-    <h3>評分摘要</h3>
-    <ul>
-      <li><strong>結構分：</strong> ${result.structureScore}/100</li>
-      <li><strong>策略分：</strong> ${result.strategyScore}/100</li>
-      <li><strong>總分：</strong> ${result.overallScore}/100</li>
-    </ul>
-    
-    <h3>策略分析</h3>
-    <ul>
-      <li><strong>WHY (問題定義)：</strong> ${result.strategyAnalysis.why.score}/10 - ${result.strategyAnalysis.why.explanation}</li>
-      <li><strong>HOW (實現方法)：</strong> ${result.strategyAnalysis.how.score}/10 - ${result.strategyAnalysis.how.explanation}</li>
-      <li><strong>WHAT (解決方案)：</strong> ${result.strategyAnalysis.what.score}/10 - ${result.strategyAnalysis.what.explanation}</li>
-    </ul>
-    
-    <h3>建議</h3>
-    <ul>
-      ${result.recommendations.map(rec => `<li>[${rec.priority.toUpperCase()}] ${rec.dimension}: ${rec.suggestion}</li>`).join('')}
-    </ul>
-    
-    <p><a href="${resultUrl}">點擊此處查看完整分析結果</a></p>
-    
-    <p>感謝使用 AI 內容優化大師！</p>
-  `
+  const emailHtml = generateResultEmailHtml(payload.taskId, result, siteUrl)
+  const emailText = generateResultEmailText(payload.taskId, result, siteUrl)
   
   try {
     const response = await resend.emails.send({
       from: env.RESEND_FROM_EMAIL || 'noreply@content-optimizer.ai',
       to: payload.email,
       subject: '✅ 您的內容分析結果已完成',
-      html: emailHtml
+      html: emailHtml,
+      text: emailText
     })
     
     console.log(`[Email] 已寄送至 ${payload.email}:`, response.id)
