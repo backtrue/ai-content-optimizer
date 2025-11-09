@@ -95,8 +95,9 @@ export const zhTWStrings: UIStrings = {
 
 export const zhTWSEO: Record<string, SEOMetadata> = {
   home: {
-    title: 'AI 內容優化大師 - SEO 與 AEO 評分分析工具',
-    description: '使用 AI 驅動的評分模型，分析您的內容在 SEO 策略與結構方面的表現。獲得詳細的優化建議，提升搜尋排名與 AI 引用率。',
+    title: '源策 (SrcRank): 您的 AI 內容策略顧問',
+    description:
+      '「報數據」提供客觀指標，「源策」評估內容靈魂。源策 (SrcRank) 是一個專為 AEO/GEO 時代打造的自適應評分演算法，它同時評估您內容的「內容結構」與「AI 策略說服力」。我們不再只評估關鍵字，而是讓 AI 深度解讀您內容的核心論述，幫助您的內容從「資訊」升級為「可信的引用來源」。',
     keywords: ['SEO', 'AEO', '內容優化', 'AI 分析', '搜尋排名']
   },
   guides: {
