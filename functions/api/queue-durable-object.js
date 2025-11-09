@@ -3,9 +3,6 @@
  * 替代 Cloudflare Queues（免費方案可用）
  */
 
-import { Resend } from 'resend'
-import { generateResultEmailHtml, generateResultEmailText } from './email-template'
-
 export class AnalysisQueue {
   constructor(state, env) {
     this.state = state
@@ -159,6 +156,10 @@ export class AnalysisQueue {
    */
   async sendResultEmail(taskId, result, userEmail) {
     try {
+      // 動態匯入 Resend 和 email 模板
+      const { Resend } = await import('resend')
+      const { generateResultEmailHtml, generateResultEmailText } = await import('./email-template.js')
+
       const resend = new Resend(this.env.RESEND_API_KEY)
       const siteUrl = this.env.SITE_URL || 'https://content-optimizer.ai'
       const resultsUrl = `${siteUrl}/results/${taskId}`

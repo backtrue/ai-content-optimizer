@@ -1,5 +1,5 @@
 import { Readability } from '@mozilla/readability'
-import { AnalysisQueue } from './queue-durable-object'
+export { AnalysisQueue } from './queue-durable-object'
 
 console.log('[[path]].js module 初始化')
 import { parseHTML } from 'linkedom'

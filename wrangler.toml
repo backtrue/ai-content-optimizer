@@ -5,8 +5,8 @@ compatibility_date = "2024-10-28"
 # KV Namespace for storing analysis results
 [[kv_namespaces]]
 binding = "ANALYSIS_RESULTS"
-id = "analysis_results_kv"
-preview_id = "analysis_results_preview"
+id = "26377e2774624d0781a19b026e018b5f"
+preview_id = "26377e2774624d0781a19b026e018b5f"
 
 # Durable Object for async analysis queue (replaces Queues for free plan)
 [[durable_objects.bindings]]
@@ -14,10 +14,10 @@ name = "ANALYSIS_QUEUE"
 class_name = "AnalysisQueue"
 script_name = "ai-content-optimizer-worker"
 
-# Durable Object migrations
+# Durable Object migrations (use SQLite for free plan)
 [[migrations]]
 tag = "v1"
-new_classes = ["AnalysisQueue"]
+new_sqlite_classes = ["AnalysisQueue"]
 
 [env.production]
 name = "ai-content-optimizer-worker-prod"
@@ -36,4 +36,4 @@ script_name = "ai-content-optimizer-worker-prod"
 
 [[env.production.migrations]]
 tag = "v1"
-new_classes = ["AnalysisQueue"]
+new_sqlite_classes = ["AnalysisQueue"]
