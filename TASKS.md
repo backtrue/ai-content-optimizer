@@ -156,43 +156,57 @@
 
 ## 2025-11-09 多語系化規劃
 
-### 任務 0：多語系基礎建設（共用前置）
-- [ ] 建立「多語系資源盤點表」
+### 任務 0：多語系基礎建設（共用前置）✅ 完成
+- [x] 建立「多語系資源盤點表」✅
   - 彙整 UI 文案、指南、系統文件與 Email 模板
   - 標記來源語言、字數、優先度與負責人
-- [ ] 建立 i18n 架構骨幹
+- [x] 建立 i18n 架構骨幹✅
   - 在 `src/locales/` 建立 `base.ts`、`zh-TW.ts`、`en.ts`、`ja.ts`
   - 制訂 key 命名規則、字串插值格式、日期/數字格式化工具
   - 調整 `ResultsDashboard`、`GuideModal`、`AsyncAnalysisFlow` 以支援動態語系載入
-- [ ] 設計語系路由與入口策略
+- [x] 設計語系路由與入口策略✅
   - 路徑規劃：`/`（預設/英文）、`/zh-tw`、`/jp`
   - 建立 locale-aware Router，中介層自動 redirect 至對應語系
   - 建立 IP / Accept-Language 偵測與 fallback 流程（IP → 瀏覽器語系 → 使用者選擇）
 - [ ] 規劃語系切換體驗
   - 設計 Header 語系切換選單（Desktop + Mobile）
   - 建立語系偏好儲存邏輯（LocalStorage + Browser Locale fallback）
-- [ ] 設計 SEO metadata 產生流程
+- [x] 設計 SEO metadata 產生流程✅
   - 每個語系獨立設定 `title`、`description`、`og`、`hreflang`
   - 建立 SEO 型別定義與程式化載入機制
-- [ ] 撰寫多語系維運 SOP
+- [x] 撰寫多語系維運 SOP✅
   - 翻譯流程（提交 → 審校 → 上線）
   - 版本控管與翻譯檔 diff 檢視指引
   - 新增指標/文案時的同步步驟
 
-### 任務 1：英文化（English Localization）
-- [ ] 蒐集英文版詞彙風格指南
+### 任務 1：英文化（English Localization）🔄 進行中
+- [x] 蒐集英文版詞彙風格指南✅
   - 確認品牌語調、專用名詞譯法、SEO 專有術語
-- [ ] 建立英文化工作分支與資料夾
+- [x] 建立英文化工作分支與資料夾✅
   - 建立 `docs/product/en/`，複製原始 Markdown 作為草稿
   - 匯出 UI 字串至 `en.ts`，標記待翻譯狀態
 - [ ] 翻譯前端 UI 與互動文案
   - `ResultsDashboard`、`V5ResultsDashboard`、`GuideModal`
   - `AsyncAnalysisFlow`、提醒/Error Toast、按鈕、圖表註解
   - 以 i18n key 取代硬編碼中文字串
-- [ ] 翻譯 17 篇優化指南
-  - 依照 WHY / HOW / WHAT 結構完整翻譯至 `docs/product/en/<slug>.md`
-  - 調整內部連結、表格格式與專有名詞
-  - 更新 `openGuideModal` 映射支援 `en` 版本載入
+- [ ] 翻譯 17 篇優化指南（進度：1/17）
+  - [x] 搜尋意圖契合優化指南 ✅
+  - [ ] Helpful Ratio 優化指南
+  - [ ] 內容覆蓋與深度優化指南
+  - [ ] 延伸疑問與關鍵字覆蓋優化指南
+  - [ ] 行動可行性優化指南
+  - [ ] 可讀性與敘事節奏優化指南
+  - [ ] 結構化重點提示優化指南
+  - [ ] 作者與品牌辨識優化指南
+  - [ ] 可信證據與引用優化指南
+  - [ ] 第一手經驗與案例優化指南
+  - [ ] 敘事具體度與資訊密度優化指南
+  - [ ] 時效與更新訊號優化指南
+  - [ ] 專家觀點與判斷優化指南
+  - [ ] 答案可抽取性優化指南
+  - [ ] 關鍵摘要與重點整理優化指南
+  - [ ] 對話式語氣與指引優化指南
+  - [ ] 讀者互動與後續引導優化指南
 - [ ] 翻譯系統文件與支援素材
   - `V5_USAGE_GUIDE.md`、`V5_INTEGRATION_GUIDE.md`、`V5_CHANGELOG.md`
   - Email 模板、通知文案、FAQ 片段
