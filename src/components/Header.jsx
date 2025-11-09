@@ -2,8 +2,21 @@ import { Sparkles } from 'lucide-react'
 import { useLocale } from '../locales/useLocale'
 import { supportedLocales, localeConfigs } from '../locales/base'
 
+function useLocaleSafely() {
+  try {
+    return useLocale()
+  } catch (error) {
+    console.warn('[Header] Locale context unavailable, falling back to default strings.', error)
+    return {
+      t: (key) => key,
+      locale: 'zh-TW',
+      setLocale: () => {}
+    }
+  }
+}
+
 export default function Header() {
-  const { t, locale, setLocale } = useLocale()
+  const { t, locale, setLocale } = useLocaleSafely()
 
   const handleLocaleChange = (event) => {
     const newLocale = event.target.value
