@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { FileText, Target, Sparkles } from 'lucide-react'
+import { FileText, Target, Sparkles, Mail } from 'lucide-react'
 
 export default function InputSection({ onAnalyze, isLoading }) {
   const editorRef = useRef(null)
@@ -7,6 +7,7 @@ export default function InputSection({ onAnalyze, isLoading }) {
   const [contentHtml, setContentHtml] = useState('')
   const [contentMarkdown, setContentMarkdown] = useState('')
   const [targetKeywordsInput, setTargetKeywordsInput] = useState('')
+  const [email, setEmail] = useState('')
   const [error, setError] = useState('')
 
   const handleEditorInput = (event) => {
@@ -102,11 +103,21 @@ export default function InputSection({ onAnalyze, isLoading }) {
       return
     }
 
+    // 如果提供 email，驗證格式
+    if (email.trim() && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      setError('請輸入有效的 Email 地址')
+      return
+    }
+
     setError('')
     const payload = {
       plain: contentPlain,
       html: contentHtml,
       markdown: contentMarkdown,
+    }
+    // 如果有 email，加入非同步模式
+    if (email.trim()) {
+      payload.email = email.trim()
     }
     const meta = {
       mode: 'text'
@@ -171,6 +182,21 @@ export default function InputSection({ onAnalyze, isLoading }) {
           />
         </div>
 
+        <div className="mb-6">
+          <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
+            <Mail className="w-5 h-5 text-primary-600" />
+            Email 地址 <span className="text-sm font-normal text-gray-500">(選填，填寫後將以非同步方式進行分析，結果將寄送至此信箱)</span>
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="your.email@example.com"
+            className="input-field"
+            disabled={isLoading}
+          />
+        </div>
+
         <button
           type="submit"
           disabled={
@@ -180,7 +206,7 @@ export default function InputSection({ onAnalyze, isLoading }) {
           className="btn-primary w-full flex items-center justify-center gap-2"
         >
           <Sparkles className="w-5 h-5" />
-          {isLoading ? '分析中...' : '開始 AI 分析'}
+          {isLoading ? '分析中...' : (email.trim() ? '提交分析（結果將寄送至信箱）' : '開始 AI 分析')}
         </button>
       </form>
     </div>
