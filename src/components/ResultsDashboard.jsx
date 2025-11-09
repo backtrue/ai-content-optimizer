@@ -71,9 +71,23 @@ export default function ResultsDashboard({
     seoScore,
     metrics,
     chunks = [],
-    recommendationsStatus
+    recommendationsStatus,
+    v5Scores
   } = results
   const [selectedChunkIds, setSelectedChunkIds] = useState([])
+
+  // 優先使用 v5Scores，若無則使用舊版評分
+  const displayScores = v5Scores ? {
+    overall: v5Scores.overallScore,
+    structure: v5Scores.structureScore,
+    strategy: v5Scores.strategyScore,
+    isV5: true
+  } : {
+    overall: overallScore,
+    structure: aeoScore,
+    strategy: seoScore,
+    isV5: false
+  }
 
   const getScoreColor = (score) => {
     if (score >= 80) return 'text-green-600'
@@ -101,15 +115,19 @@ export default function ResultsDashboard({
           <div className="flex items-center gap-3">
             <Trophy className="w-10 h-10 text-primary-600" />
             <div>
-              <h2 className="text-2xl font-bold text-gray-800">綜合評分</h2>
-              <p className="text-gray-600">Overall Content Score</p>
+              <h2 className="text-2xl font-bold text-gray-800">
+                {displayScores.isV5 ? 'v5 綜合評分' : '綜合評分'}
+              </h2>
+              <p className="text-gray-600">
+                {displayScores.isV5 ? 'v5 Overall Score (結構 40% + 策略 60%)' : 'Overall Content Score'}
+              </p>
             </div>
           </div>
           <div className="text-right">
-            <div className={`text-5xl font-bold ${getScoreColor(overallScore)}`}>
-              {overallScore}
+            <div className={`text-5xl font-bold ${getScoreColor(displayScores.overall * 10)}`}>
+              {displayScores.overall}
             </div>
-            <div className="text-lg text-gray-600">{getScoreLabel(overallScore)}</div>
+            <div className="text-lg text-gray-600">{getScoreLabel(displayScores.overall * 10)}</div>
           </div>
         </div>
       </div>
@@ -117,18 +135,36 @@ export default function ResultsDashboard({
       {/* Dual Core Scores */}
       <div className="grid md:grid-cols-2 gap-6">
         <div className="card">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">AEO/RAG 友善度</h3>
-          <ScoreGauge score={aeoScore} label="AEO Score" color="blue" />
+          <h3 className="text-xl font-bold text-gray-800 mb-4">
+            {displayScores.isV5 ? '結構分' : 'AEO/RAG 友善度'}
+          </h3>
+          <ScoreGauge 
+            score={displayScores.isV5 ? displayScores.structure * 10 : aeoScore} 
+            label={displayScores.isV5 ? "Structure Score" : "AEO Score"} 
+            color="blue" 
+          />
           <p className="text-sm text-gray-600 mt-4">
-            評估內容對 AI 檢索增強生成的友善程度
+            {displayScores.isV5 
+              ? '評估內容的結構、可讀性、證據與經驗 (40% 權重)'
+              : '評估內容對 AI 檢索增強生成的友善程度'
+            }
           </p>
         </div>
 
         <div className="card">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">傳統 SEO 效能</h3>
-          <ScoreGauge score={seoScore} label="SEO Score" color="purple" />
+          <h3 className="text-xl font-bold text-gray-800 mb-4">
+            {displayScores.isV5 ? '策略分' : '傳統 SEO 效能'}
+          </h3>
+          <ScoreGauge 
+            score={displayScores.isV5 ? displayScores.strategy * 10 : seoScore} 
+            label={displayScores.isV5 ? "Strategy Score" : "SEO Score"} 
+            color="purple" 
+          />
           <p className="text-sm text-gray-600 mt-4">
-            評估內容的搜尋引擎優化表現
+            {displayScores.isV5 
+              ? '評估內容的 Why/How/What 策略完整度 (60% 權重)'
+              : '評估內容的搜尋引擎優化表現'
+            }
           </p>
         </div>
       </div>
