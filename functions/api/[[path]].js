@@ -1,4 +1,5 @@
 import { Readability } from '@mozilla/readability'
+import { AnalysisQueue } from './queue-durable-object'
 
 console.log('[[path]].js module 初始化')
 import { parseHTML } from 'linkedom'
@@ -1869,11 +1870,18 @@ async function handleAnalyzePost(context, corsHeaders) {
       console.log('請求體解析成功:', JSON.stringify({
         contentLength: requestBody.content?.length || 0,
         hasTargetKeywords: Array.isArray(requestBody.targetKeywords),
-        targetKeywordLegacy: !!requestBody.targetKeyword
+        targetKeywordLegacy: !!requestBody.targetKeyword,
+        hasEmail: !!requestBody.email
       }, null, 2))
     } catch (e) {
       console.error('解析請求體失敗:', e)
       throw new Error('無效的 JSON 請求體')
+    }
+
+    // v5：如果提供 email，改用非同步模式
+    if (requestBody.email && typeof requestBody.email === 'string' && requestBody.email.trim()) {
+      console.log('偵測到 email，改用非同步模式')
+      return await handleAsyncAnalysis(context, requestBody, corsHeaders)
     }
 
     const rawContentUrl = requestBody?.contentUrl || requestBody?.url
@@ -4242,4 +4250,73 @@ function ensureMetricShape(metrics, defaults, scope) {
       ? sanitizeMetricEntry(normalizedMetric)
       : sanitizeSeoMetricEntry(normalizedMetric)
   })
+}
+
+/**
+ * 非同步分析處理
+ * 使用 Durable Object 隊列提交任務
+ */
+async function handleAsyncAnalysis(context, requestBody, corsHeaders) {
+  const { env } = context
+
+  try {
+    console.log('準備提交非同步分析任務...')
+
+    // 取得 Durable Object 實例
+    const queueId = env.ANALYSIS_QUEUE.idFromName('default')
+    const queueObject = env.ANALYSIS_QUEUE.get(queueId)
+
+    // 準備分析負載
+    const analysisPayload = {
+      content: requestBody.content || requestBody.contentPlain || '',
+      contentHtml: requestBody.contentHtml || '',
+      contentMarkdown: requestBody.contentMarkdown || '',
+      targetKeywords: requestBody.targetKeywords || [],
+      contentFormatHint: requestBody.contentFormatHint || 'auto',
+      email: requestBody.email,
+      includeRecommendations: requestBody.includeRecommendations === true || requestBody.includeRecommendations === 'true'
+    }
+
+    // 提交到 Durable Object 隊列
+    const submitResponse = await queueObject.fetch(new Request('http://localhost/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(analysisPayload)
+    }))
+
+    const result = await submitResponse.json()
+
+    console.log('非同步任務已提交:', result)
+
+    return new Response(
+      JSON.stringify({
+        status: 'queued',
+        taskId: result.taskId,
+        message: '分析任務已提交，結果將透過 Email 寄送',
+        email: requestBody.email
+      }),
+      {
+        status: 202,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+  } catch (error) {
+    console.error('非同步分析提交失敗:', error)
+    return new Response(
+      JSON.stringify({
+        error: '提交分析任務失敗',
+        message: error.message
+      }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+  }
 }

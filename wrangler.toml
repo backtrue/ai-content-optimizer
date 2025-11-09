@@ -8,13 +8,16 @@ binding = "ANALYSIS_RESULTS"
 id = "analysis_results_kv"
 preview_id = "analysis_results_preview"
 
-# Queue for async analysis tasks
-[[queues.consumers]]
-queue = "analysis-queue"
-max_batch_size = 10
-max_batch_timeout = 30
-max_retries = 3
-dead_letter_queue = "analysis-queue-dlq"
+# Durable Object for async analysis queue (replaces Queues for free plan)
+[[durable_objects.bindings]]
+name = "ANALYSIS_QUEUE"
+class_name = "AnalysisQueue"
+script_name = "ai-content-optimizer-worker"
+
+# Durable Object migrations
+[[migrations]]
+tag = "v1"
+new_classes = ["AnalysisQueue"]
 
 [env.production]
 name = "ai-content-optimizer-worker-prod"
@@ -26,9 +29,11 @@ routes = [
 binding = "ANALYSIS_RESULTS"
 id = "analysis_results_prod"
 
-[[env.production.queues.consumers]]
-queue = "analysis-queue"
-max_batch_size = 10
-max_batch_timeout = 30
-max_retries = 3
-dead_letter_queue = "analysis-queue-dlq"
+[[env.production.durable_objects.bindings]]
+name = "ANALYSIS_QUEUE"
+class_name = "AnalysisQueue"
+script_name = "ai-content-optimizer-worker-prod"
+
+[[env.production.migrations]]
+tag = "v1"
+new_classes = ["AnalysisQueue"]
