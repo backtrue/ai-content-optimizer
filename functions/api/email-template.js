@@ -10,6 +10,46 @@ export function generateResultEmailHtml(taskId, results, siteUrl) {
   const resultUrl = `${siteUrl}/results/${taskId}`
   const scoreColor = overallScore >= 80 ? '#10b981' : overallScore >= 60 ? '#3b82f6' : '#f59e0b'
 
+  const priorityOrder = { high: 0, medium: 1, low: 2 }
+  const todoItems = Array.isArray(v5Scores?.recommendations)
+    ? [...v5Scores.recommendations]
+        .filter((rec) => rec && typeof rec === 'object')
+        .sort((a, b) => {
+          const aPriority = priorityOrder[a?.priority] ?? 3
+          const bPriority = priorityOrder[b?.priority] ?? 3
+          return aPriority - bPriority
+        })
+        .slice(0, 3)
+    : []
+
+  const todoSectionHtml = todoItems.length
+    ? todoItems
+        .map((rec) => {
+          const priorityLabel = rec?.priority === 'high'
+            ? '高優先級'
+            : rec?.priority === 'medium'
+              ? '中優先級'
+              : '低優先級'
+          const priorityColor = rec?.priority === 'high'
+            ? '#dc2626'
+            : rec?.priority === 'medium'
+              ? '#d97706'
+              : '#2563eb'
+          return `
+            <li class="todo-item">
+              <div class="todo-header">
+                <span class="todo-priority" style="color: ${priorityColor}; border-color: ${priorityColor};">${priorityLabel}</span>
+                ${rec?.category ? `<span class="todo-category">${rec.category}</span>` : ''}
+              </div>
+              <p class="todo-title">${rec?.title || '待辦事項'}</p>
+              <p class="todo-description">${rec?.description || '請登入平台查看詳細說明。'}</p>
+              ${rec?.example ? `<p class="todo-example">範例：${rec.example}</p>` : ''}
+            </li>
+          `
+        })
+        .join('')
+    : '<li class="todo-item empty">太棒了！目前沒有需要即刻處理的待辦事項。</li>'
+
   return `
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -121,6 +161,87 @@ export function generateResultEmailHtml(taskId, results, siteUrl) {
     .strategy-bar {
       background-color: #8b5cf6;
     }
+    .todo-block {
+      margin: 32px 0;
+      padding: 24px;
+      background-color: #fff7ed;
+      border-radius: 8px;
+      border-left: 4px solid #f97316;
+    }
+    .todo-block h4 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      color: #b45309;
+    }
+    .todo-block p {
+      margin: 0 0 16px 0;
+      color: #92400e;
+      font-size: 14px;
+    }
+    .todo-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 16px;
+    }
+    .todo-item {
+      background-color: #fff5f0;
+      border: 1px solid #fed7aa;
+      border-radius: 6px;
+      padding: 16px;
+    }
+    .todo-item.empty {
+      text-align: center;
+      color: #6b7280;
+      background-color: #f3f4f6;
+      border-color: #e5e7eb;
+    }
+    .todo-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .todo-priority {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border: 1px solid;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .todo-category {
+      font-size: 12px;
+      color: #6b7280;
+      background-color: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+    .todo-title {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #7c2d12;
+    }
+    .todo-description {
+      margin: 0;
+      color: #92400e;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .todo-example {
+      margin: 12px 0 0 0;
+      font-size: 12px;
+      color: #7c2d12;
+      background-color: #fffbeb;
+      border-left: 3px solid #f97316;
+      padding: 8px 12px;
+      border-radius: 4px;
+    }
     .cta-button {
       display: inline-block;
       background-color: #667eea;
@@ -211,6 +332,15 @@ export function generateResultEmailHtml(taskId, results, siteUrl) {
         </div>
       </div>
 
+      <!-- TODO -->
+      <div class="todo-block">
+        <h4>優先待辦清單</h4>
+        <p>以下是系統依照優先級整理出的行動建議，建議先從紅色標記的項目著手：</p>
+        <ul class="todo-list">
+          ${todoSectionHtml}
+        </ul>
+      </div>
+
       <!-- CTA -->
       <div class="cta-section">
         <p><strong>查看完整分析結果</strong></p>
@@ -248,6 +378,33 @@ export function generateResultEmailText(taskId, results, siteUrl) {
 
   const resultUrl = `${siteUrl}/results/${taskId}`
 
+  const priorityOrder = { high: 0, medium: 1, low: 2 }
+  const todoItems = Array.isArray(v5Scores?.recommendations)
+    ? [...v5Scores.recommendations]
+        .filter((rec) => rec && typeof rec === 'object')
+        .sort((a, b) => {
+          const aPriority = priorityOrder[a?.priority] ?? 3
+          const bPriority = priorityOrder[b?.priority] ?? 3
+          return aPriority - bPriority
+        })
+        .slice(0, 3)
+    : []
+
+  const todoText = todoItems.length
+    ? todoItems
+        .map((rec, index) => {
+          const priorityLabel = rec?.priority === 'high'
+            ? '【高優先級】'
+            : rec?.priority === 'medium'
+              ? '【中優先級】'
+              : '【低優先級】'
+          const title = rec?.title || `待辦事項 ${index + 1}`
+          const description = rec?.description ? ` - ${rec.description}` : ''
+          return `${index + 1}. ${priorityLabel}${title}${description}`
+        })
+        .join('\n')
+    : '目前沒有需要即刻處理的待辦事項，再接再厲！'
+
   return `
 AI 內容優化分析結果
 ==================
@@ -263,6 +420,10 @@ ${overallScore >= 80 ? '🌟 優秀 - 內容品質卓越，已具備 AI 引用�
 -------
 結構分: ${structureScore}/100 (40% 權重)
 策略分: ${strategyScore}/100 (60% 權重)
+
+優先待辦清單
+-----------
+${todoText}
 
 查看完整結果
 -----------

@@ -1,5 +1,24 @@
 import { AlertCircle } from 'lucide-react'
 
+const BREAKDOWN_LABEL_MAP = {
+  headingStructure: '標題結構',
+  contentOrganization: '內容編排',
+  readability: '易讀性',
+  evidence: '佐證資料',
+  experience: '實務經驗',
+  freshness: '時效與更新',
+  actionability: '可執行性',
+  semanticQuality: '語意品質',
+  credibility: '可信度',
+  trustSignals: '信任訊號',
+  why: 'Why（為何）',
+  how: 'How（如何）',
+  what: 'What（做什麼）',
+  overallScore: '整體策略指標',
+  structure: '結構',
+  strategy: '策略'
+}
+
 const STATUS_CONFIG = [
   {
     threshold: 80,
@@ -114,15 +133,20 @@ export default function ScoreCard({
         <div className="border-t border-gray-100 pt-4">
           <p className="text-xs font-semibold text-gray-600 mb-3">分數構成</p>
           <div className="space-y-2">
-            {breakdownEntries.map(([label, value]) => {
+            {breakdownEntries.map(([rawLabel, value]) => {
               const numeric = Number(value) || 0
               const pct = Math.max(0, Math.min(100, Math.round(numeric <= 1 ? numeric * 100 : numeric * 10)))
               const displayValue = numeric <= 10 ? `${numeric}/10` : `${numeric}`
+              const labelKey = typeof rawLabel === 'string' ? rawLabel : String(rawLabel)
+              const normalizedKey = typeof labelKey === 'string' ? labelKey.toLowerCase() : labelKey
+              const translatedLabel = BREAKDOWN_LABEL_MAP[labelKey]
+                || (typeof normalizedKey === 'string' ? BREAKDOWN_LABEL_MAP[normalizedKey] : undefined)
+                || labelKey
 
               return (
-                <div key={label} className="flex items-center gap-2">
+                <div key={labelKey} className="flex items-center gap-2">
                   <span className="text-xs text-gray-600 min-w-[96px]">
-                    {label}
+                    {translatedLabel}
                   </span>
                   <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                     <div
