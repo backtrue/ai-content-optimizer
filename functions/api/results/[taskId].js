@@ -26,7 +26,7 @@ export async function onRequest(context) {
 
   try {
     // 從 KV 讀取結果
-    const resultKey = `result:${taskId}`
+    const resultKey = `analysis:${taskId}`
     const resultData = await env.ANALYSIS_RESULTS.get(resultKey)
 
     if (!resultData) {
@@ -70,15 +70,14 @@ export async function onRequest(context) {
         status: 'completed',
         taskId,
         completedAt: result.completedAt,
-        result: result.result,
-        contentPreview: result.content.substring(0, 200) + '...'
+        result: result.result
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     console.error('Error fetching result:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', message: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

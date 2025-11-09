@@ -25,10 +25,8 @@ export class AnalysisQueue {
       maxAttempts: 3
     }
 
-    // 儲存到 Durable Object 狀態
+    // 儲存到記憶體隊列
     this.queue.push(task)
-    await this.state.put(`task:${taskId}`, task)
-    await this.state.put('queue', this.queue)
 
     console.log(`Task ${taskId} submitted to queue`)
 
@@ -56,7 +54,6 @@ export class AnalysisQueue {
         // 移除已完成或失敗的任務
         if (task.status === 'completed' || task.status === 'failed') {
           this.queue.shift()
-          await this.state.put('queue', this.queue)
         } else {
           break
         }
@@ -74,7 +71,6 @@ export class AnalysisQueue {
       console.log(`Processing task ${task.id}...`)
       task.status = 'processing'
       task.startedAt = new Date().toISOString()
-      await this.state.put(`task:${task.id}`, task)
 
       // 執行分析
       const result = await this.analyzeContent(task.payload)
@@ -101,7 +97,6 @@ export class AnalysisQueue {
 
       task.status = 'completed'
       task.completedAt = new Date().toISOString()
-      await this.state.put(`task:${task.id}`, task)
 
       console.log(`Task ${task.id} completed successfully`)
     } catch (error) {
@@ -120,8 +115,6 @@ export class AnalysisQueue {
         // 指數退避重試
         await new Promise(r => setTimeout(r, Math.pow(2, task.attempts) * 1000))
       }
-
-      await this.state.put(`task:${task.id}`, task)
     }
   }
 
@@ -188,7 +181,8 @@ export class AnalysisQueue {
    * 查詢任務狀態
    */
   async getTaskStatus(taskId) {
-    const task = await this.state.get(`task:${taskId}`)
+    // 從隊列中查找任務
+    const task = this.queue.find(t => t.id === taskId)
     return task || { error: 'Task not found' }
   }
 

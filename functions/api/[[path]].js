@@ -99,6 +99,49 @@ const RATE_LIMIT_CONFIG = {
 };
 
 export const onRequest = async (context) => {
+  const { request, env } = context
+  const requestUrl = new URL(request.url)
+  const segments = requestUrl.pathname.split('/').filter(Boolean)
+
+  // 處理 GET /api/results/{taskId}
+  if (request.method === 'GET' && segments.length >= 3 && segments[1] === 'results') {
+    const taskId = segments[2]
+    console.log(`查詢結果: ${taskId}`)
+
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    }
+
+    try {
+      const resultKey = `analysis:${taskId}`
+      const resultData = await env.ANALYSIS_RESULTS.get(resultKey)
+
+      if (!resultData) {
+        return new Response(
+          JSON.stringify({
+            status: 'not_found',
+            message: '找不到該任務結果'
+          }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const result = JSON.parse(resultData)
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('查詢結果失敗:', error)
+      return new Response(
+        JSON.stringify({ error: 'Internal server error', message: error.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
   console.log('onRequest 入口被呼叫')
   return onRequestPost(context)
 }
@@ -110,7 +153,7 @@ export default {
       method: request.method
     })
 
-    // 建立與 onRequestPost 相容的 context
+    // 建立與 onRequest 相容的 context
     const context = {
       request,
       env,
@@ -120,25 +163,16 @@ export default {
     }
 
     try {
-      const response = await onRequestPost(context)
+      const response = await onRequest(context)
       console.log('default.fetch 正常結束', {
-        status: response?.status
+        status: response.status
       })
       return response
     } catch (error) {
-      console.error('default.fetch 發生未捕捉錯誤', {
-        message: error?.message,
-        stack: error?.stack
-      })
+      console.error('default.fetch 發生錯誤', error)
       return new Response(
-        JSON.stringify({ error: 'Internal server error' }),
-        {
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': 'https://ragseo.thinkwithblack.com'
-          }
-        }
+        JSON.stringify({ error: error.message || 'Internal server error' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
       )
     }
   }
@@ -1733,7 +1767,7 @@ function tryParseJson(text) {
   return null;
 }
 
-export async function onRequestPost(context) {
+async function onRequestPost(context) {
   const { request } = context
 
   console.log('onRequestPost 進入', {
