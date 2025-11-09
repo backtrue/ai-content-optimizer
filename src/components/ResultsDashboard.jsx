@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import ScoreGauge from './ScoreGauge'
+import ScoreCard from './ScoreCard'
 import MetricsBreakdown from './MetricsBreakdown'
 import Recommendations from './Recommendations'
 // import ScoreHistoryPanel from './ScoreHistoryPanel'
-import { Trophy, Sparkles } from 'lucide-react'
+import { Trophy, Sparkles, Award } from 'lucide-react'
 
 export default function ResultsDashboard({
   results,
@@ -109,64 +110,62 @@ export default function ResultsDashboard({
 
   return (
     <div className="space-y-6">
-      {/* Overall Score */}
-      <div className="card bg-gradient-to-br from-primary-50 to-purple-50 border-2 border-primary-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Trophy className="w-10 h-10 text-primary-600" />
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                {displayScores.isV5 ? 'v5 綜合評分' : '綜合評分'}
-              </h2>
-              <p className="text-gray-600">
-                {displayScores.isV5 ? 'v5 Overall Score (結構 40% + 策略 60%)' : 'Overall Content Score'}
-              </p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className={`text-5xl font-bold ${getScoreColor(displayScores.overall * 10)}`}>
-              {displayScores.overall}
-            </div>
-            <div className="text-lg text-gray-600">{getScoreLabel(displayScores.overall * 10)}</div>
-          </div>
-        </div>
-      </div>
+      {/* Overall Score - New Design */}
+      {displayScores.isV5 ? (
+        <ScoreCard
+          title="v5 綜合評分"
+          score={displayScores.overall}
+          maxScore={10}
+          description="結構 40% + 策略 60% 的加權評分"
+          breakdown={displayScores.isV5 ? {
+            structure: displayScores.structure,
+            strategy: displayScores.strategy
+          } : null}
+        />
+      ) : (
+        <ScoreCard
+          title="綜合評分"
+          score={displayScores.overall}
+          maxScore={100}
+          description="Overall Content Score"
+        />
+      )}
 
       {/* Dual Core Scores */}
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="card">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">
-            {displayScores.isV5 ? '結構分' : 'AEO/RAG 友善度'}
-          </h3>
-          <ScoreGauge 
-            score={displayScores.isV5 ? displayScores.structure * 10 : aeoScore} 
-            label={displayScores.isV5 ? "Structure Score" : "AEO Score"} 
-            color="blue" 
-          />
-          <p className="text-sm text-gray-600 mt-4">
-            {displayScores.isV5 
-              ? '評估內容的結構、可讀性、證據與經驗 (40% 權重)'
-              : '評估內容對 AI 檢索增強生成的友善程度'
-            }
-          </p>
-        </div>
-
-        <div className="card">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">
-            {displayScores.isV5 ? '策略分' : '傳統 SEO 效能'}
-          </h3>
-          <ScoreGauge 
-            score={displayScores.isV5 ? displayScores.strategy * 10 : seoScore} 
-            label={displayScores.isV5 ? "Strategy Score" : "SEO Score"} 
-            color="purple" 
-          />
-          <p className="text-sm text-gray-600 mt-4">
-            {displayScores.isV5 
-              ? '評估內容的 Why/How/What 策略完整度 (60% 權重)'
-              : '評估內容的搜尋引擎優化表現'
-            }
-          </p>
-        </div>
+        {displayScores.isV5 ? (
+          <>
+            <ScoreCard
+              title="結構分"
+              score={displayScores.structure}
+              maxScore={10}
+              description="評估內容的結構、可讀性、證據與經驗 (40% 權重)"
+              breakdown={v5Scores?.breakdown?.structure}
+            />
+            <ScoreCard
+              title="策略分"
+              score={displayScores.strategy}
+              maxScore={10}
+              description="評估內容的 Why/How/What 策略完整度 (60% 權重)"
+              breakdown={v5Scores?.breakdown?.strategy}
+            />
+          </>
+        ) : (
+          <>
+            <ScoreCard
+              title="AEO/RAG 友善度"
+              score={aeoScore}
+              maxScore={100}
+              description="評估內容對 AI 檢索增強生成的友善程度"
+            />
+            <ScoreCard
+              title="傳統 SEO 效能"
+              score={seoScore}
+              maxScore={100}
+              description="評估內容的搜尋引擎優化表現"
+            />
+          </>
+        )}
       </div>
 
       {/* Detailed Metrics */}

@@ -57,18 +57,31 @@ export default function MetricsBreakdown({ metrics }) {
   }
 
   const getScoreIcon = (score) => {
-    if (score >= 8) return <CheckCircle2 className="w-5 h-5 text-green-600" />
-    if (score >= 6) return <AlertCircle className="w-5 h-5 text-yellow-600" />
+    if (score >= 80) return <CheckCircle2 className="w-5 h-5 text-green-600" />
+    if (score >= 60) return <AlertCircle className="w-5 h-5 text-yellow-600" />
     return <XCircle className="w-5 h-5 text-red-600" />
   }
   const getScoreBarColor = (score) => {
-    if (score >= 8) return 'bg-green-600'
-    if (score >= 6) return 'bg-yellow-600'
+    if (score >= 80) return 'bg-green-600'
+    if (score >= 60) return 'bg-yellow-600'
     return 'bg-red-600'
   }
   const getBarWidth = (score) => {
-    const clamped = Math.min(10, Math.max(0, Number(score) || 0))
-    return `${clamped * 10}%`
+    // 統一轉換為 0-100 分制
+    let normalized = Number(score) || 0
+    // 如果分數看起來是 0-10 範圍，轉換為 0-100
+    if (normalized <= 10 && normalized > 0) {
+      normalized = normalized * 10
+    }
+    const clamped = Math.min(100, Math.max(0, normalized))
+    return `${clamped}%`
+  }
+  const normalizeScore = (score) => {
+    let normalized = Number(score) || 0
+    if (normalized <= 10 && normalized > 0) {
+      normalized = normalized * 10
+    }
+    return Math.round(normalized)
   }
 
   return (
@@ -98,7 +111,7 @@ export default function MetricsBreakdown({ metrics }) {
                     )}
                   </div>
                   <span className="text-sm font-bold text-gray-900">
-                    {metric.score}/10
+                    {normalizeScore(metric.score)}/100
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
@@ -142,7 +155,7 @@ export default function MetricsBreakdown({ metrics }) {
                     )}
                   </div>
                   <span className="text-sm font-bold text-gray-900">
-                    {metric.score}/10
+                    {normalizeScore(metric.score)}/100
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
