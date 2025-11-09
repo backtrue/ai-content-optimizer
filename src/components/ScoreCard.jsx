@@ -1,52 +1,79 @@
-import { TrendingUp, AlertCircle } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 
-export default function ScoreCard({ 
-  title, 
-  score, 
+const STATUS_CONFIG = [
+  {
+    threshold: 80,
+    label: '優秀',
+    textClass: 'text-green-600',
+    badgeClass: 'bg-green-100 text-green-700',
+    strokeColor: '#22c55e'
+  },
+  {
+    threshold: 60,
+    label: '良好',
+    textClass: 'text-blue-600',
+    badgeClass: 'bg-blue-100 text-blue-700',
+    strokeColor: '#3b82f6'
+  },
+  {
+    threshold: 40,
+    label: '中等',
+    textClass: 'text-amber-600',
+    badgeClass: 'bg-amber-100 text-amber-700',
+    strokeColor: '#f59e0b'
+  }
+]
+
+const DEFAULT_STATUS = {
+  label: '需改進',
+  textClass: 'text-orange-600',
+  badgeClass: 'bg-orange-100 text-orange-700',
+  strokeColor: '#f97316'
+}
+
+function resolveStatus(score) {
+  for (const config of STATUS_CONFIG) {
+    if (score >= config.threshold) {
+      return config
+    }
+  }
+  return DEFAULT_STATUS
+}
+
+export default function ScoreCard({
+  title,
+  score = 0,
   maxScore = 100,
   description,
   breakdown = null,
-  color = 'blue',
-  showTrend = false,
-  trendDirection = 'up'
+  footer
 }) {
-  // 統一轉換為 0-100 分制
-  const normalizedScore = Math.round((score / maxScore) * 100)
-  
-  // 根據分數決定顏色和標籤
-  const getScoreStatus = (s) => {
-    if (s >= 80) return { color: 'from-green-500 to-emerald-500', label: '優秀', textColor: 'text-green-600' }
-    if (s >= 60) return { color: 'from-blue-500 to-cyan-500', label: '良好', textColor: 'text-blue-600' }
-    if (s >= 40) return { color: 'from-yellow-500 to-orange-500', label: '中等', textColor: 'text-yellow-600' }
-    return { color: 'from-orange-500 to-red-500', label: '需改進', textColor: 'text-orange-600' }
-  }
-
-  const status = getScoreStatus(normalizedScore)
+  const safeMax = Number(maxScore) || 100
+  const raw = Number(score) || 0
+  const normalizedScore = Math.max(0, Math.min(100, Math.round((raw / safeMax) * 100)))
+  const status = resolveStatus(normalizedScore)
   const circumference = 2 * Math.PI * 45
   const strokeDashoffset = circumference - (normalizedScore / 100) * circumference
+  const breakdownEntries = breakdown && typeof breakdown === 'object'
+    ? Object.entries(breakdown)
+    : []
 
   return (
-    <div className="card">
-      <div className="flex items-start justify-between mb-6">
+    <div className="card space-y-5">
+      <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-          {description && <p className="text-sm text-gray-600 mt-1">{description}</p>}
+          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+          {description && (
+            <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+              {description}
+            </p>
+          )}
         </div>
-        {showTrend && (
-          <div className="flex items-center gap-1">
-            <TrendingUp className={`w-4 h-4 ${trendDirection === 'up' ? 'text-green-600' : 'text-red-600'}`} />
-            <span className={`text-xs font-semibold ${trendDirection === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-              {trendDirection === 'up' ? '↑' : '↓'}
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* 圓形進度條 */}
-      <div className="flex items-center justify-center mb-6">
+      <div className="flex items-center justify-center">
         <div className="relative w-32 h-32">
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
-            {/* 背景圓 */}
             <circle
               cx="60"
               cy="60"
@@ -55,26 +82,21 @@ export default function ScoreCard({
               stroke="#e5e7eb"
               strokeWidth="8"
             />
-            {/* 進度圓 */}
             <circle
               cx="60"
               cy="60"
               r="45"
               fill="none"
-              stroke={status.color.split(' ')[1]}
+              stroke={status.strokeColor}
               strokeWidth="8"
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
-              className="transition-all duration-500"
-              style={{
-                background: `linear-gradient(135deg, ${status.color})`
-              }}
+              className="transition-all duration-700 ease-out"
             />
           </svg>
-          {/* 中心文字 */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className={`text-4xl font-bold ${status.textColor}`}>
+            <div className={`text-4xl font-extrabold ${status.textClass}`}>
               {normalizedScore}
             </div>
             <div className="text-xs text-gray-500 mt-1">/ 100</div>
@@ -82,32 +104,35 @@ export default function ScoreCard({
         </div>
       </div>
 
-      {/* 狀態標籤 */}
-      <div className="flex items-center justify-center gap-2 mb-4">
-        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${status.textColor} bg-opacity-10`}
-              style={{ backgroundColor: status.textColor.replace('text-', 'bg-').replace('-600', '-100') }}>
+      <div className="flex items-center justify-center">
+        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${status.badgeClass}`}>
           {status.label}
         </span>
       </div>
 
-      {/* 分解數據 */}
-      {breakdown && (
-        <div className="border-t pt-4 mt-4">
-          <p className="text-xs font-semibold text-gray-600 mb-3">組成分析</p>
+      {breakdownEntries.length > 0 && (
+        <div className="border-t border-gray-100 pt-4">
+          <p className="text-xs font-semibold text-gray-600 mb-3">分數構成</p>
           <div className="space-y-2">
-            {Object.entries(breakdown).map(([key, value]) => {
-              const val = typeof value === 'number' ? value : 0
-              const pct = Math.round((val / 10) * 100)
+            {breakdownEntries.map(([label, value]) => {
+              const numeric = Number(value) || 0
+              const pct = Math.max(0, Math.min(100, Math.round(numeric <= 1 ? numeric * 100 : numeric * 10)))
+              const displayValue = numeric <= 10 ? `${numeric}/10` : `${numeric}`
+
               return (
-                <div key={key} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600 w-16 capitalize">{key}:</span>
+                <div key={label} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 min-w-[96px]">
+                    {label}
+                  </span>
                   <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                     <div
-                      className={`h-full bg-gradient-to-r ${status.color}`}
+                      className="h-full bg-gradient-to-r from-orange-400 to-yellow-400"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <span className="text-xs font-semibold text-gray-700 w-10 text-right">{val}/10</span>
+                  <span className="text-xs font-semibold text-gray-700 w-12 text-right">
+                    {displayValue}
+                  </span>
                 </div>
               )
             })}
@@ -115,15 +140,16 @@ export default function ScoreCard({
         </div>
       )}
 
-      {/* 警告提示 */}
       {normalizedScore < 40 && (
-        <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg flex gap-2">
+        <div className="flex gap-2 items-start bg-orange-50 border border-orange-100 rounded-lg p-3">
           <AlertCircle className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-orange-700">
-            此項評分較低，建議優先改善。查看下方建議了解改進方向。
+          <p className="text-xs text-orange-700 leading-relaxed">
+            目前此項指標表現偏低，建議優先改善，並參考下方指標與建議清單找到具體行動。
           </p>
         </div>
       )}
+
+      {footer}
     </div>
   )
 }
