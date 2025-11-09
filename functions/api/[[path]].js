@@ -2238,15 +2238,16 @@ async function handleAnalyzePost(context, corsHeaders) {
       why: analysisResult.strategyAnalysis.why?.score || 5,
       how: analysisResult.strategyAnalysis.how?.score || 5,
       what: analysisResult.strategyAnalysis.what?.score || 5,
-      overallScore: analysisResult.overallStrategicScore || 50
+      overallScore: analysisResult.overallStrategicScore || 5
     } : {
-      why: 5, how: 5, what: 5, overallScore: 50
+      why: 5, how: 5, what: 5, overallScore: 5
     }
     
     // 計算總分：40% 結構分 + 60% 策略分
+    // 結構分和策略分都是 0-10 範圍，最終總分也是 0-10
     const v5Score = Math.round(
       (structureScoreResult.score * 0.4) + 
-      (strategyScoreResult.overallScore * 10 * 0.6)
+      (strategyScoreResult.overallScore * 0.6)
     )
 
     if (returnChunks && chunkSourceText) {
