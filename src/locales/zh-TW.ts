@@ -21,6 +21,13 @@ export const zhTWStrings: UIStrings = {
     selectLanguage: '選擇語言'
   },
 
+  header: {
+    title: '源策 (SrcRank): 您的 AI 內容策略顧問',
+    subtitle: '結合 AEO/GEO 評分標準，打造可被 AI 引用的內容體系',
+    description:
+      '源策以雙軸評分架構評估內容的「結構完整性」與「AI 策略說服力」，協助您在生成式 AI 時代成為可信的引用來源。'
+  },
+
   dashboard: {
     totalScore: '總分',
     structureScore: '結構分',

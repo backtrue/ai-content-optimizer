@@ -21,6 +21,13 @@ export const jaStrings: UIStrings = {
     selectLanguage: '言語を選択'
   },
 
+  header: {
+    title: '源策 (Gensaku): AI時代のためのAEO/RAG戦略スコア',
+    subtitle: '構造整合性とAI戦略説得力を両軸で評価するスコアリング',
+    description:
+      '源策 (Gensaku) は、AIに引用されるために必要な「コンテンツ構造」と「戦略的説得力」を融合して評価し、生成AI時代に信頼される引用ソースとなるよう導きます。'
+  },
+
   dashboard: {
     totalScore: '総合スコア',
     structureScore: '構造スコア',

@@ -44,6 +44,12 @@ export interface UIStrings {
     selectLanguage: string
   }
 
+  header: {
+    title: string
+    subtitle: string
+    description: string
+  }
+
   // 結果儀表板
   dashboard: {
     totalScore: string

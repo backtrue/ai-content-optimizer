@@ -21,6 +21,13 @@ export const enStrings: UIStrings = {
     selectLanguage: 'Select Language'
   },
 
+  header: {
+    title: 'SrcRank: The AI Content Strategy & AEO Score',
+    subtitle: 'Dual-axis scoring for structural integrity and strategic persuasion',
+    description:
+      'SrcRank analyzes your content on two dimensions—RAG-ready structure and AI strategic persuasion—to help you become a credible, citable source in the generative AI era.'
+  },
+
   dashboard: {
     totalScore: 'Total Score',
     structureScore: 'Structure Score',
