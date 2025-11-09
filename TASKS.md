@@ -39,8 +39,10 @@
 - [ ] 更新 `docs/product/HCU_EEAT_AEO_Scoring_Guide.md`，納入 Mode A / Mode B 與 WHY / HOW / WHAT 說明
 
 ### 6. 非同步通知與結果交付
-- [x] 設計與實作任務排程：queue-handler.js 實作提交後排入背景分析
+- [x] 設計與實作任務排程：改用 Durable Objects SQLite（免費方案支援）
+- [x] 建立 AnalysisQueue Durable Object 類別，實現隊列管理
 - [x] 建立 Email 通知服務，使用 Resend 寄送結果連結
 - [x] 實作結果檢視端點（results/[taskId].js），讓使用者透過信中連結查詢
 - [x] 建立 Email 模板（email-template.js）與結果頁面樣式
+- [x] 部署到 Cloudflare Workers（已成功部署）
 - [ ] 整合錯誤追蹤與使用者重試流程，包含配額不足與分析失敗情境
