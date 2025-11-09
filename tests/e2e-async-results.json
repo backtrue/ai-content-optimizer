@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-11-09T09:05:13.087Z",
+  "passCount": 0,
+  "totalTests": 2,
+  "results": [
+    {
+      "testCase": "e2e_001",
+      "taskId": "79c627df-8a08-4995-9913-bf6ca55d2c6c",
+      "passed": false,
+      "results": {
+        "taskId": "79c627df-8a08-4995-9913-bf6ca55d2c6c",
+        "status": "processing",
+        "startedAt": "2025-11-09T09:05:09.019Z"
+      }
+    },
+    {
+      "testCase": "e2e_002",
+      "taskId": "873ff339-1308-4342-a469-3c0ac6ccd118",
+      "passed": false,
+      "results": {
+        "taskId": "873ff339-1308-4342-a469-3c0ac6ccd118",
+        "status": "queued",
+        "createdAt": "2025-11-09T09:05:11.077Z"
+      }
+    }
+  ]
+}

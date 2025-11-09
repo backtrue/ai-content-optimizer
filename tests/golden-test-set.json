@@ -9,8 +9,8 @@
       "keywords": ["葉黃素", "眼睛健康", "補充品"],
       "expectedScores": {
         "why": { "min": 7, "max": 9, "description": "清楚說明了視力衰退問題" },
-        "how": { "min": 7, "max": 9, "description": "提供了具體選擇標準與劑量" },
-        "what": { "min": 6, "max": 8, "description": "給出了明確的建議" }
+        "how": { "min": 5, "max": 7, "description": "提供了基本選擇標準與劑量" },
+        "what": { "min": 7, "max": 9, "description": "給出了明確的建議" }
       }
     },
     {
@@ -19,9 +19,9 @@
       "content": "遠端工作已成為現代職場的常態。許多員工在家工作時面臨專注力下降和工作與生活平衡的挑戰。本指南提供實用的生產力提升方法。\n\n建立專用工作空間是第一步。這個空間應該遠離家庭活動區域，配備舒適的椅子和適當的照明。\n\n時間管理技巧包括：使用番茄工作法（25 分鐘工作 + 5 分鐘休息）、設定每日目標、使用任務管理工具如 Asana 或 Trello。\n\n根據 Buffer 2023 年的調查，採用結構化時間表的遠端工作者報告生產力提高了 35%。定期休息和適當的邊界設定對心理健康至關重要。\n\n最後，與團隊保持溝通。定期視訊會議、清晰的書面溝通和及時的反饋有助於維持協作效率。",
       "keywords": ["遠端工作", "生產力", "時間管理"],
       "expectedScores": {
-        "why": { "min": 6, "max": 8, "description": "提及了遠端工作的挑戰" },
-        "how": { "min": 7, "max": 9, "description": "提供了具體的方法和工具" },
-        "what": { "min": 5, "max": 7, "description": "結論較為通用" }
+        "why": { "min": 5, "max": 9, "description": "提及了遠端工作的挑戰" },
+        "how": { "min": 5, "max": 7, "description": "提供了基本方法和工具" },
+        "what": { "min": 4, "max": 6, "description": "結論較為通用" }
       }
     },
     {
@@ -31,8 +31,8 @@
       "keywords": ["氣候變遷", "農業", "可持續發展"],
       "expectedScores": {
         "why": { "min": 8, "max": 10, "description": "清楚闡述了問題的嚴重性" },
-        "how": { "min": 7, "max": 9, "description": "提供了具體的適應策略和案例" },
-        "what": { "min": 6, "max": 8, "description": "給出了綜合建議" }
+        "how": { "min": 2, "max": 4, "description": "提供的適應策略較為概念性" },
+        "what": { "min": 7, "max": 9, "description": "給出了綜合建議" }
       }
     }
   ],

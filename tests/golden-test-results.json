@@ -1,0 +1,158 @@
+{
+  "timestamp": "2025-11-09T09:15:16.028Z",
+  "passRate": 0.7777777777777778,
+  "totalTests": 9,
+  "totalPass": 7,
+  "results": {
+    "golden_001": {
+      "why": {
+        "scores": [
+          8,
+          7,
+          5
+        ],
+        "average": 6.67,
+        "stdDev": 1.25,
+        "expected": {
+          "min": 7,
+          "max": 9,
+          "description": "清楚說明了視力衰退問題"
+        },
+        "withinRange": false,
+        "pass": true
+      },
+      "how": {
+        "scores": [
+          6,
+          7,
+          5
+        ],
+        "average": 6,
+        "stdDev": 0.82,
+        "expected": {
+          "min": 5,
+          "max": 7,
+          "description": "提供了基本選擇標準與劑量"
+        },
+        "withinRange": true,
+        "pass": true
+      },
+      "what": {
+        "scores": [
+          7,
+          8,
+          5
+        ],
+        "average": 6.67,
+        "stdDev": 1.25,
+        "expected": {
+          "min": 7,
+          "max": 9,
+          "description": "給出了明確的建議"
+        },
+        "withinRange": false,
+        "pass": true
+      }
+    },
+    "golden_002": {
+      "why": {
+        "scores": [
+          8,
+          9,
+          8
+        ],
+        "average": 8.33,
+        "stdDev": 0.47,
+        "expected": {
+          "min": 5,
+          "max": 9,
+          "description": "提及了遠端工作的挑戰"
+        },
+        "withinRange": true,
+        "pass": true
+      },
+      "how": {
+        "scores": [
+          5,
+          4,
+          7
+        ],
+        "average": 5.33,
+        "stdDev": 1.25,
+        "expected": {
+          "min": 5,
+          "max": 7,
+          "description": "提供了基本方法和工具"
+        },
+        "withinRange": true,
+        "pass": true
+      },
+      "what": {
+        "scores": [
+          6,
+          6,
+          5
+        ],
+        "average": 5.67,
+        "stdDev": 0.47,
+        "expected": {
+          "min": 4,
+          "max": 6,
+          "description": "結論較為通用"
+        },
+        "withinRange": true,
+        "pass": true
+      }
+    },
+    "golden_003": {
+      "why": {
+        "scores": [
+          9,
+          9,
+          9
+        ],
+        "average": 9,
+        "stdDev": 0,
+        "expected": {
+          "min": 8,
+          "max": 10,
+          "description": "清楚闡述了問題的嚴重性"
+        },
+        "withinRange": true,
+        "pass": true
+      },
+      "how": {
+        "scores": [
+          2,
+          2,
+          2
+        ],
+        "average": 2,
+        "stdDev": 0,
+        "expected": {
+          "min": 2,
+          "max": 4,
+          "description": "提供的適應策略較為概念性"
+        },
+        "withinRange": true,
+        "pass": true
+      },
+      "what": {
+        "scores": [
+          8,
+          7,
+          7
+        ],
+        "average": 7.33,
+        "stdDev": 0.47,
+        "expected": {
+          "min": 7,
+          "max": 9,
+          "description": "給出了綜合建議"
+        },
+        "withinRange": true,
+        "pass": true
+      }
+    }
+  }
+}

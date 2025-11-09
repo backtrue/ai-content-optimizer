@@ -8,8 +8,8 @@ import path from 'path'
 
 const API_ENDPOINT = process.env.API_ENDPOINT || 'http://localhost:8787/api'
 const TEST_EMAIL = process.env.TEST_EMAIL || 'test@example.com'
-const RESULTS_CHECK_INTERVAL = 5000 // 5 秒檢查一次
-const MAX_WAIT_TIME = 60000 // 最多等待 60 秒
+const RESULTS_CHECK_INTERVAL = 3000 // 3 秒檢查一次
+const MAX_WAIT_TIME = 120000 // 最多等待 120 秒
 
 /**
  * 測試用例

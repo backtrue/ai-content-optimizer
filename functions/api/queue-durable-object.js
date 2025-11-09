@@ -28,9 +28,21 @@ export class AnalysisQueue {
     // 儲存到記憶體隊列
     this.queue.push(task)
 
+    // 儲存初始狀態到 KV
+    const resultKey = `analysis:${taskId}`
+    await this.env.ANALYSIS_RESULTS.put(
+      resultKey,
+      JSON.stringify({
+        taskId,
+        status: 'queued',
+        createdAt: new Date().toISOString()
+      }),
+      { expirationTtl: 7 * 24 * 60 * 60 }
+    )
+
     console.log(`Task ${taskId} submitted to queue`)
 
-    // 非同步處理（不阻塞返回）
+    // 立即開始處理隊列（不等待完成）
     this.processQueue().catch(err => console.error('Queue processing error:', err))
 
     return { taskId, status: 'queued' }
@@ -67,40 +79,71 @@ export class AnalysisQueue {
    * 處理單個任務
    */
   async processTask(task) {
+    const taskStartTime = Date.now()
     try {
-      console.log(`Processing task ${task.id}...`)
+      console.log(`[Task ${task.id}] 開始處理...`)
       task.status = 'processing'
       task.startedAt = new Date().toISOString()
 
+      // 更新 KV 狀態為 processing
+      const resultKey = `analysis:${task.id}`
+      const kvUpdateStart = Date.now()
+      await this.env.ANALYSIS_RESULTS.put(
+        resultKey,
+        JSON.stringify({
+          taskId: task.id,
+          status: 'processing',
+          startedAt: task.startedAt
+        }),
+        { expirationTtl: 7 * 24 * 60 * 60 }
+      )
+      console.log(`[Task ${task.id}] KV 更新耗時: ${Date.now() - kvUpdateStart}ms`)
+
       // 執行分析
+      console.log(`[Task ${task.id}] 開始呼叫分析 API...`)
+      const analysisStart = Date.now()
       const result = await this.analyzeContent(task.payload)
+      const analysisDuration = Date.now() - analysisStart
+      console.log(`[Task ${task.id}] 分析耗時: ${analysisDuration}ms`)
+
+      // 驗證結果結構
+      if (!result) {
+        throw new Error('分析 API 返回空結果')
+      }
+      console.log(`[Task ${task.id}] 結果結構: ${JSON.stringify(result).substring(0, 100)}...`)
 
       // 儲存結果到 KV
-      const resultKey = `analysis:${task.id}`
       const resultData = {
         taskId: task.id,
         status: 'completed',
         result,
-        completedAt: new Date().toISOString()
+        completedAt: new Date().toISOString(),
+        analysisDuration
       }
 
+      const kvSaveStart = Date.now()
       await this.env.ANALYSIS_RESULTS.put(
         resultKey,
         JSON.stringify(resultData),
         { expirationTtl: 7 * 24 * 60 * 60 } // 7 天過期
       )
+      console.log(`[Task ${task.id}] 結果保存耗時: ${Date.now() - kvSaveStart}ms`)
 
       // 發送 Email 通知
       if (task.payload.email) {
+        console.log(`[Task ${task.id}] 開始發送 Email 至 ${task.payload.email}...`)
+        const emailStart = Date.now()
         await this.sendResultEmail(task.id, result, task.payload.email)
+        console.log(`[Task ${task.id}] Email 發送耗時: ${Date.now() - emailStart}ms`)
       }
 
       task.status = 'completed'
       task.completedAt = new Date().toISOString()
 
-      console.log(`Task ${task.id} completed successfully`)
+      const totalDuration = Date.now() - taskStartTime
+      console.log(`[Task ${task.id}] ✅ 完成！總耗時: ${totalDuration}ms`)
     } catch (error) {
-      console.error(`Error processing task ${task.id}:`, error)
+      console.error(`[Task ${task.id}] ❌ 錯誤: ${error.message}`)
 
       task.attempts = (task.attempts || 0) + 1
 
@@ -108,40 +151,66 @@ export class AnalysisQueue {
         task.status = 'failed'
         task.error = error.message
         task.failedAt = new Date().toISOString()
-        console.error(`Task ${task.id} failed after ${task.maxAttempts} attempts`)
+
+        // 更新 KV 狀態為 failed
+        const resultKey = `analysis:${task.id}`
+        await this.env.ANALYSIS_RESULTS.put(
+          resultKey,
+          JSON.stringify({
+            taskId: task.id,
+            status: 'failed',
+            error: error.message,
+            failedAt: task.failedAt,
+            attempts: task.attempts
+          }),
+          { expirationTtl: 7 * 24 * 60 * 60 }
+        )
+
+        console.error(`[Task ${task.id}] 失敗！已重試 ${task.maxAttempts} 次`)
       } else {
         task.status = 'queued'
         task.lastError = error.message
+        const retryDelay = Math.pow(2, task.attempts) * 1000
+        console.log(`[Task ${task.id}] 將在 ${retryDelay}ms 後重試（第 ${task.attempts + 1} 次）`)
         // 指數退避重試
-        await new Promise(r => setTimeout(r, Math.pow(2, task.attempts) * 1000))
+        await new Promise(r => setTimeout(r, retryDelay))
       }
     }
   }
 
   /**
    * 執行內容分析
+   * 呼叫 API 但不帶 email 以避免無限迴圈
    */
   async analyzeContent(payload) {
-    // 呼叫主分析 API
     const analysisUrl = new URL('/api/analyze', this.env.SITE_URL || 'http://localhost:8787')
+
+    console.log(`Calling analysis API: ${analysisUrl.toString()}`)
 
     const response = await fetch(analysisUrl.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         content: payload.content,
-        targetKeywords: payload.targetKeywords,
+        contentHtml: payload.contentHtml || '',
+        contentMarkdown: payload.contentMarkdown || '',
+        targetKeywords: payload.targetKeywords || [],
         contentFormatHint: payload.contentFormatHint || 'auto',
         includeRecommendations: true,
         returnChunks: false
+        // 注意：不帶 email，避免無限迴圈
       })
     })
 
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Analysis API error: ${response.status} ${response.statusText}`, errorText)
       throw new Error(`Analysis API failed: ${response.status} ${response.statusText}`)
     }
 
-    return await response.json()
+    const result = await response.json()
+    console.log('Analysis result received:', JSON.stringify(result).substring(0, 200))
+    return result
   }
 
   /**
