@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import ScoreCard from './ScoreCard'
 import Recommendations from './Recommendations'
-import { Info, Target, Layers, ListChecks, MessagesSquare, Sparkles, CheckCircle2, AlertCircle, XCircle, MinusCircle } from 'lucide-react'
+import GuideModal from './GuideModal'
+import { Info, Target, Layers, ListChecks, MessagesSquare, Sparkles, CheckCircle2, AlertCircle, XCircle, MinusCircle, BookOpen } from 'lucide-react'
 
 const OVERALL_EXPLANATIONS = {
   '結構構面（40%）': '內容的段落編排、可讀性、證據與經驗等結構訊號，占 v5 評分 40%，確保文章骨架穩固。',
@@ -97,6 +98,10 @@ export default function ResultsDashboard({
     v5Scores
   } = results
   const [selectedChunkIds, setSelectedChunkIds] = useState([])
+  const [guideModalOpen, setGuideModalOpen] = useState(false)
+  const [guideContent, setGuideContent] = useState('')
+  const [guideTitle, setGuideTitle] = useState('')
+  const [guideMetricName, setGuideMetricName] = useState('')
 
   // 優先使用 v5Scores，若無則使用舊版評分
   const displayScores = v5Scores ? {
@@ -247,6 +252,14 @@ export default function ResultsDashboard({
                             權重 {formatWeight(metric.weight)}
                           </span>
                         )}
+                        <button
+                          onClick={() => openGuideModal(metric?.name)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-orange-100 hover:bg-orange-200 text-orange-700 text-xs font-medium transition"
+                          title="查看優化指南"
+                        >
+                          <BookOpen className="w-3 h-3" />
+                          <span>指南</span>
+                        </button>
                       </div>
                       <span className={`text-xs font-medium ${status.textClass}`}>
                         {status.label}
@@ -303,6 +316,69 @@ export default function ResultsDashboard({
     setSelectedChunkIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     )
+  }
+
+  const openGuideModal = async (metricName) => {
+    // 指標名稱到文件名的映射
+    const guideMap = {
+      '搜尋意圖契合': '搜尋意圖契合優化指南.md',
+      'intentFit': '搜尋意圖契合優化指南.md',
+      'Helpful Ratio': 'Helpful_Ratio優化指南.md',
+      'helpfulRatio': 'Helpful_Ratio優化指南.md',
+      '內容覆蓋與深度': '內容覆蓋與深度優化指南.md',
+      'depthCoverage': '內容覆蓋與深度優化指南.md',
+      '延伸疑問與關鍵字覆蓋': '延伸疑問與關鍵字覆蓋優化指南.md',
+      'intentExpansion': '延伸疑問與關鍵字覆蓋優化指南.md',
+      '行動可行性': '行動可行性優化指南.md',
+      'actionability': '行動可行性優化指南.md',
+      '可讀性與敘事節奏': '可讀性與敘事節奏優化指南.md',
+      'readabilityRhythm': '可讀性與敘事節奏優化指南.md',
+      '結構化重點提示': '結構化重點提示優化指南.md',
+      'structureHighlights': '結構化重點提示優化指南.md',
+      '作者與品牌辨識': '作者與品牌辨識優化指南.md',
+      'authorBrandSignals': '作者與品牌辨識優化指南.md',
+      '可信證據與引用': '可信證據與引用優化指南.md',
+      'evidenceSupport': '可信證據與引用優化指南.md',
+      '第一手經驗與案例': '第一手經驗與案例優化指南.md',
+      'experienceSignals': '第一手經驗與案例優化指南.md',
+      '敘事具體度與資訊密度': '敘事具體度與資訊密度優化指南.md',
+      'narrativeDensity': '敘事具體度與資訊密度優化指南.md',
+      '時效與更新訊號': '時效與更新訊號優化指南.md',
+      'freshnessSignals': '時效與更新訊號優化指南.md',
+      '專家觀點與判斷': '專家觀點與判斷優化指南.md',
+      'expertPerspective': '專家觀點與判斷優化指南.md',
+      '答案可抽取性': '答案可抽取性優化指南.md',
+      'extractability': '答案可抽取性優化指南.md',
+      '關鍵摘要與重點整理': '關鍵摘要與重點整理優化指南.md',
+      'keySummary': '關鍵摘要與重點整理優化指南.md',
+      '對話式語氣與指引': '對話式語氣與指引優化指南.md',
+      'conversationalGuidance': '對話式語氣與指引優化指南.md',
+      '讀者互動與後續引導': '讀者互動與後續引導優化指南.md',
+      'readerActivation': '讀者互動與後續引導優化指南.md'
+    }
+
+    const fileName = guideMap[metricName]
+    if (!fileName) {
+      console.warn(`未找到指標 ${metricName} 的指南`)
+      return
+    }
+
+    try {
+      // 動態載入優化指南內容
+      const response = await fetch(`/docs/product/${fileName}`)
+      if (response.ok) {
+        const content = await response.text()
+        setGuideContent(content)
+        setGuideTitle(`${metricName}優化指南`)
+        setGuideMetricName(metricName)
+        setGuideModalOpen(true)
+      } else {
+        alert('無法載入優化指南，請稍後重試。')
+      }
+    } catch (error) {
+      console.error('載入指南失敗:', error)
+      alert('載入指南時發生錯誤，請稍後重試。')
+    }
   }
 
   return (
@@ -467,6 +543,15 @@ export default function ResultsDashboard({
           </div>
         </section>
       )}
+
+      {/* 優化指南彈出視窗 */}
+      <GuideModal
+        isOpen={guideModalOpen}
+        onClose={() => setGuideModalOpen(false)}
+        title={guideTitle}
+        content={guideContent}
+        metricName={guideMetricName}
+      />
     </div>
   )
 }
