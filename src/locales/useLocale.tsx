@@ -30,13 +30,11 @@ const seoByLocale: Record<SupportedLocale, Record<string, SEOMetadata>> = {
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<SupportedLocale>(defaultLocale)
-  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     const savedLocale = localStorage.getItem('locale') as SupportedLocale | null
     if (savedLocale && supportedLocales.includes(savedLocale)) {
       setLocaleState(savedLocale)
-      setMounted(true)
       return
     }
 
@@ -44,7 +42,6 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     if (pathLocale) {
       setLocaleState(pathLocale)
       localStorage.setItem('locale', pathLocale)
-      setMounted(true)
       return
     }
 
@@ -52,11 +49,8 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     if (headerLocale) {
       setLocaleState(headerLocale)
       localStorage.setItem('locale', headerLocale)
-      setMounted(true)
       return
     }
-
-    setMounted(true)
   }, [])
 
   const setLocale = (newLocale: SupportedLocale) => {
@@ -66,11 +60,6 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       updateUrlPath(newLocale)
     }
   }
-
-  if (!mounted) {
-    return children
-  }
-
   const strings = stringsByLocale[locale]
   const seo = seoByLocale[locale]
   const config = localeConfigs[locale]
@@ -90,11 +79,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     return typeof value === 'string' ? value : defaultValue
   }
 
-  return (
-    <LocaleContext.Provider value={{ locale, setLocale, strings, seo, config, t }}>
-      {children}
-    </LocaleContext.Provider>
-  )
+  return <LocaleContext.Provider value={{ locale, setLocale, strings, seo, config, t }}>{children}</LocaleContext.Provider>
 }
 
 export function useLocale() {
