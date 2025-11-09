@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 
 const BREAKDOWN_LABEL_MAP = {
@@ -65,8 +66,10 @@ export default function ScoreCard({
   maxScore = 100,
   description,
   breakdown = null,
+  explanations = null,
   footer
 }) {
+  const [expandedKeys, setExpandedKeys] = useState({})
   const safeMax = Number(maxScore) || 100
   const raw = Number(score) || 0
   const normalizedScore = Math.max(0, Math.min(100, Math.round((raw / safeMax) * 100)))
@@ -76,6 +79,14 @@ export default function ScoreCard({
   const breakdownEntries = breakdown && typeof breakdown === 'object'
     ? Object.entries(breakdown)
     : []
+  const explanationEntries = explanations && typeof explanations === 'object' ? explanations : {}
+
+  const toggleExplanation = (key) => {
+    setExpandedKeys((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }))
+  }
 
   return (
     <div className="card space-y-5">
@@ -142,21 +153,44 @@ export default function ScoreCard({
               const translatedLabel = BREAKDOWN_LABEL_MAP[labelKey]
                 || (typeof normalizedKey === 'string' ? BREAKDOWN_LABEL_MAP[normalizedKey] : undefined)
                 || labelKey
+              const explanation = explanationEntries[labelKey]
+                || (typeof normalizedKey === 'string' ? explanationEntries[normalizedKey] : undefined)
+              const explanationKey = typeof normalizedKey === 'string' ? normalizedKey : labelKey
+              const isExpanded = explanation ? Boolean(expandedKeys[explanationKey]) : false
 
               return (
-                <div key={labelKey} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600 min-w-[96px]">
-                    {translatedLabel}
-                  </span>
-                  <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-orange-400 to-yellow-400"
-                      style={{ width: `${pct}%` }}
-                    />
+                <div key={labelKey} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600 min-w-[96px]">
+                      {translatedLabel}
+                    </span>
+                    <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-orange-400 to-yellow-400"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-700 w-12 text-right">
+                      {displayValue}
+                    </span>
                   </div>
-                  <span className="text-xs font-semibold text-gray-700 w-12 text-right">
-                    {displayValue}
-                  </span>
+                  {explanation && (
+                    <div className="bg-orange-50 border border-orange-100 rounded-lg">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-orange-700 hover:bg-orange-100 transition"
+                        onClick={() => toggleExplanation(explanationKey)}
+                      >
+                        <span>{isExpanded ? '收合說明' : '展開說明'}</span>
+                        <span className="text-orange-500 font-semibold">{isExpanded ? '－' : '＋'}</span>
+                      </button>
+                      {isExpanded && (
+                        <div className="px-3 pb-3 text-xs text-orange-700 leading-relaxed">
+                          {explanation}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
