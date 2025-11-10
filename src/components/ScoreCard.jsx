@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
+import { useLocale } from '../locales/useLocale'
 
 const BREAKDOWN_LABEL_MAP = {
   headingStructure: '標題結構',
@@ -69,6 +70,8 @@ export default function ScoreCard({
   explanations = null,
   footer
 }) {
+  const { strings } = useLocale()
+  const { scoreCard: scoreCardStrings } = strings
   const [expandedKeys, setExpandedKeys] = useState({})
   const safeMax = Number(maxScore) || 100
   const raw = Number(score) || 0
@@ -142,7 +145,7 @@ export default function ScoreCard({
 
       {breakdownEntries.length > 0 && (
         <div className="border-t border-gray-100 pt-4">
-          <p className="text-xs font-semibold text-gray-600 mb-3">分數構成</p>
+          <p className="text-xs font-semibold text-gray-600 mb-3">{scoreCardStrings.scoreComposition}</p>
           <div className="space-y-2">
             {breakdownEntries.map(([rawLabel, value]) => {
               const numeric = Number(value) || 0
@@ -181,7 +184,7 @@ export default function ScoreCard({
                         className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-orange-700 hover:bg-orange-100 transition"
                         onClick={() => toggleExplanation(explanationKey)}
                       >
-                        <span>{isExpanded ? '收合說明' : '展開說明'}</span>
+                        <span>{isExpanded ? scoreCardStrings.collapseExplanation : scoreCardStrings.expandExplanation}</span>
                         <span className="text-orange-500 font-semibold">{isExpanded ? '－' : '＋'}</span>
                       </button>
                       {isExpanded && (
@@ -202,7 +205,7 @@ export default function ScoreCard({
         <div className="flex gap-2 items-start bg-orange-50 border border-orange-100 rounded-lg p-3">
           <AlertCircle className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-orange-700 leading-relaxed">
-            目前此項指標表現偏低，建議優先改善，並參考下方指標與建議清單找到具體行動。
+            {strings.results.lowScoreWarning}
           </p>
         </div>
       )}

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { FileText, Target, Sparkles, Mail } from 'lucide-react'
+import { useLocale } from '../locales/useLocale'
 
 export default function InputSection({ onAnalyze, isLoading }) {
   const editorRef = useRef(null)
@@ -9,6 +10,8 @@ export default function InputSection({ onAnalyze, isLoading }) {
   const [targetKeywordsInput, setTargetKeywordsInput] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
+  const { strings } = useLocale()
+  const { input } = strings
 
   const handleEditorInput = (event) => {
     const html = event.currentTarget.innerHTML
@@ -85,7 +88,7 @@ export default function InputSection({ onAnalyze, isLoading }) {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!contentPlain.trim()) {
-      setError('請輸入文章內容')
+      setError(input.errorEmptyContent)
       return
     }
     // 將輸入字串解析為關鍵字陣列：以逗號或空白分隔
@@ -95,17 +98,17 @@ export default function InputSection({ onAnalyze, isLoading }) {
       .filter(Boolean)
 
     if (keywords.length === 0) {
-      setError('請輸入 1-5 個目標關鍵字')
+      setError(input.errorKeywordsRequired)
       return
     }
     if (keywords.length > 5) {
-      setError('目標關鍵字最多 5 個')
+      setError(input.errorKeywordsMax)
       return
     }
 
     // 如果提供 email，驗證格式
     if (email.trim() && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      setError('請輸入有效的 Email 地址')
+      setError(input.errorInvalidEmail)
       return
     }
 
@@ -125,7 +128,7 @@ export default function InputSection({ onAnalyze, isLoading }) {
     onAnalyze(payload, keywords, meta)
   }
 
-  // 中文字數統計：移除空白後計算字符數
+  // 字數統計：移除空白後計算字符數
   const wordCount = useMemo(
     () => contentPlain.trim().replace(/\s/g, '').length,
     [contentPlain]
@@ -138,7 +141,7 @@ export default function InputSection({ onAnalyze, isLoading }) {
         <div className="mb-6">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
             <FileText className="w-5 h-5 text-primary-600" />
-            文章內容
+            {input.contentLabel}
           </label>
           <div className="relative">
             <div
@@ -150,17 +153,17 @@ export default function InputSection({ onAnalyze, isLoading }) {
               suppressContentEditableWarning
               onInput={handleEditorInput}
               onPaste={handleEditorPaste}
-              aria-label="文章內容"
+              aria-label={input.contentLabel}
             />
             {!contentPlain.trim() && (
               <span className="pointer-events-none absolute left-3 top-3 text-sm text-gray-400">
-                請貼上您的文章內容...
+                {input.contentPlaceholder}
               </span>
             )}
           </div>
           <div className="flex justify-between mt-2">
             <div className="text-sm text-gray-500">
-              字數統計: {wordCount} 字
+              {input.wordCountLabel}: {wordCount} {input.wordCountUnit}
             </div>
             {error && <div className="text-sm text-red-600">{error}</div>}
           </div>
@@ -169,13 +172,14 @@ export default function InputSection({ onAnalyze, isLoading }) {
         <div className="mb-6">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
             <Target className="w-5 h-5 text-primary-600" />
-            目標關鍵字 <span className="text-sm font-normal text-gray-500">(必填，1-5 個，使用逗號或空白分隔)</span>
+            {input.keywordsLabel}{' '}
+            <span className="text-sm font-normal text-gray-500">{input.keywordsHint}</span>
           </label>
           <input
             type="text"
             value={targetKeywordsInput}
             onChange={(e) => setTargetKeywordsInput(e.target.value)}
-            placeholder="例如：鑄鐵鍋保養、SEO 優化技巧..."
+            placeholder={input.keywordsPlaceholder}
             className="input-field"
             disabled={isLoading}
             required
@@ -185,13 +189,14 @@ export default function InputSection({ onAnalyze, isLoading }) {
         <div className="mb-6">
           <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 mb-3">
             <Mail className="w-5 h-5 text-primary-600" />
-            Email 地址 <span className="text-sm font-normal text-gray-500">(選填，填寫後將以非同步方式進行分析，結果將寄送至此信箱)</span>
+            {input.emailLabel}{' '}
+            <span className="text-sm font-normal text-gray-500">{input.emailOptionalHint}</span>
           </label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="your.email@example.com"
+            placeholder={input.emailPlaceholder}
             className="input-field"
             disabled={isLoading}
           />
@@ -206,7 +211,11 @@ export default function InputSection({ onAnalyze, isLoading }) {
           className="btn-primary w-full flex items-center justify-center gap-2"
         >
           <Sparkles className="w-5 h-5" />
-          {isLoading ? '分析中...' : (email.trim() ? '提交分析（結果將寄送至信箱）' : '開始 AI 分析')}
+          {isLoading
+            ? input.submitLoading
+            : email.trim()
+              ? input.submitAsync
+              : input.submitSync}
         </button>
       </form>
     </div>

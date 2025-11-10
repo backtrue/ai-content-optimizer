@@ -1,18 +1,25 @@
 import { useState } from 'react'
 import { AlertTriangle, AlertCircle, Info } from 'lucide-react'
+import { useLocale } from '../locales/useLocale'
 
 const CATEGORY_MAP = {
   內容: {
     label: '內容',
-    className: 'bg-blue-100 text-blue-800 border-blue-200'
+    className: 'bg-blue-100 text-blue-800 border-blue-200',
+    enLabel: 'Content',
+    jaLabel: 'コンテンツ'
   },
   信任: {
     label: '信任',
-    className: 'bg-green-100 text-green-800 border-green-200'
+    className: 'bg-green-100 text-green-800 border-green-200',
+    enLabel: 'Trust',
+    jaLabel: '信頼'
   },
   讀者體驗: {
     label: '讀者體驗',
-    className: 'bg-purple-100 text-purple-800 border-purple-200'
+    className: 'bg-purple-100 text-purple-800 border-purple-200',
+    enLabel: 'Reader Experience',
+    jaLabel: '読者体験'
   }
 }
 
@@ -38,6 +45,9 @@ const resolveCategory = (rawCategory) => {
 }
 
 export default function Recommendations({ recommendations = [], feedbackContext, apiBaseUrl, selectedChunkIds = [] }) {
+  const { strings } = useLocale()
+  const { recommendations: recStrings } = strings
+
   const getPriorityIcon = (priority) => {
     switch (priority) {
       case 'high':
@@ -58,9 +68,9 @@ export default function Recommendations({ recommendations = [], feedbackContext,
       low: 'bg-blue-100 text-blue-800 border-blue-200'
     }
     const labels = {
-      high: '高優先級',
-      medium: '中優先級',
-      low: '低優先級'
+      high: strings.results.highPriority,
+      medium: strings.results.mediumPriority,
+      low: strings.results.lowPriority
     }
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${badges[priority]}`}>
@@ -110,7 +120,7 @@ export default function Recommendations({ recommendations = [], feedbackContext,
 
   return (
     <div className="card">
-      <h3 className="text-xl font-bold text-gray-800 mb-6">優化建議清單</h3>
+      <h3 className="text-xl font-bold text-gray-800 mb-6">{recStrings.title}</h3>
       
       <div className="space-y-4">
         {sortedRecommendations.map((rec, index) => (
@@ -139,7 +149,7 @@ export default function Recommendations({ recommendations = [], feedbackContext,
                 <p className="text-sm text-gray-600">{rec.description}</p>
                 {rec.example && (
                   <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-700 border-l-2 border-primary-400">
-                    <span className="font-semibold">範例：</span> {rec.example}
+                    <span className="font-semibold">{recStrings.example}：</span> {rec.example}
                   </div>
                 )}
                 <div className="mt-3 flex gap-2">
@@ -148,14 +158,14 @@ export default function Recommendations({ recommendations = [], feedbackContext,
                     disabled={!feedbackContext || sendingId === `rec-${index}`}
                     onClick={() => sendFeedback(`rec-${index}`, 'up')}
                   >
-                    有幫助
+                    {recStrings.helpful}
                   </button>
                   <button
                     className="px-3 py-1 text-xs rounded bg-gray-200 text-gray-800 disabled:opacity-50"
                     disabled={!feedbackContext || sendingId === `rec-${index}`}
                     onClick={() => sendFeedback(`rec-${index}`, 'down')}
                   >
-                    不適用
+                    {recStrings.notApplicable}
                   </button>
                 </div>
               </div>
@@ -166,7 +176,7 @@ export default function Recommendations({ recommendations = [], feedbackContext,
 
       {sortedRecommendations.length === 0 && (
         <div className="text-center py-8 text-gray-500">
-          <p>太棒了！目前沒有需要改進的地方。</p>
+          <p>{recStrings.noRecommendations}</p>
         </div>
       )}
     </div>

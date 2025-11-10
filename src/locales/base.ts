@@ -86,6 +86,15 @@ export interface UIStrings {
     checkResults: string
     resultsWillBeSent: string
     enterValidEmail: string
+    asyncTitle: string
+    asyncDescription: string
+    queuedTitle: string
+    queuedLine1: string
+    queuedLine2: string
+    taskIdLabel: string
+    durationHint: string
+    helperTip: string
+    submitFailed: string
   }
 
   // 指標名稱
@@ -125,6 +134,225 @@ export interface UIStrings {
     invalidInput: string
     notFound: string
     unauthorized: string
+  }
+
+  // 內容提交區塊
+  input: {
+    contentLabel: string
+    contentPlaceholder: string
+    wordCountLabel: string
+    wordCountUnit: string
+    keywordsLabel: string
+    keywordsHint: string
+    keywordsPlaceholder: string
+    emailLabel: string
+    emailOptionalHint: string
+    emailPlaceholder: string
+    submitSync: string
+    submitAsync: string
+    submitLoading: string
+    errorEmptyContent: string
+    errorKeywordsRequired: string
+    errorKeywordsMax: string
+    errorInvalidEmail: string
+  }
+
+  // 結果儀表板詳細文案
+  results: {
+    whyTitle: string
+    whyDescription: string
+    howTitle: string
+    howDescription: string
+    whatTitle: string
+    whatDescription: string
+    overallScoreTitle: string
+    overallScoreDescription: string
+    structureScoreTitle: string
+    structureScoreDescription: string
+    strategyScoreTitle: string
+    strategyScoreDescription: string
+    priorityRecommendations: string
+    priorityRecommendationsDescription: string
+    structureInsights: string
+    structureInsightsDescription: string
+    strategyInsights: string
+    strategyInsightsDescription: string
+    sourceTextReview: string
+    sourceTextReviewDescription: string
+    paragraph: string
+    originalContent: string
+    tokens: string
+    segments: string
+    format: string
+    collapse: string
+    expand: string
+    keySignals: string
+    evidencePoints: string
+    noMetricsAvailable: string
+    insufficientMetadata: string
+    metadataUnavailable: string
+    schemaUnavailable: string
+    undetectableItems: string
+    hint: string
+    detectionStatus: string
+    yes: string
+    no: string
+    loadGuideError: string
+    loadGuideErrorRetry: string
+    notEvaluatedYet: string
+    excellentPerformance: string
+    canBeImproved: string
+    priorityImprovement: string
+    urgentImprovement: string
+    weight: string
+    highPriority: string
+    mediumPriority: string
+    lowPriority: string
+    suggestion: string
+    category: string
+    lowScoreWarning: string
+  }
+
+  // ScoreCard 相關文案
+  scoreCard: {
+    scoreComposition: string
+    expandExplanation: string
+    collapseExplanation: string
+  }
+
+  // 建議清單相關文案
+  recommendations: {
+    title: string
+    noRecommendations: string
+    example: string
+    helpful: string
+    notApplicable: string
+    categoryContent: string
+    categoryTrust: string
+    categoryExperience: string
+  }
+
+  // V5 儀表板相關文案
+  v5Dashboard: {
+    analyzing: string
+    noResults: string
+    pleaseSubmit: string
+    overallScore: string
+    outOf: string
+    excellent: string
+    good: string
+    fair: string
+    needsImprovement: string
+    structureScore: string
+    strategyScore: string
+    structureDetails: string
+    strategyDetails: string
+    whyLabel: string
+    howLabel: string
+    whatLabel: string
+    weight: string
+    suggestions: string
+    detectionStatus: string
+    metadataDetectable: string
+    schemaDetectable: string
+    yes: string
+    no: string
+  }
+
+  // Email 通知模板
+  email: {
+    subject: string
+    headerTitle: string
+    headerSubtitle: string
+    scoreLabel: string
+    structureWeight: string
+    strategyWeight: string
+    recommendationsTitle: string
+    recommendationsDescription: string
+    recommendationsEmpty: string
+    todoExampleLabel: string
+    viewButton: string
+    viewButtonDescription: string
+    taskIdLabel: string
+    footerNotice: string
+    footerNoReply: string
+    interpretation: {
+      excellent: string
+      good: string
+      fair: string
+      poor: string
+    }
+    priorityLabelHigh: string
+    priorityLabelMedium: string
+    priorityLabelLow: string
+    textTitle: string
+    textScoreHeading: string
+    textBreakdownHeading: string
+    textRecommendationsHeading: string
+    textViewHeading: string
+  }
+
+  // 結果頁面相關文案
+  resultsPage: {
+    missingTaskId: string
+    loadingResults: string
+    queryingResults: string
+    queryFailed: string
+    noResults: string
+    checkTaskId: string
+    backToHome: string
+    analysisResults: string
+    taskId: string
+    completedAt: string
+    submittedContent: string
+    characterCount: string
+    keywords: string
+    none: string
+    strategyAnalysisDetails: string
+    whyProblem: string
+    howImplementation: string
+    whatSolution: string
+    evidence: string
+    improvementSuggestions: string
+    notFound: string
+    resultExpired: string
+  }
+
+  // 評分歷史面板相關文案
+  scoreHistory: {
+    title: string
+    description: string
+    exportButton: string
+    clearButton: string
+    noHistory: string
+    averageOverallScore: string
+    latestTrend: string
+    sevenDayAnalysis: string
+    nextSchedule: string
+    notScheduled: string
+    notScheduledHint: string
+    trendComparison: string
+    sevenDayHint: string
+    nextReviewHint: string
+    latestRecords: string
+    timeHeader: string
+    keywordsHeader: string
+    overallHeader: string
+    aeoHeader: string
+    seoHeader: string
+    gapHeader: string
+    weakFlagsHeader: string
+    noGaps: string
+    noWeakFlags: string
+    exportProcess: string
+    maintenanceSuggestions: string
+    exportStep1: string
+    exportStep2: string
+    exportStep3: string
+    maintenanceStep1: string
+    maintenanceStep2: string
+    maintenanceStep3: string
+    flat: string
   }
 }
 

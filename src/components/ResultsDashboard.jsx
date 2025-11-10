@@ -2,6 +2,7 @@ import { useState } from 'react'
 import ScoreCard from './ScoreCard'
 import Recommendations from './Recommendations'
 import GuideModal from './GuideModal'
+import { useLocale } from '../locales/useLocale'
 import { Info, Target, Layers, ListChecks, MessagesSquare, Sparkles, CheckCircle2, AlertCircle, XCircle, MinusCircle, BookOpen } from 'lucide-react'
 
 const OVERALL_EXPLANATIONS = {
@@ -36,6 +37,8 @@ export default function ResultsDashboard({
   feedbackContext,
   apiBaseUrl /*, history = [], onExportHistory, onClearHistory */
 }) {
+  const { strings } = useLocale()
+  const { results: resultsStrings } = strings
   if (results?.status === 'insufficient_metadata') {
     const unknownSignals = Array.isArray(results?.contentSignals?.unknownSignals)
       ? results.contentSignals.unknownSignals
@@ -47,27 +50,27 @@ export default function ResultsDashboard({
         <div className="card border border-yellow-200 bg-yellow-50">
           <div className="flex flex-col gap-3">
             <div>
-              <h2 className="text-xl font-semibold text-yellow-800">無法評分：缺少 HTML metadata</h2>
+              <h2 className="text-xl font-semibold text-yellow-800">{resultsStrings.insufficientMetadata}</h2>
               <p className="text-sm text-yellow-700">
-                {results?.message || '偵測不到 `<head>` 區塊或結構化資料，請提供完整 HTML 後再重新檢測。'}
+                {results?.message || resultsStrings.hint}
               </p>
             </div>
 
             <div className="rounded-lg bg-white border border-yellow-100 p-3 text-sm text-gray-700">
-              <p className="font-medium text-gray-800 mb-1">目前偵測狀態</p>
+              <p className="font-medium text-gray-800 mb-1">{resultsStrings.detectionStatus}</p>
               <div className="grid gap-2 md:grid-cols-2">
                 <div>
-                  <span className="font-semibold text-gray-600">Metadata 可檢測：</span>
-                  <span>{inspectability.metadata === 'available' ? '是' : '否'}</span>
+                  <span className="font-semibold text-gray-600">{resultsStrings.metadataUnavailable}：</span>
+                  <span>{inspectability.metadata === 'available' ? resultsStrings.yes : resultsStrings.no}</span>
                 </div>
                 <div>
-                  <span className="font-semibold text-gray-600">Schema 可檢測：</span>
-                  <span>{inspectability.schema === 'available' ? '是' : '否'}</span>
+                  <span className="font-semibold text-gray-600">{resultsStrings.schemaUnavailable}：</span>
+                  <span>{inspectability.schema === 'available' ? resultsStrings.yes : resultsStrings.no}</span>
                 </div>
               </div>
               {unknownSignals.length > 0 && (
                 <div className="mt-3">
-                  <p className="font-semibold text-gray-600">無法判斷的項目：</p>
+                  <p className="font-semibold text-gray-600">{resultsStrings.undetectableItems}：</p>
                   <div className="mt-1 flex flex-wrap gap-2">
                     {unknownSignals.map((flag) => (
                       <span key={flag} className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
@@ -80,7 +83,7 @@ export default function ResultsDashboard({
             </div>
 
             <p className="text-xs text-gray-500">
-              提示：請直接貼上完整頁面 HTML 或使用提供原始碼的 API，以便系統取用 Meta / Schema / 作者資訊等關鍵標記。
+              {resultsStrings.hint}
             </p>
           </div>
         </div>
@@ -132,7 +135,7 @@ export default function ResultsDashboard({
   const getMetricStatus = (percent) => {
     if (percent === null) {
       return {
-        label: '尚未評估',
+        label: resultsStrings.notEvaluatedYet,
         icon: <MinusCircle className="w-5 h-5 text-gray-400" />,
         barClass: 'bg-gray-300',
         textClass: 'text-gray-500'
@@ -140,7 +143,7 @@ export default function ResultsDashboard({
     }
     if (percent >= 80) {
       return {
-        label: '表現優秀',
+        label: resultsStrings.excellentPerformance,
         icon: <CheckCircle2 className="w-5 h-5 text-green-600" />,
         barClass: 'bg-green-500',
         textClass: 'text-green-600'
@@ -148,7 +151,7 @@ export default function ResultsDashboard({
     }
     if (percent >= 60) {
       return {
-        label: '尚可提升',
+        label: resultsStrings.canBeImproved,
         icon: <AlertCircle className="w-5 h-5 text-amber-500" />,
         barClass: 'bg-amber-400',
         textClass: 'text-amber-600'
@@ -156,14 +159,14 @@ export default function ResultsDashboard({
     }
     if (percent > 0) {
       return {
-        label: '優先改善',
+        label: resultsStrings.priorityImprovement,
         icon: <XCircle className="w-5 h-5 text-orange-500" />,
         barClass: 'bg-orange-500',
         textClass: 'text-orange-600'
       }
     }
     return {
-      label: '亟待補強',
+      label: resultsStrings.urgentImprovement,
       icon: <XCircle className="w-5 h-5 text-red-500" />,
       barClass: 'bg-red-500',
       textClass: 'text-red-600'
@@ -179,7 +182,7 @@ export default function ResultsDashboard({
       <div className="text-xs text-gray-500 ml-7">
         <div className="flex items-center gap-1 font-semibold text-gray-600 mb-1">
           <Sparkles className="w-3 h-3" />
-          <span>關鍵訊號</span>
+          <span>{resultsStrings.keySignals}</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {items.map((item, idx) => (
@@ -199,7 +202,7 @@ export default function ResultsDashboard({
     if (!items.length) return null
     return (
       <div className="text-xs text-gray-500 ml-7">
-        <p className="font-semibold text-gray-600 mb-1">佐證重點</p>
+        <p className="font-semibold text-gray-600 mb-1">{resultsStrings.evidencePoints}</p>
         <ul className="list-disc list-outside ml-4 space-y-1">
           {items.map((item, idx) => (
             <li key={idx}>{item}</li>
@@ -212,7 +215,7 @@ export default function ResultsDashboard({
   const formatWeight = (weight) => {
     const value = Number(weight)
     if (!Number.isFinite(value) || value <= 0) return null
-    return `${value}%`
+    return `${resultsStrings.weight} ${value}%`
   }
 
   const renderMetricGroup = ({
@@ -249,16 +252,16 @@ export default function ResultsDashboard({
                         </span>
                         {formatWeight(metric?.weight) && (
                           <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
-                            權重 {formatWeight(metric.weight)}
+                            {formatWeight(metric.weight)}
                           </span>
                         )}
                         <button
                           onClick={() => openGuideModal(metric?.name)}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded bg-orange-100 hover:bg-orange-200 text-orange-700 text-xs font-medium transition"
-                          title="查看優化指南"
+                          title={resultsStrings.loadGuideError}
                         >
                           <BookOpen className="w-3 h-3" />
-                          <span>指南</span>
+                          <span>{strings.dashboard.guide}</span>
                         </button>
                       </div>
                       <span className={`text-xs font-medium ${status.textClass}`}>
@@ -285,7 +288,7 @@ export default function ResultsDashboard({
             )
           })}
           {!safeMetrics.length && (
-            <p className="text-sm text-gray-500">目前尚未提供相關指標資料。</p>
+            <p className="text-sm text-gray-500">{resultsStrings.noMetricsAvailable}</p>
           )}
         </div>
       </div>
@@ -294,11 +297,11 @@ export default function ResultsDashboard({
 
   const priorityBadge = (priority) => {
     const mapping = {
-      high: { label: '高優先級', className: 'bg-red-100 text-red-700' },
-      medium: { label: '中優先級', className: 'bg-amber-100 text-amber-700' },
-      low: { label: '低優先級', className: 'bg-blue-100 text-blue-700' }
+      high: { label: resultsStrings.highPriority, className: 'bg-red-100 text-red-700' },
+      medium: { label: resultsStrings.mediumPriority, className: 'bg-amber-100 text-amber-700' },
+      low: { label: resultsStrings.lowPriority, className: 'bg-blue-100 text-blue-700' }
     }
-    return mapping[priority] || { label: '建議', className: 'bg-gray-100 text-gray-600' }
+    return mapping[priority] || { label: resultsStrings.suggestion, className: 'bg-gray-100 text-gray-600' }
   }
 
   const prioritizedRecommendations = Array.isArray(displayScores.recommendations)
@@ -369,15 +372,15 @@ export default function ResultsDashboard({
       if (response.ok) {
         const content = await response.text()
         setGuideContent(content)
-        setGuideTitle(`${metricName}優化指南`)
+        setGuideTitle(`${metricName}${strings.guides.optimization}`)
         setGuideMetricName(metricName)
         setGuideModalOpen(true)
       } else {
-        alert('無法載入優化指南，請稍後重試。')
+        alert(resultsStrings.loadGuideError)
       }
     } catch (error) {
       console.error('載入指南失敗:', error)
-      alert('載入指南時發生錯誤，請稍後重試。')
+      alert(resultsStrings.loadGuideErrorRetry)
     }
   }
 
@@ -387,14 +390,14 @@ export default function ResultsDashboard({
       <section className="space-y-4">
         <div className="flex items-center gap-2 text-gray-500 text-sm">
           <Info className="w-4 h-4" />
-          <span>為什麼需要關注這份分析？</span>
+          <span>{resultsStrings.whyDescription}</span>
         </div>
         <ScoreCard
-          title="v5 綜合評分"
+          title={resultsStrings.overallScoreTitle}
           score={displayScores.overall}
           maxScore={displayScores.isV5 ? 10 : 100}
           description={displayScores.isV5
-            ? '最新 v5 評分模型，結構（40%）與策略（60%）加權的整體表現。'
+            ? resultsStrings.overallScoreDescription
             : '目前尚未取得 v5 評分，以下為舊版綜合分數。'}
           breakdown={displayScores.isV5 ? {
             '結構構面（40%）': displayScores.structure,
@@ -408,22 +411,22 @@ export default function ResultsDashboard({
       <section className="space-y-4">
         <div className="flex items-center gap-2 text-gray-500 text-sm">
           <Target className="w-4 h-4" />
-          <span>分數是怎麼算出來的？</span>
+          <span>{resultsStrings.howDescription}</span>
         </div>
         <div className="grid md:grid-cols-2 gap-6">
           <ScoreCard
-            title="結構分"
+            title={resultsStrings.structureScoreTitle}
             score={displayScores.structure}
             maxScore={displayScores.isV5 ? 10 : 100}
-            description="檢視內容是否具備良好的結構、可讀性、證據與經驗支撐。"
+            description={resultsStrings.structureScoreDescription}
             breakdown={displayScores.isV5 ? displayScores.breakdown?.structure : null}
             explanations={displayScores.isV5 ? STRUCTURE_EXPLANATIONS : null}
           />
           <ScoreCard
-            title="策略分"
+            title={resultsStrings.strategyScoreTitle}
             score={displayScores.strategy}
             maxScore={displayScores.isV5 ? 10 : 100}
-            description="衡量 Why / How / What 策略框架是否完整，內容是否與目標受眾對話。"
+            description={resultsStrings.strategyScoreDescription}
             breakdown={displayScores.isV5 ? displayScores.breakdown?.strategy : null}
             explanations={displayScores.isV5 ? STRATEGY_EXPLANATIONS : null}
           />
@@ -434,17 +437,17 @@ export default function ResultsDashboard({
       <section className="space-y-6">
         <div className="flex items-center gap-2 text-gray-500 text-sm">
           <Layers className="w-4 h-4" />
-          <span>具體可以怎麼改善？</span>
+          <span>{resultsStrings.whatDescription}</span>
         </div>
 
         {prioritizedRecommendations.length > 0 && (
           <div className="card space-y-4">
             <div className="flex items-center gap-2">
               <MessagesSquare className="w-5 h-5 text-primary-600" />
-              <h3 className="text-lg font-semibold text-gray-900">優先改善建議</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{resultsStrings.priorityRecommendations}</h3>
             </div>
             <p className="text-sm text-gray-600 leading-relaxed">
-              根據 v5 評分的結構與策略構面，以下建議優先處理可快速拉升整體分數。
+              {resultsStrings.priorityRecommendationsDescription}
             </p>
             <div className="space-y-3">
               {prioritizedRecommendations.map((rec, index) => {
@@ -464,7 +467,7 @@ export default function ResultsDashboard({
                     </div>
                     {rec.category && (
                       <div className="mt-2 text-xs text-gray-500">
-                        分類：{rec.category}
+                        {resultsStrings.category}：{rec.category}
                       </div>
                     )}
                   </div>
@@ -476,13 +479,13 @@ export default function ResultsDashboard({
 
         <div className="grid lg:grid-cols-2 gap-6">
           {renderMetricGroup({
-            title: '結構洞察',
-            description: '聚焦段落結構、摘要整理、對話語氣與互動引導，協助內容更易讀、易理解。',
+            title: resultsStrings.structureInsights,
+            description: resultsStrings.structureInsightsDescription,
             metrics: metricsAeo
           })}
           {renderMetricGroup({
-            title: '策略洞察',
-            description: '涵蓋 helpfulness、內容深度、可信度與關鍵字覆蓋，讓內容更貼近搜尋與目標讀者需求。',
+            title: resultsStrings.strategyInsights,
+            description: resultsStrings.strategyInsightsDescription,
             metrics: metricsSeo
           })}
         </div>
@@ -501,11 +504,11 @@ export default function ResultsDashboard({
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-gray-500 text-sm">
             <Layers className="w-4 h-4" />
-            <span>原文段落檢視</span>
+            <span>{resultsStrings.sourceTextReview}</span>
           </div>
           <div className="card">
             <p className="text-sm text-gray-600 mb-4">
-              逐段檢視原文內容，搭配上方建議調整文字、例證與結構。
+              {resultsStrings.sourceTextReviewDescription}
             </p>
             <div className="space-y-3">
               {chunks.map((chunk) => (
@@ -517,23 +520,23 @@ export default function ResultsDashboard({
                     <div className="flex items-center gap-2">
                       <ListChecks className="w-4 h-4 text-primary-600" />
                       <span className="text-sm font-semibold text-gray-700">
-                        段落 {chunk.id}
+                        {resultsStrings.paragraph} {chunk.id}
                       </span>
                     </div>
                     <div className="text-xs text-gray-500">
-                      {selectedChunkIds.includes(chunk.id) ? '收合' : '展開'}
+                      {selectedChunkIds.includes(chunk.id) ? resultsStrings.collapse : resultsStrings.expand}
                     </div>
                   </button>
                   {selectedChunkIds.includes(chunk.id) && (
                     <div className="p-4 space-y-2">
-                      <p className="text-xs font-semibold text-gray-600">原文內容</p>
+                      <p className="text-xs font-semibold text-gray-600">{resultsStrings.originalContent}</p>
                       <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white rounded-md p-3 border border-gray-100">
                         {chunk.text}
                       </pre>
                       <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <span>Tokens: {chunk.tokens}</span>
-                        <span>段落數: {chunk.segmentCount}</span>
-                        <span>格式: {chunk.sourceFormat}</span>
+                        <span>{resultsStrings.tokens}: {chunk.tokens}</span>
+                        <span>{resultsStrings.segments}: {chunk.segmentCount}</span>
+                        <span>{resultsStrings.format}: {chunk.sourceFormat}</span>
                       </div>
                     </div>
                   )}
