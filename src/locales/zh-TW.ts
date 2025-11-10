@@ -28,6 +28,13 @@ export const zhTWStrings: UIStrings = {
       '源策以雙軸評分架構評估內容的「結構完整性」與「AI 策略說服力」，協助您在生成式 AI 時代成為可信的引用來源。'
   },
 
+  hero: {
+    intro:
+      '本工具由台灣 SEO 專家<strong>邱煜庭（小黑老師）</strong>歷時多年的實戰研究打造，評分邏輯結合 Google 官方《搜尋品質評分者指南》、Helpful Content Update (HCU) 以及各項國際 SEO 評估標準，協助判斷文章是否貼近 Google 喜好並提高被 AI 模型引用的機會。',
+    disclaimer:
+      '免責聲明：本工具僅作為第三方檢測與優化建議參考，無法保證搜尋排名或流量成長。'
+  },
+
   dashboard: {
     totalScore: '總分',
     structureScore: '結構分',
@@ -70,6 +77,38 @@ export const zhTWStrings: UIStrings = {
     durationHint: '分析通常需要 1-5 分鐘。請使用 Email 內的連結查看完整結果。',
     helperTip: '提示：非同步分析在背景執行，處理期間您可以持續作業。',
     submitFailed: '提交失敗，請重試。'
+  },
+
+  email: {
+    subject: '✅ 您的內容分析結果已完成',
+    headerTitle: '✨ 分析完成',
+    headerSubtitle: '您的內容已完成 AI 策略評估',
+    scoreLabel: '綜合評分 / 100',
+    structureWeight: '結構分 · 40% 權重',
+    strategyWeight: '策略分 · 60% 權重',
+    recommendationsTitle: '優先待辦清單',
+    recommendationsDescription: '以下為依優先級整理的建議，建議先處理紅色標記項目以快速拉升分數。',
+    recommendationsEmpty: '太棒了！目前沒有需要立即處理的待辦事項。',
+    todoExampleLabel: '範例',
+    viewButton: '查看完整結果',
+    viewButtonDescription: '點擊按鈕查看詳細分數拆解、WHY/HOW/WHAT 分析與優化建議。',
+    taskIdLabel: '任務 ID',
+    footerNotice: '© 2025 SrcRank | ',
+    footerNoReply: '此 Email 為系統自動寄送，請勿直接回覆。',
+    interpretation: {
+      excellent: '🌟 優秀 - 內容品質卓越，具備 AI 引用潛力',
+      good: '👍 良好 - 內容有基礎，可進一步優化',
+      fair: '⚠️ 中等 - 建議依建議清單逐步改善',
+      poor: '❌ 需改進 - 建議重新檢視內容策略'
+    },
+    priorityLabelHigh: '高優先級',
+    priorityLabelMedium: '中優先級',
+    priorityLabelLow: '低優先級',
+    textTitle: 'AI 內容優化分析結果',
+    textScoreHeading: '綜合評分',
+    textBreakdownHeading: '分數拆解',
+    textRecommendationsHeading: '優先待辦清單',
+    textViewHeading: '查看完整結果'
   },
 
   metrics: {
@@ -224,6 +263,11 @@ export const zhTWStrings: UIStrings = {
     schemaDetectable: 'Schema 可檢測',
     yes: '是',
     no: '否'
+  },
+
+  footer: {
+    copy:
+      '© 2025 SrcRank（由 <span>煜言顧問有限公司 (TW)</span> 與 <a href="https://toldyou.co" target="_blank" rel="noopener noreferrer" class="text-primary-300 hover:text-primary-200 underline">燈言顧問株式会社 (JP)</a> 提供）All Rights Reserved.'
   },
 
   resultsPage: {

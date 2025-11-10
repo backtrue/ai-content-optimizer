@@ -292,6 +292,17 @@ export interface UIStrings {
     textViewHeading: string
   }
 
+  // 首頁英雄區塊
+  hero: {
+    intro: string
+    disclaimer: string
+  }
+
+  // 頁尾
+  footer: {
+    copy: string
+  }
+
   // 結果頁面相關文案
   resultsPage: {
     missingTaskId: string

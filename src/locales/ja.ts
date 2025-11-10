@@ -28,6 +28,13 @@ export const jaStrings: UIStrings = {
       'SrcRankは、RAG対応の構造とAI時代の戦略的説得力という2つの軸でコンテンツを分析し、生成AIに引用される信頼できる情報源へと導きます。'
   },
 
+  hero: {
+    intro:
+      '本ツールは台湾の SEO スペシャリスト<strong>邱煜庭（ブラック先生）</strong>が長年の実務研究を経て構築したものです。Google 公式の「検索品質評価ガイドライン」と Helpful Content Update (HCU)、各種国際 SEO 評価基準を組み合わせ、コンテンツが Google の好みに合致しているか、AI モデルに引用される可能性を高められるかを診断します。',
+    disclaimer:
+      '免責事項：本ツールは第三者による診断および最適化提案のみを提供します。検索順位やトラフィックの成長を保証するものではありません。'
+  },
+
   dashboard: {
     totalScore: '総合スコア',
     structureScore: '構造スコア',
@@ -70,6 +77,38 @@ export const jaStrings: UIStrings = {
     durationHint: '分析には通常 1〜5 分ほどかかります。メール内のリンクから詳細結果をご確認ください。',
     helperTip: 'ヒント：非同期分析中も作業を続けられます。完了後にメールで通知します。',
     submitFailed: '送信に失敗しました。もう一度お試しください。'
+  },
+
+  email: {
+    subject: '✅ コンテンツ分析結果のご案内',
+    headerTitle: '✨ 分析が完了しました',
+    headerSubtitle: 'AI 戦略評価が完了しました',
+    scoreLabel: '総合スコア / 100',
+    structureWeight: '構造スコア · 40% ウェイト',
+    strategyWeight: '戦略スコア · 60% ウェイト',
+    recommendationsTitle: '優先アクションリスト',
+    recommendationsDescription: '赤色の項目から着手すると、スコア改善のリターンが最大化します。',
+    recommendationsEmpty: '素晴らしいです！今すぐ対応が必要な項目はありません。',
+    todoExampleLabel: '例',
+    viewButton: '詳細結果を見る',
+    viewButtonDescription: 'ボタンをクリックして、スコア内訳・WHY/HOW/WHAT分析・改善提案を確認してください。',
+    taskIdLabel: 'タスク ID',
+    footerNotice: '© 2025 SrcRank | ',
+    footerNoReply: '本メールは自動送信です。直接のご返信はご遠慮ください。',
+    interpretation: {
+      excellent: '🌟 優秀 - コンテンツ品質が非常に高く、AI に引用される可能性があります',
+      good: '👍 良好 - 基礎は十分、さらなる最適化で伸びしろあり',
+      fair: '⚠️ 中程度 - 改善が必要です。推奨項目をご確認ください',
+      poor: '❌ 改善が必要 - コンテンツ戦略の見直しを検討してください'
+    },
+    priorityLabelHigh: '高優先度',
+    priorityLabelMedium: '中優先度',
+    priorityLabelLow: '低優先度',
+    textTitle: 'AI コンテンツ最適化レポート',
+    textScoreHeading: '総合スコア',
+    textBreakdownHeading: 'スコア内訳',
+    textRecommendationsHeading: '優先アクションリスト',
+    textViewHeading: '詳細結果を見る'
   },
 
   metrics: {
@@ -224,6 +263,11 @@ export const jaStrings: UIStrings = {
     schemaDetectable: 'スキーマ検出可能',
     yes: 'はい',
     no: 'いいえ'
+  },
+
+  footer: {
+    copy:
+      '© 2025 SrcRank（<span>YuYan Consulting Co., Ltd. (TW)</span> と <a href="https://toldyou.co" target="_blank" rel="noopener noreferrer" class="text-primary-300 hover:text-primary-200 underline">燈言顧問株式会社 (JP)</a> により提供）All Rights Reserved.'
   },
 
   resultsPage: {

@@ -1,10 +1,13 @@
 import { useState, useMemo, useEffect } from 'react'
 import Header from './components/Header'
+import { useLocale } from './locales/useLocale'
 import InputSection from './components/InputSection'
 import ResultsDashboard from './components/ResultsDashboard'
 import LoadingSpinner from './components/LoadingSpinner'
 
 function App() {
+  const { strings } = useLocale()
+  const { hero, footer } = strings
   const [analysisResults, setAnalysisResults] = useState(null)
   const [recommendations, setRecommendations] = useState([])
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
@@ -343,12 +346,8 @@ function App() {
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <section className="mb-8">
           <div className="bg-white border border-primary-100/60 rounded-2xl shadow-sm p-6 space-y-3">
-            <p className="text-sm text-gray-700 leading-relaxed">
-              本工具由台灣 SEO 專家<strong>邱煜庭（小黑老師）</strong>歷時多年的實戰研究打造，評分邏輯結合 Google 官方《搜尋品質評分者指南》、Helpful Content Update (HCU) 以及各項國際 SEO 評估標準，協助判讀文章是否貼近 Google 喜好並提高被 AI 模型引用的機會。
-            </p>
-            <p className="text-xs text-gray-500">
-              免責聲明：本工具僅作為第三方檢測與優化建議參考，無法保證搜尋排名或流量成長。
-            </p>
+            <p className="text-sm text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: hero.intro }} />
+            <p className="text-xs text-gray-500" dangerouslySetInnerHTML={{ __html: hero.disclaimer }} />
           </div>
         </section>
         <InputSection onAnalyze={handleAnalyze} isLoading={isLoading} />
@@ -382,18 +381,7 @@ function App() {
       
       <footer className="mt-16 py-8 bg-gray-900 text-gray-300">
         <div className="container mx-auto px-4 text-center space-y-2">
-          <p>
-            © 2025 AEO/GEO 小幫手 (由 煜言顧問有限公司(TW) 及{' '}
-            <a
-              href="https://toldyou.co"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary-300 hover:text-primary-200 underline transition-colors"
-            >
-              燈言顧問株式会社(JP)
-            </a>{' '}
-            提供). All Rights Reserved.
-          </p>
+          <p dangerouslySetInnerHTML={{ __html: footer.copy }} />
         </div>
       </footer>
     </div>

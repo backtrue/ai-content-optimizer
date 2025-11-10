@@ -28,6 +28,13 @@ export const enStrings: UIStrings = {
       'SrcRank analyzes your content on two dimensions—RAG-ready structure and AI strategic persuasion—to help you become a credible, citable source in the generative AI era.'
   },
 
+  hero: {
+    intro:
+      'This tool is built by Taiwan SEO strategist <strong>Yu-Ting Chiu (Black Teacher)</strong> after years of hands-on research. It blends Google\'s Search Quality Rater Guidelines, Helpful Content Update (HCU), and global SEO evaluation standards to determine whether your content aligns with Google\'s preferences and boosts its chance of being cited by AI systems.',
+    disclaimer:
+      'Disclaimer: This tool provides third-party diagnostics and optimization suggestions. Search rankings and traffic growth are not guaranteed.'
+  },
+
   dashboard: {
     totalScore: 'Total Score',
     structureScore: 'Structure Score',
@@ -256,6 +263,11 @@ export const enStrings: UIStrings = {
     textBreakdownHeading: 'Score Breakdown',
     textRecommendationsHeading: 'Priority Action Items',
     textViewHeading: 'View Full Analysis'
+  },
+
+  footer: {
+    copy:
+      '© 2025 SrcRank (Powered by <span>YuYan Consulting Co., Ltd. (TW)</span> &amp; <a href="https://toldyou.co" target="_blank" rel="noopener noreferrer" class="text-primary-300 hover:text-primary-200 underline">Tōgen Consulting Co., Ltd. (JP)</a>). All rights reserved.'
   },
 
   resultsPage: {

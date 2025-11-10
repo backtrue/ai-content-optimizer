@@ -191,7 +191,13 @@
 - [x] 後續建議 ✅（代碼層面完成）
   - [x] 完成 V5ResultsDashboard、ResultsPage、ScoreHistoryPanel 等次要頁面的 i18n 化 ✅
   - [x] 翻譯系統文件與 API 回應訊息 ✅（已完成 V5_USAGE_GUIDE、V5_INTEGRATION_GUIDE、V5_CHANGELOG）
-  - [ ] 建立 Email 模板的多語系版本（待後續）
+  - [x] 建立 Email 模板的多語系版本 ✅
+    - [x] HTML / 純文字模板改為 locale 驅動
+    - [x] Queue handler / Durable Object 注入語系參數
+    - [ ] 前端提交任務時附帶 `locale`（待調整）
+    - [ ] Resend sandbox：實測 zh-TW / en / ja 寄件內容
+    - [ ] 檢查寄出郵件的 HTML 與純文字格式、表情符號顯示
+    - [ ] 驗證結果連結是否導向對應語系頁面，fallback 為預設語系
   - [ ] 執行完整 QA 與 E2E 測試（待前端測試）
   - [ ] 部署前進行性能監測與成本評估（待部署階段）
 
