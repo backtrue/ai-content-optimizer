@@ -4,9 +4,10 @@ import { useLocale } from './locales/useLocale'
 import InputSection from './components/InputSection'
 import ResultsDashboard from './components/ResultsDashboard'
 import LoadingSpinner from './components/LoadingSpinner'
+import { setSEOMetadata, generateHomeMetadata } from './utils/seoManager'
 
 function App() {
-  const { strings } = useLocale()
+  const { strings, locale } = useLocale()
   const { hero, footer } = strings
   const [analysisResults, setAnalysisResults] = useState(null)
   const [recommendations, setRecommendations] = useState([])
@@ -83,6 +84,12 @@ function App() {
       clearInterval(interval)
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const metadata = generateHomeMetadata(locale)
+    setSEOMetadata(metadata, locale)
+  }, [locale])
 
   // 帶有重試機制的 API 請求函數
   const fetchWithRetry = async (url, options, retries = 2, delay = 1000) => {
