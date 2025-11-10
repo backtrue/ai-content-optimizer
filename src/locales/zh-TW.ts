@@ -178,6 +178,7 @@ export const zhTWStrings: UIStrings = {
     whatDescription: '具體可以怎麼改善？',
     overallScoreTitle: 'v5 綜合評分',
     overallScoreDescription: '最新 v5 評分模型，結構（40%）與策略（60%）加權的整體表現。',
+    noV5ScoreFallback: '目前尚未取得 v5 評分，以下為舊版綜合分數。',
     structureScoreTitle: '結構分',
     structureScoreDescription: '檢視內容是否具備良好的結構、可讀性、證據與經驗支撐。',
     strategyScoreTitle: '策略分',

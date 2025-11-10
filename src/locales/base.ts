@@ -169,6 +169,7 @@ export interface UIStrings {
     whatDescription: string
     overallScoreTitle: string
     overallScoreDescription: string
+    noV5ScoreFallback: string
     structureScoreTitle: string
     structureScoreDescription: string
     strategyScoreTitle: string

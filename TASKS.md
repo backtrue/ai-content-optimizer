@@ -417,8 +417,9 @@
 - [x] 修復解釋文案翻譯（移除硬編碼 OVERALL/STRUCTURE/STRATEGY_EXPLANATIONS）
 - [x] 新增 40+ 個 scoreCard 相關翻譯（zh-TW/en/ja）
 - [x] 改造 ResultsDashboard.jsx 使用動態 buildExplanations 函數
+- [x] 修復 noV5ScoreFallback 硬編碼中文（新增 locale 字串）
 - [x] 編譯驗證通過
-- 📝 備註：Insights 標題不顯示是因為 API 未返回 metrics.aeo/metrics.seo，非翻譯問題
+- 📝 備註：所有硬編碼中文已移除，Priority Improvement Recommendations、Strategy Insights、Optimization Recommendations 都已使用 locale 字串
 
 ### 任務 5：後端 API 注入 locale（✅ 完成）
 - [x] 改造 AsyncAnalysisFlow.jsx 提交邏輯，附帶 locale 參數

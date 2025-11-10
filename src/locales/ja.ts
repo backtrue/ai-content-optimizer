@@ -178,6 +178,7 @@ export const jaStrings: UIStrings = {
     whatDescription: '具体的にどのように改善できるのか？',
     overallScoreTitle: 'v5 総合スコア',
     overallScoreDescription: '最新 v5 スコアリングモデル、構造（40%）と戦略（60%）の加重総合パフォーマンス。',
+    noV5ScoreFallback: 'v5 スコアはまだ利用できません。以下は従来の総合スコアです。',
     structureScoreTitle: '構造スコア',
     structureScoreDescription: 'コンテンツが良好な構造、可読性、証拠、経験サポートを備えているかを確認します。',
     strategyScoreTitle: '戦略スコア',

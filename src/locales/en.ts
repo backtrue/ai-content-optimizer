@@ -146,6 +146,7 @@ export const enStrings: UIStrings = {
     whatDescription: 'What can you do to improve?',
     overallScoreTitle: 'v5 Overall Score',
     overallScoreDescription: 'Latest v5 scoring model with structure (40%) and strategy (60%) weighted overall performance.',
+    noV5ScoreFallback: 'v5 score not yet available. Below is the legacy overall score.',
     structureScoreTitle: 'Structure Score',
     structureScoreDescription: 'Review whether your content has good structure, readability, evidence, and experience support.',
     strategyScoreTitle: 'Strategy Score',

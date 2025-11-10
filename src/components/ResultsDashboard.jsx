@@ -497,7 +497,7 @@ export default function ResultsDashboard({
           maxScore={displayScores.isV5 ? 10 : 100}
           description={displayScores.isV5
             ? resultsStrings.overallScoreDescription
-            : '目前尚未取得 v5 評分，以下為舊版綜合分數。'}
+            : resultsStrings.noV5ScoreFallback}
           breakdown={displayScores.isV5 ? {
             structure: displayScores.structure,
             strategy: displayScores.strategy
