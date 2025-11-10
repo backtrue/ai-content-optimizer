@@ -4,22 +4,24 @@ import { useLocale } from '../locales/useLocale'
 
 const CATEGORY_MAP = {
   內容: {
-    label: '內容',
-    className: 'bg-blue-100 text-blue-800 border-blue-200',
-    enLabel: 'Content',
-    jaLabel: 'コンテンツ'
+    labelKey: 'categoryContent',
+    className: 'bg-blue-100 text-blue-800 border-blue-200'
   },
   信任: {
-    label: '信任',
-    className: 'bg-green-100 text-green-800 border-green-200',
-    enLabel: 'Trust',
-    jaLabel: '信頼'
+    labelKey: 'categoryTrust',
+    className: 'bg-green-100 text-green-800 border-green-200'
   },
   讀者體驗: {
-    label: '讀者體驗',
-    className: 'bg-purple-100 text-purple-800 border-purple-200',
-    enLabel: 'Reader Experience',
-    jaLabel: '読者体験'
+    labelKey: 'categoryExperience',
+    className: 'bg-purple-100 text-purple-800 border-purple-200'
+  },
+  結構: {
+    labelKey: 'categoryStructure',
+    className: 'bg-orange-100 text-orange-800 border-orange-200'
+  },
+  策略: {
+    labelKey: 'categoryStrategy',
+    className: 'bg-indigo-100 text-indigo-800 border-indigo-200'
   }
 }
 
@@ -140,7 +142,7 @@ export default function Recommendations({ recommendations = [], feedbackContext,
                     if (!categoryInfo) return null
                     return (
                       <span className={`px-2 py-1 rounded text-xs font-medium border ${categoryInfo.className}`}>
-                        {categoryInfo.label}
+                        {recStrings[categoryInfo.labelKey] || rec.category}
                       </span>
                     )
                   })()}

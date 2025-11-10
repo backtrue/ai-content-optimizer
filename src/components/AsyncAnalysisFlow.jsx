@@ -11,7 +11,7 @@ export default function AsyncAnalysisFlow({ onSubmit, isLoading }) {
   const [submitted, setSubmitted] = useState(false)
   const [taskId, setTaskId] = useState(null)
   const [error, setError] = useState(null)
-  const { strings, t } = useLocale()
+  const { strings, t, locale } = useLocale()
   const { analysis, common } = strings
 
   const handleSubmit = async (e) => {
@@ -26,7 +26,7 @@ export default function AsyncAnalysisFlow({ onSubmit, isLoading }) {
     }
 
     try {
-      const result = await onSubmit({ email })
+      const result = await onSubmit({ email, locale })
       setTaskId(result.taskId)
       setSubmitted(true)
     } catch (err) {

@@ -5,6 +5,43 @@ import GuideModal from './GuideModal'
 import { useLocale } from '../locales/useLocale'
 import { Info, Target, Layers, ListChecks, MessagesSquare, Sparkles, CheckCircle2, AlertCircle, XCircle, MinusCircle, BookOpen } from 'lucide-react'
 
+// 指標名稱到 locale key 的映射
+const METRIC_NAME_TO_KEY = {
+  'Helpful Ratio': 'metricHelpfulRatio',
+  '搜尋意圖契合': 'metricIntentFit',
+  'Search Intent Fit': 'metricIntentFit',
+  '内容覆蓋與深度': 'metricDepthCoverage',
+  'Content Depth & Coverage': 'metricDepthCoverage',
+  '延伸疑問與關鍵字覆蓋': 'metricIntentExpansion',
+  'Intent Expansion & Keyword Coverage': 'metricIntentExpansion',
+  '行動可行性': 'metricActionability',
+  'Actionability': 'metricActionability',
+  '可讀性與敘事節奏': 'metricReadabilityRhythm',
+  'Readability & Narrative Rhythm': 'metricReadabilityRhythm',
+  '結構化重點提示': 'metricStructureHighlights',
+  'Structure Highlights': 'metricStructureHighlights',
+  '作者與品牌辨識': 'metricAuthorBrandSignals',
+  'Author & Brand Recognition': 'metricAuthorBrandSignals',
+  '可信證據與引用': 'metricEvidenceSupport',
+  'Evidence & Citations': 'metricEvidenceSupport',
+  '第一手經驗與案例': 'metricExperienceSignals',
+  'First-hand Experience & Case Studies': 'metricExperienceSignals',
+  '敘事具體度與資訊密度': 'metricNarrativeDensity',
+  'Narrative Specificity & Information Density': 'metricNarrativeDensity',
+  '時效與更新訊號': 'metricFreshnessSignals',
+  'Freshness & Update Signals': 'metricFreshnessSignals',
+  '專家觀點與判斷': 'metricExpertPerspective',
+  'Expert Perspective & Judgment': 'metricExpertPerspective',
+  '答案可抽取性': 'metricExtractability',
+  'Answer Extractability': 'metricExtractability',
+  '關鍵摘要與重點整理': 'metricKeySummary',
+  'Key Summary & Highlights': 'metricKeySummary',
+  '對話式語氣與指引': 'metricConversationalGuidance',
+  'Conversational Tone & Guidance': 'metricConversationalGuidance',
+  '讀者互動與後續引導': 'metricReaderActivation',
+  'Reader Engagement & Follow-up': 'metricReaderActivation'
+}
+
 const OVERALL_EXPLANATIONS = {
   '結構構面（40%）': '內容的段落編排、可讀性、證據與經驗等結構訊號，占 v5 評分 40%，確保文章骨架穩固。',
   '策略構面（60%）': '黃金圈 WHY/HOW/WHAT 策略深度，占 60%，反映內容是否真正回應讀者與搜尋需求。'
@@ -37,7 +74,7 @@ export default function ResultsDashboard({
   feedbackContext,
   apiBaseUrl /*, history = [], onExportHistory, onClearHistory */
 }) {
-  const { strings } = useLocale()
+  const { strings, locale } = useLocale()
   const { results: resultsStrings } = strings
   if (results?.status === 'insufficient_metadata') {
     const unknownSignals = Array.isArray(results?.contentSignals?.unknownSignals)
@@ -248,7 +285,7 @@ export default function ResultsDashboard({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-gray-800">
-                          {metric?.name || '未命名指標'}
+                          {strings.results[METRIC_NAME_TO_KEY[metric?.name]] || metric?.name || '未命名指標'}
                         </span>
                         {formatWeight(metric?.weight) && (
                           <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
@@ -279,8 +316,10 @@ export default function ResultsDashboard({
                     style={{ width: `${percent === null ? 0 : percent}%` }}
                   />
                 </div>
-                {metric?.description && (
-                  <p className="text-xs text-gray-500 ml-7">{metric.description}</p>
+                {METRIC_NAME_TO_KEY[metric?.name] && (
+                  <p className="text-xs text-gray-500 ml-7">
+                    {strings.results[METRIC_NAME_TO_KEY[metric?.name] + 'Desc'] || metric?.description}
+                  </p>
                 )}
                 {renderFeatures(metric?.features)}
                 {renderEvidence(metric?.evidence)}
@@ -322,53 +361,57 @@ export default function ResultsDashboard({
   }
 
   const openGuideModal = async (metricName) => {
-    // 指標名稱到文件名的映射
-    const guideMap = {
-      '搜尋意圖契合': '搜尋意圖契合優化指南.md',
-      'intentFit': '搜尋意圖契合優化指南.md',
-      'Helpful Ratio': 'Helpful_Ratio優化指南.md',
-      'helpfulRatio': 'Helpful_Ratio優化指南.md',
-      '內容覆蓋與深度': '內容覆蓋與深度優化指南.md',
-      'depthCoverage': '內容覆蓋與深度優化指南.md',
-      '延伸疑問與關鍵字覆蓋': '延伸疑問與關鍵字覆蓋優化指南.md',
-      'intentExpansion': '延伸疑問與關鍵字覆蓋優化指南.md',
-      '行動可行性': '行動可行性優化指南.md',
-      'actionability': '行動可行性優化指南.md',
-      '可讀性與敘事節奏': '可讀性與敘事節奏優化指南.md',
-      'readabilityRhythm': '可讀性與敘事節奏優化指南.md',
-      '結構化重點提示': '結構化重點提示優化指南.md',
-      'structureHighlights': '結構化重點提示優化指南.md',
-      '作者與品牌辨識': '作者與品牌辨識優化指南.md',
-      'authorBrandSignals': '作者與品牌辨識優化指南.md',
-      '可信證據與引用': '可信證據與引用優化指南.md',
-      'evidenceSupport': '可信證據與引用優化指南.md',
-      '第一手經驗與案例': '第一手經驗與案例優化指南.md',
-      'experienceSignals': '第一手經驗與案例優化指南.md',
-      '敘事具體度與資訊密度': '敘事具體度與資訊密度優化指南.md',
-      'narrativeDensity': '敘事具體度與資訊密度優化指南.md',
-      '時效與更新訊號': '時效與更新訊號優化指南.md',
-      'freshnessSignals': '時效與更新訊號優化指南.md',
-      '專家觀點與判斷': '專家觀點與判斷優化指南.md',
-      'expertPerspective': '專家觀點與判斷優化指南.md',
-      '答案可抽取性': '答案可抽取性優化指南.md',
-      'extractability': '答案可抽取性優化指南.md',
-      '關鍵摘要與重點整理': '關鍵摘要與重點整理優化指南.md',
-      'keySummary': '關鍵摘要與重點整理優化指南.md',
-      '對話式語氣與指引': '對話式語氣與指引優化指南.md',
-      'conversationalGuidance': '對話式語氣與指引優化指南.md',
-      '讀者互動與後續引導': '讀者互動與後續引導優化指南.md',
-      'readerActivation': '讀者互動與後續引導優化指南.md'
+    // 指標名稱到文件名的映射（基礎名稱，不含語系路徑）
+    const guideBaseMap = {
+      '搜尋意圖契合': 'search-intent-fit',
+      'Search Intent Fit': 'search-intent-fit',
+      'Helpful Ratio': 'helpful-ratio',
+      '內容覆蓋與深度': 'content-depth-coverage',
+      'Content Depth & Coverage': 'content-depth-coverage',
+      '延伸疑問與關鍵字覆蓋': 'intent-expansion',
+      'Intent Expansion & Keyword Coverage': 'intent-expansion',
+      '行動可行性': 'actionability',
+      'Actionability': 'actionability',
+      '可讀性與敘事節奏': 'readability-rhythm',
+      'Readability & Narrative Rhythm': 'readability-rhythm',
+      '結構化重點提示': 'structure-highlights',
+      'Structure Highlights': 'structure-highlights',
+      '作者與品牌辨識': 'author-brand-signals',
+      'Author & Brand Recognition': 'author-brand-signals',
+      '可信證據與引用': 'evidence-support',
+      'Evidence & Citations': 'evidence-support',
+      '第一手經驗與案例': 'experience-signals',
+      'First-hand Experience & Case Studies': 'experience-signals',
+      '敘事具體度與資訊密度': 'narrative-density',
+      'Narrative Specificity & Information Density': 'narrative-density',
+      '時效與更新訊號': 'freshness-signals',
+      'Freshness & Update Signals': 'freshness-signals',
+      '專家觀點與判斷': 'expert-perspective',
+      'Expert Perspective & Judgment': 'expert-perspective',
+      '答案可抽取性': 'extractability',
+      'Answer Extractability': 'extractability',
+      '關鍵摘要與重點整理': 'key-summary',
+      'Key Summary & Highlights': 'key-summary',
+      '對話式語氣與指引': 'conversational-guidance',
+      'Conversational Tone & Guidance': 'conversational-guidance',
+      '讀者互動與後續引導': 'reader-activation',
+      'Reader Engagement & Follow-up': 'reader-activation'
     }
 
-    const fileName = guideMap[metricName]
-    if (!fileName) {
+    const baseFileName = guideBaseMap[metricName]
+    if (!baseFileName) {
       console.warn(`未找到指標 ${metricName} 的指南`)
       return
     }
 
+    // 依 locale 決定路徑
+    const localeDir = locale === 'zh-TW' ? '' : locale === 'en' ? 'en/' : 'ja/'
+    const fileName = `${baseFileName}.md`
+    const filePath = `/docs/product/${localeDir}${fileName}`
+
     try {
       // 動態載入優化指南內容
-      const response = await fetch(`/docs/product/${fileName}`)
+      const response = await fetch(filePath)
       if (response.ok) {
         const content = await response.text()
         setGuideContent(content)

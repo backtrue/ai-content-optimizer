@@ -21,24 +21,25 @@ const BREAKDOWN_LABEL_MAP = {
   strategy: '策略'
 }
 
+// 狀態配置（使用 locale key）
 const STATUS_CONFIG = [
   {
     threshold: 80,
-    label: '優秀',
+    labelKey: 'excellent',
     textClass: 'text-green-600',
     badgeClass: 'bg-green-100 text-green-700',
     strokeColor: '#22c55e'
   },
   {
     threshold: 60,
-    label: '良好',
+    labelKey: 'good',
     textClass: 'text-blue-600',
     badgeClass: 'bg-blue-100 text-blue-700',
     strokeColor: '#3b82f6'
   },
   {
     threshold: 40,
-    label: '中等',
+    labelKey: 'fair',
     textClass: 'text-amber-600',
     badgeClass: 'bg-amber-100 text-amber-700',
     strokeColor: '#f59e0b'
@@ -46,7 +47,7 @@ const STATUS_CONFIG = [
 ]
 
 const DEFAULT_STATUS = {
-  label: '需改進',
+  labelKey: 'needsImprovement',
   textClass: 'text-orange-600',
   badgeClass: 'bg-orange-100 text-orange-700',
   strokeColor: '#f97316'
@@ -139,7 +140,7 @@ export default function ScoreCard({
 
       <div className="flex items-center justify-center">
         <span className={`px-3 py-1 rounded-full text-sm font-semibold ${status.badgeClass}`}>
-          {status.label}
+          {scoreCardStrings[status.labelKey]}
         </span>
       </div>
 

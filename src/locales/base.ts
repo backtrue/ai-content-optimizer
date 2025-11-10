@@ -211,6 +211,42 @@ export interface UIStrings {
     suggestion: string
     category: string
     lowScoreWarning: string
+    // 指標名稱與描述
+    metricHelpfulRatio: string
+    metricIntentFit: string
+    metricDepthCoverage: string
+    metricIntentExpansion: string
+    metricActionability: string
+    metricReadabilityRhythm: string
+    metricStructureHighlights: string
+    metricAuthorBrandSignals: string
+    metricEvidenceSupport: string
+    metricExperienceSignals: string
+    metricNarrativeDensity: string
+    metricFreshnessSignals: string
+    metricExpertPerspective: string
+    metricExtractability: string
+    metricKeySummary: string
+    metricConversationalGuidance: string
+    metricReaderActivation: string
+    // 指標描述
+    metricHelpfulRatioDesc: string
+    metricIntentFitDesc: string
+    metricDepthCoverageDesc: string
+    metricIntentExpansionDesc: string
+    metricActionabilityDesc: string
+    metricReadabilityRhythmDesc: string
+    metricStructureHighlightsDesc: string
+    metricAuthorBrandSignalsDesc: string
+    metricEvidenceSupportDesc: string
+    metricExperienceSignalsDesc: string
+    metricNarrativeDensityDesc: string
+    metricFreshnessSignalsDesc: string
+    metricExpertPerspectiveDesc: string
+    metricExtractabilityDesc: string
+    metricKeySummaryDesc: string
+    metricConversationalGuidanceDesc: string
+    metricReaderActivationDesc: string
   }
 
   // ScoreCard 相關文案
@@ -218,6 +254,10 @@ export interface UIStrings {
     scoreComposition: string
     expandExplanation: string
     collapseExplanation: string
+    excellent: string
+    good: string
+    fair: string
+    needsImprovement: string
   }
 
   // 建議清單相關文案
@@ -230,6 +270,8 @@ export interface UIStrings {
     categoryContent: string
     categoryTrust: string
     categoryExperience: string
+    categoryStructure: string
+    categoryStrategy: string
   }
 
   // V5 儀表板相關文案

@@ -219,13 +219,51 @@ export const zhTWStrings: UIStrings = {
     lowPriority: '低優先級',
     suggestion: '建議',
     category: '分類',
-    lowScoreWarning: '目前此項指標表現偏低，建議優先改善，並參考下方指標與建議清單找到具體行動。'
+    lowScoreWarning: '目前此項指標表現偏低，建議優先改善，並參考下方指標與建議清單找到具體行動。',
+    metricHelpfulRatio: 'Helpful Ratio',
+    metricIntentFit: '搜尋意圖契合',
+    metricDepthCoverage: '內容覆蓋與深度',
+    metricIntentExpansion: '延伸疑問與關鍵字覆蓋',
+    metricActionability: '行動可行性',
+    metricReadabilityRhythm: '可讀性與敘事節奏',
+    metricStructureHighlights: '結構化重點提示',
+    metricAuthorBrandSignals: '作者與品牌辨識',
+    metricEvidenceSupport: '可信證據與引用',
+    metricExperienceSignals: '第一手經驗與案例',
+    metricNarrativeDensity: '敘事具體度與資訊密度',
+    metricFreshnessSignals: '時效與更新訊號',
+    metricExpertPerspective: '專家觀點與判斷',
+    metricExtractability: '答案可抽取性',
+    metricKeySummary: '關鍵摘要與重點整理',
+    metricConversationalGuidance: '對話式語氣與指引',
+    metricReaderActivation: '讀者互動與後續引導',
+    metricHelpfulRatioDesc: '根據 HCU 訊號測量有幫助內容與無幫助或離題內容的比例。',
+    metricIntentFitDesc: '評估您的內容與搜尋意圖的契合度，以及首段是否提供答案。',
+    metricDepthCoverageDesc: '評估內容深度、主題一致性和語意聚焦，確保全面覆蓋。',
+    metricIntentExpansionDesc: '檢查內容是否回應相關問題，並涵蓋主題之外的相關關鍵字。',
+    metricActionabilityDesc: '測量內容的可行性和實用性，包括清晰的步驟和指導。',
+    metricReadabilityRhythmDesc: '評估句子結構、段落長度和敘事流暢度，確保最佳可讀性。',
+    metricStructureHighlightsDesc: '評估清單、表格和其他結構元素的使用，以組織資訊。',
+    metricAuthorBrandSignalsDesc: '檢查作者資訊和品牌辨識訊號，以建立可信度。',
+    metricEvidenceSupportDesc: '評估引用、數據和外部參考的存在，以支持主張。',
+    metricExperienceSignalsDesc: '測量第一手經驗、案例研究和內容中的真實例子。',
+    metricNarrativeDensityDesc: '評估敘事和例子的具體性和資訊密度。',
+    metricFreshnessSignalsDesc: '檢查最近的日期、更新的資訊和新鮮度指標。',
+    metricExpertPerspectiveDesc: '評估專家術語、專業判斷和比較分析。',
+    metricExtractabilityDesc: '測量 AI 系統從單個段落中提取答案的難度。',
+    metricKeySummaryDesc: '檢查關鍵要點、摘要和突出資訊，便於快速掃描。',
+    metricConversationalGuidanceDesc: '評估整個內容中的對話式語氣和讀者指導線索。',
+    metricReaderActivationDesc: '測量行動呼籲和後續問題等參與元素，以鼓勵讀者互動。'
   },
 
   scoreCard: {
     scoreComposition: '分數構成',
     expandExplanation: '展開說明',
-    collapseExplanation: '收合說明'
+    collapseExplanation: '收合說明',
+    excellent: '優秀',
+    good: '良好',
+    fair: '中等',
+    needsImprovement: '需改進'
   },
 
   recommendations: {
@@ -236,7 +274,9 @@ export const zhTWStrings: UIStrings = {
     notApplicable: '不適用',
     categoryContent: '內容',
     categoryTrust: '信任',
-    categoryExperience: '讀者體驗'
+    categoryExperience: '讀者體驗',
+    categoryStructure: '結構',
+    categoryStrategy: '策略'
   },
 
   v5Dashboard: {

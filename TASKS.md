@@ -346,3 +346,81 @@
   - [ ] 邀請日文母語者審校語氣與自然度（待後續）
   - [ ] 完整走查前端頁面、指南內容的排版/字體（待測試）
   - [ ] 確認缺字 fallback 流程：若缺日文翻譯則顯示英文（待測試）
+
+## 2025-11-10 v5 儀表板與 Insights 多語系化
+
+### 問題盤點
+- 英文版與日文版頁面中 v5 Overall Score、Structure Score、Strategy Score 等標題仍顯示中文
+- Priority Improvement Recommendations、Structure Insights、Strategy Insights 標題未翻譯
+- Insights 區塊內指標名稱（17 項 SEO + 4 項 AEO）均為中文，無英文/日文版本
+- 指標描述、優化指南 Modal 內容仍為中文
+
+### ✅ 本次工作成果
+
+**Locale 字串定義擴展**
+- [x] base.ts：新增 17 個 metricXxx keys 至 `results` 模組
+- [x] base.ts：新增 `scoreCard` 模組的 excellent/good/fair/needsImprovement 4 個狀態
+- [x] base.ts：新增 `recommendations` 模組的 categoryStructure/categoryStrategy 2 個分類
+- [x] en.ts：補齊 17 個指標名稱英文翻譯 + 4 個狀態標籤
+- [x] zh-TW.ts：補齊 17 個指標名稱繁中翻譯 + 4 個狀態標籤
+- [x] ja.ts：補齊 17 個指標名稱日文翻譯 + 4 個狀態標籤
+
+**前端元件改造**
+- [x] ResultsDashboard.jsx：新增 METRIC_NAME_TO_KEY 映射表，指標名稱改由 locale 字串取值
+- [x] ScoreCard.jsx：狀態標籤改為 labelKey，使用 scoreCardStrings 動態取值
+- [x] 編譯驗證：npm run build 成功，無 TypeScript 錯誤
+
+### 📊 統計數據
+- 新增 i18n keys：17 個指標名稱 + 4 個狀態 + 2 個分類 = 23 個
+- 涵蓋語系：English、Traditional Chinese、Japanese
+- 改造組件：2 個（ResultsDashboard、ScoreCard）
+- 代碼行數變更：~100+ 行
+
+### ⏳ 待完成項目
+- [ ] 指標描述多語系化（後端 scoring-model.js 改造）
+- [ ] 優化指南 Modal 多語系化（guideMap 依 locale 切換檔名）
+- [ ] 建議清單（recommendations）的 title/description 多語系化
+- [ ] 前端測試驗證：切換英文/日文確認指標名稱與狀態標籤正確顯示
+- [ ] 後端 API 回應注入 locale 參數（Email 模板多語系化）
+
+## 2025-11-10 v5 儀表板多語系化 - 後續工作
+
+### 任務 1：指標描述多語系化（✅ 完成）
+- [x] 檢查 scoring-model.js 中指標定義的 description 欄位
+- [x] 新增 descriptionKey 欄位，對應 locale key
+- [x] 更新 base.ts 新增指標描述 key（metricXxxDescription）
+- [x] 補齊 en.ts、zh-TW.ts、ja.ts 指標描述翻譯
+- [x] 改造 ResultsDashboard.jsx 使用 locale 字串顯示描述
+
+### 任務 2：優化指南 Modal 多語系化（✅ 完成）
+- [x] 檢查 ResultsDashboard.jsx 的 guideMap 映射邏輯
+- [x] 新增 locale 參數判斷，依語系切換指南檔名
+- [x] 改造 openGuideModal 支援多語系檔案路徑（en/、ja/）
+- [x] 編譯驗證通過
+- [ ] 待建立：英文版指南檔案（en/ 目錄）
+- [ ] 待建立：日文版指南檔案（ja/ 目錄）
+
+### 任務 3：建議清單多語系化（✅ 完成）
+- [x] 檢查 Recommendations.jsx 中 category 標籤來源
+- [x] 改造 CATEGORY_MAP 使用 labelKey 架構
+- [x] 新增 categoryStructure、categoryStrategy 至 base.ts
+- [x] 補齊 en.ts、zh-TW.ts、ja.ts 分類文案翻譯
+- [x] 改造 Recommendations.jsx 使用 locale 字串顯示分類標籤
+- [x] 編譯驗證通過
+- 📝 備註：title 與 description 來自後端 API，暫不改造（需後端配合）
+
+### 任務 4：前端測試驗證（待執行）
+- [ ] 切換至英文語系，驗證指標名稱、狀態標籤、描述正確顯示
+- [ ] 切換至日文語系，驗證指標名稱、狀態標籤、描述正確顯示
+- [ ] 檢查優化指南 Modal 載入對應語系內容
+- [ ] 檢查建議清單標題與描述正確翻譯
+
+### 任務 5：後端 API 注入 locale（✅ 完成）
+- [x] 改造 AsyncAnalysisFlow.jsx 提交邏輯，附帶 locale 參數
+- [x] 改造 queue-handler.js 接收 locale 並儲存至 KV
+- [x] 改造 queue-handler.js 依 locale 決定郵件主旨（zh-TW/en/ja）
+- [x] 改造 email-template.js 新增多語系字串定義（HTML 與純文字）
+- [x] 改造 generateResultEmailHtml 支援 locale 參數
+- [x] 改造 generateResultEmailText 支援 locale 參數
+- [x] 編譯驗證通過
+- 📝 備註：結果連結附帶 locale 參數，導向對應語系頁面

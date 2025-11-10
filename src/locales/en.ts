@@ -187,13 +187,51 @@ export const enStrings: UIStrings = {
     lowPriority: 'Low Priority',
     suggestion: 'Suggestion',
     category: 'Category',
-    lowScoreWarning: 'This metric is currently underperforming. We recommend prioritizing improvements and refer to the metrics and recommendations below for specific actions.'
+    lowScoreWarning: 'This metric is currently underperforming. We recommend prioritizing improvements and refer to the metrics and recommendations below for specific actions.',
+    metricHelpfulRatio: 'Helpful Ratio',
+    metricIntentFit: 'Search Intent Fit',
+    metricDepthCoverage: 'Content Depth & Coverage',
+    metricIntentExpansion: 'Intent Expansion & Keyword Coverage',
+    metricActionability: 'Actionability',
+    metricReadabilityRhythm: 'Readability & Narrative Rhythm',
+    metricStructureHighlights: 'Structure Highlights',
+    metricAuthorBrandSignals: 'Author & Brand Recognition',
+    metricEvidenceSupport: 'Evidence & Citations',
+    metricExperienceSignals: 'First-hand Experience & Case Studies',
+    metricNarrativeDensity: 'Narrative Specificity & Information Density',
+    metricFreshnessSignals: 'Freshness & Update Signals',
+    metricExpertPerspective: 'Expert Perspective & Judgment',
+    metricExtractability: 'Answer Extractability',
+    metricKeySummary: 'Key Summary & Highlights',
+    metricConversationalGuidance: 'Conversational Tone & Guidance',
+    metricReaderActivation: 'Reader Engagement & Follow-up',
+    metricHelpfulRatioDesc: 'Measures the proportion of helpful content vs. unhelpful or off-topic content based on HCU signals.',
+    metricIntentFitDesc: 'Evaluates how well your content matches the search intent and provides answers in the first paragraph.',
+    metricDepthCoverageDesc: 'Assesses content depth, topic coherence, and semantic focus to ensure comprehensive coverage.',
+    metricIntentExpansionDesc: 'Checks if content addresses related questions and covers relevant keywords beyond the main topic.',
+    metricActionabilityDesc: 'Measures how actionable and practical your content is with clear steps and guidance.',
+    metricReadabilityRhythmDesc: 'Evaluates sentence structure, paragraph length, and narrative flow for optimal readability.',
+    metricStructureHighlightsDesc: 'Assesses the use of lists, tables, and other structural elements to organize information.',
+    metricAuthorBrandSignalsDesc: 'Checks for author information and brand recognition signals to establish credibility.',
+    metricEvidenceSupportDesc: 'Evaluates the presence of citations, data, and external references to support claims.',
+    metricExperienceSignalsDesc: 'Measures first-hand experience, case studies, and real-world examples in the content.',
+    metricNarrativeDensityDesc: 'Assesses the specificity and information density of the narrative and examples.',
+    metricFreshnessSignalsDesc: 'Checks for recent dates, updated information, and freshness indicators.',
+    metricExpertPerspectiveDesc: 'Evaluates expert terminology, professional judgment, and comparative analysis.',
+    metricExtractabilityDesc: 'Measures how easily AI systems can extract answers from individual paragraphs.',
+    metricKeySummaryDesc: 'Checks for key takeaways, summaries, and highlighted information for quick scanning.',
+    metricConversationalGuidanceDesc: 'Evaluates conversational tone and reader guidance cues throughout the content.',
+    metricReaderActivationDesc: 'Measures engagement elements like CTAs and follow-up questions to encourage reader interaction.'
   },
 
   scoreCard: {
     scoreComposition: 'Score Composition',
     expandExplanation: 'Show Explanation',
-    collapseExplanation: 'Hide Explanation'
+    collapseExplanation: 'Hide Explanation',
+    excellent: 'Excellent',
+    good: 'Good',
+    fair: 'Fair',
+    needsImprovement: 'Needs Improvement'
   },
 
   recommendations: {
@@ -204,7 +242,9 @@ export const enStrings: UIStrings = {
     notApplicable: 'Not Applicable',
     categoryContent: 'Content',
     categoryTrust: 'Trust',
-    categoryExperience: 'Reader Experience'
+    categoryExperience: 'Reader Experience',
+    categoryStructure: 'Structure',
+    categoryStrategy: 'Strategy'
   },
 
   v5Dashboard: {

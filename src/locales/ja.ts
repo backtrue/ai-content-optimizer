@@ -219,13 +219,51 @@ export const jaStrings: UIStrings = {
     lowPriority: '低優先度',
     suggestion: '提案',
     category: 'カテゴリー',
-    lowScoreWarning: 'このメトリクスは現在パフォーマンスが低くなっています。改善を優先し、以下のメトリクスと推奨事項リストを参照して具体的なアクションを見つけることをお勧めします。'
+    lowScoreWarning: 'このメトリクスは現在パフォーマンスが低くなっています。改善を優先し、以下のメトリクスと推奨事項リストを参照して具体的なアクションを見つけることをお勧めします。',
+    metricHelpfulRatio: 'Helpful Ratio',
+    metricIntentFit: '検索意図の適合度',
+    metricDepthCoverage: 'コンテンツの深さと網羅性',
+    metricIntentExpansion: '意図の拡張とキーワードカバレッジ',
+    metricActionability: '実行可能性',
+    metricReadabilityRhythm: '可読性と物語のリズム',
+    metricStructureHighlights: '構造化ハイライト',
+    metricAuthorBrandSignals: '著者・ブランド認識',
+    metricEvidenceSupport: '信頼できる証拠と引用',
+    metricExperienceSignals: '一次経験とケーススタディ',
+    metricNarrativeDensity: '物語の具体性と情報密度',
+    metricFreshnessSignals: '新鮮さと更新シグナル',
+    metricExpertPerspective: '専門家の視点と判断力',
+    metricExtractability: '回答抽出性',
+    metricKeySummary: '重要な要約とハイライト',
+    metricConversationalGuidance: '会話的な語り口とガイダンス',
+    metricReaderActivation: '読者エンゲージメントとフォローアップ',
+    metricHelpfulRatioDesc: 'HCU シグナルに基づいて、有用なコンテンツと有用でない、またはトピックから外れたコンテンツの比率を測定します。',
+    metricIntentFitDesc: 'コンテンツが検索意図にどの程度適合し、最初の段落で回答を提供しているかを評価します。',
+    metricDepthCoverageDesc: 'コンテンツの深さ、トピックの一貫性、セマンティック フォーカスを評価して、包括的なカバレッジを確保します。',
+    metricIntentExpansionDesc: 'コンテンツが関連する質問に対処し、メイン トピック以外の関連キーワードをカバーしているかを確認します。',
+    metricActionabilityDesc: '明確なステップとガイダンスを含む、コンテンツの実行可能性と実用性を測定します。',
+    metricReadabilityRhythmDesc: '文構造、段落の長さ、物語の流れを評価して、最適な可読性を確保します。',
+    metricStructureHighlightsDesc: 'リスト、表、その他の構造要素を使用して情報を整理する方法を評価します。',
+    metricAuthorBrandSignalsDesc: '著者情報とブランド認識シグナルをチェックして、信頼性を確立します。',
+    metricEvidenceSupportDesc: '引用、データ、外部参照の存在を評価して、主張をサポートします。',
+    metricExperienceSignalsDesc: 'コンテンツ内の一次経験、ケーススタディ、実例を測定します。',
+    metricNarrativeDensityDesc: 'ナレーティブと例の具体性と情報密度を評価します。',
+    metricFreshnessSignalsDesc: '最近の日付、更新された情報、新鮮さのインジケーターをチェックします。',
+    metricExpertPerspectiveDesc: '専門用語、専門的判断、比較分析を評価します。',
+    metricExtractabilityDesc: 'AI システムが個々の段落から回答を抽出できる容易さを測定します。',
+    metricKeySummaryDesc: 'キーポイント、要約、強調表示された情報をチェックして、素早いスキャンを可能にします。',
+    metricConversationalGuidanceDesc: 'コンテンツ全体の会話的なトーンと読者ガイダンス キューを評価します。',
+    metricReaderActivationDesc: '読者のインタラクションを促すための CTA やフォローアップ質問などのエンゲージメント要素を測定します。'
   },
 
   scoreCard: {
     scoreComposition: 'スコア構成',
     expandExplanation: '説明を表示',
-    collapseExplanation: '説明を非表示'
+    collapseExplanation: '説明を非表示',
+    excellent: '優秀',
+    good: '良好',
+    fair: '中程度',
+    needsImprovement: '改善が必要'
   },
 
   recommendations: {
@@ -236,7 +274,9 @@ export const jaStrings: UIStrings = {
     notApplicable: '該当なし',
     categoryContent: 'コンテンツ',
     categoryTrust: '信頼',
-    categoryExperience: '読者体験'
+    categoryExperience: '読者体験',
+    categoryStructure: '構造',
+    categoryStrategy: '戦略'
   },
 
   v5Dashboard: {

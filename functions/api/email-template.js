@@ -3,11 +3,43 @@
  * 使用 Resend 寄送分析結果
  */
 
-export function generateResultEmailHtml(taskId, results, siteUrl) {
+// 多語系字串定義
+const localeStrings = {
+  'zh-TW': {
+    priorityHigh: '高優先級',
+    priorityMedium: '中優先級',
+    priorityLow: '低優先級',
+    noTodos: '太棒了！目前沒有需要即刻處理的待辦事項。',
+    viewDetails: '請登入平台查看詳細說明。',
+    example: '範例：',
+    langAttr: 'zh-TW'
+  },
+  'en': {
+    priorityHigh: 'High Priority',
+    priorityMedium: 'Medium Priority',
+    priorityLow: 'Low Priority',
+    noTodos: 'Great! There are no immediate action items at this time.',
+    viewDetails: 'Please log in to the platform for detailed information.',
+    example: 'Example: ',
+    langAttr: 'en'
+  },
+  'ja': {
+    priorityHigh: '高優先度',
+    priorityMedium: '中優先度',
+    priorityLow: '低優先度',
+    noTodos: '素晴らしい！現在、対応が必要な項目はありません。',
+    viewDetails: 'プラットフォームにログインして詳細を確認してください。',
+    example: '例：',
+    langAttr: 'ja'
+  }
+}
+
+export function generateResultEmailHtml(taskId, results, siteUrl, locale = 'zh-TW') {
   const { v5Scores } = results
   const { structureScore, strategyScore, overallScore } = v5Scores || {}
+  const strings = localeStrings[locale] || localeStrings['zh-TW']
 
-  const resultUrl = `${siteUrl}/results/${taskId}`
+  const resultUrl = `${siteUrl}/results/${taskId}?locale=${locale}`
   const scoreColor = overallScore >= 80 ? '#10b981' : overallScore >= 60 ? '#3b82f6' : '#f59e0b'
 
   const priorityOrder = { high: 0, medium: 1, low: 2 }
@@ -26,10 +58,10 @@ export function generateResultEmailHtml(taskId, results, siteUrl) {
     ? todoItems
         .map((rec) => {
           const priorityLabel = rec?.priority === 'high'
-            ? '高優先級'
+            ? strings.priorityHigh
             : rec?.priority === 'medium'
-              ? '中優先級'
-              : '低優先級'
+              ? strings.priorityMedium
+              : strings.priorityLow
           const priorityColor = rec?.priority === 'high'
             ? '#dc2626'
             : rec?.priority === 'medium'
@@ -42,13 +74,13 @@ export function generateResultEmailHtml(taskId, results, siteUrl) {
                 ${rec?.category ? `<span class="todo-category">${rec.category}</span>` : ''}
               </div>
               <p class="todo-title">${rec?.title || '待辦事項'}</p>
-              <p class="todo-description">${rec?.description || '請登入平台查看詳細說明。'}</p>
-              ${rec?.example ? `<p class="todo-example">範例：${rec.example}</p>` : ''}
+              <p class="todo-description">${rec?.description || strings.viewDetails}</p>
+              ${rec?.example ? `<p class="todo-example">${strings.example}${rec.example}</p>` : ''}
             </li>
           `
         })
         .join('')
-    : '<li class="todo-item empty">太棒了！目前沒有需要即刻處理的待辦事項。</li>'
+    : `<li class="todo-item empty">${strings.noTodos}</li>`
 
   return `
 <!DOCTYPE html>
@@ -372,11 +404,82 @@ export function generateResultEmailHtml(taskId, results, siteUrl) {
   `.trim()
 }
 
-export function generateResultEmailText(taskId, results, siteUrl) {
+// 純文字 Email 多語系字串
+const textLocaleStrings = {
+  'zh-TW': {
+    title: 'AI 內容優化分析結果',
+    scoreLabel: '綜合評分',
+    scoreExcellent: '🌟 優秀 - 內容品質卓越，已具備 AI 引用潛力',
+    scoreGood: '👍 良好 - 內容有基礎，可進一步優化',
+    scoreFair: '⚠️ 中等 - 需要改進',
+    scorePoor: '❌ 需改進 - 建議重新調整內容策略',
+    breakdown: '分數細項',
+    structureScore: '結構分',
+    strategyScore: '策略分',
+    weight: '權重',
+    todos: '優先待辦清單',
+    noTodos: '目前沒有需要即刻處理的待辦事項，再接再厲！',
+    priorityHigh: '【高優先級】',
+    priorityMedium: '【中優先級】',
+    priorityLow: '【低優先級】',
+    viewResults: '查看完整結果',
+    viewHint: '點擊下方連結查看詳細的評分細項、WHY/HOW/WHAT 分析和改進建議：',
+    taskId: '任務 ID',
+    copyright: '© 2025 AI 內容優化大師',
+    noReply: '此 Email 由自動系統寄送，請勿直接回覆。'
+  },
+  'en': {
+    title: 'AI Content Optimization Analysis Results',
+    scoreLabel: 'Overall Score',
+    scoreExcellent: '🌟 Excellent - Outstanding content quality with AI citation potential',
+    scoreGood: '👍 Good - Solid foundation, room for optimization',
+    scoreFair: '⚠️ Fair - Needs improvement',
+    scorePoor: '❌ Needs Improvement - Consider revising content strategy',
+    breakdown: 'Score Breakdown',
+    structureScore: 'Structure Score',
+    strategyScore: 'Strategy Score',
+    weight: 'Weight',
+    todos: 'Priority Action Items',
+    noTodos: 'Great! There are no immediate action items at this time.',
+    priorityHigh: '[High Priority]',
+    priorityMedium: '[Medium Priority]',
+    priorityLow: '[Low Priority]',
+    viewResults: 'View Full Results',
+    viewHint: 'Click the link below to view detailed score breakdown, WHY/HOW/WHAT analysis, and recommendations:',
+    taskId: 'Task ID',
+    copyright: '© 2025 AI Content Optimizer',
+    noReply: 'This email was sent automatically. Please do not reply directly.'
+  },
+  'ja': {
+    title: 'AI コンテンツ最適化分析結果',
+    scoreLabel: '総合スコア',
+    scoreExcellent: '🌟 優秀 - 優れたコンテンツ品質、AI 引用の可能性あり',
+    scoreGood: '👍 良好 - 基礎がしっかりしており、さらに最適化できます',
+    scoreFair: '⚠️ 中程度 - 改善が必要です',
+    scorePoor: '❌ 改善が必要 - コンテンツ戦略の見直しをお勧めします',
+    breakdown: 'スコア内訳',
+    structureScore: '構造スコア',
+    strategyScore: '戦略スコア',
+    weight: 'ウェイト',
+    todos: '優先アクション項目',
+    noTodos: '素晴らしい！現在、対応が必要な項目はありません。',
+    priorityHigh: '【高優先度】',
+    priorityMedium: '【中優先度】',
+    priorityLow: '【低優先度】',
+    viewResults: '完全な結果を表示',
+    viewHint: '下のリンクをクリックして、詳細なスコア内訳、WHY/HOW/WHAT 分析、および推奨事項を表示します：',
+    taskId: 'タスク ID',
+    copyright: '© 2025 AI コンテンツ最適化ツール',
+    noReply: 'このメールは自動システムから送信されました。直接返信しないでください。'
+  }
+}
+
+export function generateResultEmailText(taskId, results, siteUrl, locale = 'zh-TW') {
   const { v5Scores } = results
   const { structureScore, strategyScore, overallScore } = v5Scores || {}
+  const strings = textLocaleStrings[locale] || textLocaleStrings['zh-TW']
 
-  const resultUrl = `${siteUrl}/results/${taskId}`
+  const resultUrl = `${siteUrl}/results/${taskId}?locale=${locale}`
 
   const priorityOrder = { high: 0, medium: 1, low: 2 }
   const todoItems = Array.isArray(v5Scores?.recommendations)
@@ -394,47 +497,49 @@ export function generateResultEmailText(taskId, results, siteUrl) {
     ? todoItems
         .map((rec, index) => {
           const priorityLabel = rec?.priority === 'high'
-            ? '【高優先級】'
+            ? strings.priorityHigh
             : rec?.priority === 'medium'
-              ? '【中優先級】'
-              : '【低優先級】'
-          const title = rec?.title || `待辦事項 ${index + 1}`
+              ? strings.priorityMedium
+              : strings.priorityLow
+          const title = rec?.title || `Item ${index + 1}`
           const description = rec?.description ? ` - ${rec.description}` : ''
           return `${index + 1}. ${priorityLabel}${title}${description}`
         })
         .join('\n')
-    : '目前沒有需要即刻處理的待辦事項，再接再厲！'
+    : strings.noTodos
+
+  const scoreInterpretation = overallScore >= 80 ? strings.scoreExcellent : 
+    overallScore >= 60 ? strings.scoreGood : 
+    overallScore >= 40 ? strings.scoreFair : 
+    strings.scorePoor
 
   return `
-AI 內容優化分析結果
-==================
+${strings.title}
+${'='.repeat(strings.title.length)}
 
-綜合評分: ${overallScore}/100
+${strings.scoreLabel}: ${overallScore}/100
 
-${overallScore >= 80 ? '🌟 優秀 - 內容品質卓越，已具備 AI 引用潛力' : 
-  overallScore >= 60 ? '👍 良好 - 內容有基礎，可進一步優化' : 
-  overallScore >= 40 ? '⚠️ 中等 - 需要改進' : 
-  '❌ 需改進 - 建議重新調整內容策略'}
+${scoreInterpretation}
 
-分數細項
--------
-結構分: ${structureScore}/100 (40% 權重)
-策略分: ${strategyScore}/100 (60% 權重)
+${strings.breakdown}
+${'-'.repeat(strings.breakdown.length)}
+${strings.structureScore}: ${structureScore}/100 (40% ${strings.weight})
+${strings.strategyScore}: ${strategyScore}/100 (60% ${strings.weight})
 
-優先待辦清單
------------
+${strings.todos}
+${'-'.repeat(strings.todos.length)}
 ${todoText}
 
-查看完整結果
------------
-點擊下方連結查看詳細的評分細項、WHY/HOW/WHAT 分析和改進建議：
+${strings.viewResults}
+${'-'.repeat(strings.viewResults.length)}
+${strings.viewHint}
 
 ${resultUrl}
 
-任務 ID: ${taskId}
+${strings.taskId}: ${taskId}
 
 ---
-© 2025 AI 內容優化大師
-此 Email 由自動系統寄送，請勿直接回覆。
+${strings.copyright}
+${strings.noReply}
   `.trim()
 }

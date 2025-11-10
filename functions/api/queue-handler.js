@@ -26,6 +26,7 @@ export async function handleAnalysisQueue(batch, env) {
         JSON.stringify({
           taskId: payload.taskId,
           email: payload.email,
+          locale: payload.locale || 'zh-TW',
           content: payload.content,
           keywords: payload.keywords,
           result,
@@ -79,15 +80,24 @@ async function sendResultEmail(payload, result, env) {
   const resend = new Resend(env.RESEND_API_KEY)
   
   const siteUrl = env.SITE_URL || 'https://content-optimizer.ai'
+  const locale = payload.locale || 'zh-TW'
   
-  const emailHtml = generateResultEmailHtml(payload.taskId, result, siteUrl)
-  const emailText = generateResultEmailText(payload.taskId, result, siteUrl)
+  const emailHtml = generateResultEmailHtml(payload.taskId, result, siteUrl, locale)
+  const emailText = generateResultEmailText(payload.taskId, result, siteUrl, locale)
+  
+  // 依 locale 決定郵件主旨
+  const subjectMap = {
+    'zh-TW': '✅ 您的內容分析結果已完成',
+    'en': '✅ Your Content Analysis Results Are Ready',
+    'ja': '✅ コンテンツ分析結果が完成しました'
+  }
+  const subject = subjectMap[locale] || subjectMap['zh-TW']
   
   try {
     const response = await resend.emails.send({
       from: env.RESEND_FROM_EMAIL || 'noreply@content-optimizer.ai',
       to: payload.email,
-      subject: '✅ 您的內容分析結果已完成',
+      subject,
       html: emailHtml,
       text: emailText
     })
