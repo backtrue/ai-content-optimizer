@@ -164,7 +164,9 @@ export const zhTWStrings: UIStrings = {
     errorEmptyContent: '請輸入文章內容',
     errorKeywordsRequired: '請輸入 1-5 個目標關鍵字',
     errorKeywordsMax: '目標關鍵字最多 5 個',
-    errorInvalidEmail: '請輸入有效的 Email 地址'
+    errorInvalidEmail: '請輸入有效的 Email 地址',
+    analyzing: 'AI 正在分析您的內容...',
+    analyzingHint: '這可能需要幾秒鐘，請稍候'
   },
 
   results: {
@@ -253,7 +255,12 @@ export const zhTWStrings: UIStrings = {
     metricExtractabilityDesc: '測量 AI 系統從單個段落中提取答案的難度。',
     metricKeySummaryDesc: '檢查關鍵要點、摘要和突出資訊，便於快速掃描。',
     metricConversationalGuidanceDesc: '評估整個內容中的對話式語氣和讀者指導線索。',
-    metricReaderActivationDesc: '測量行動呼籲和後續問題等參與元素，以鼓勵讀者互動。'
+    metricReaderActivationDesc: '測量行動呼籲和後續問題等參與元素，以鼓勵讀者互動。',
+    categoryContent: '內容',
+    categoryTrust: '信任',
+    categoryExperience: '讀者體驗',
+    categoryStructure: '結構',
+    categoryStrategy: '策略'
   },
 
   scoreCard: {

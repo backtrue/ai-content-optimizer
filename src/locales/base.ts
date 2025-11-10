@@ -155,6 +155,8 @@ export interface UIStrings {
     errorKeywordsRequired: string
     errorKeywordsMax: string
     errorInvalidEmail: string
+    analyzing: string
+    analyzingHint: string
   }
 
   // 結果儀表板詳細文案
@@ -247,6 +249,12 @@ export interface UIStrings {
     metricKeySummaryDesc: string
     metricConversationalGuidanceDesc: string
     metricReaderActivationDesc: string
+    // 建議分類
+    categoryContent: string
+    categoryTrust: string
+    categoryExperience: string
+    categoryStructure: string
+    categoryStrategy: string
   }
 
   // ScoreCard 相關文案

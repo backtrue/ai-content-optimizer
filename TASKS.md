@@ -409,11 +409,12 @@
 - [x] 編譯驗證通過
 - 📝 備註：title 與 description 來自後端 API，暫不改造（需後端配合）
 
-### 任務 4：前端測試驗證（待執行）
-- [ ] 切換至英文語系，驗證指標名稱、狀態標籤、描述正確顯示
-- [ ] 切換至日文語系，驗證指標名稱、狀態標籤、描述正確顯示
-- [ ] 檢查優化指南 Modal 載入對應語系內容
-- [ ] 檢查建議清單標題與描述正確翻譯
+### 任務 4：前端多語系翻譯修復（✅ 完成）
+- [x] 修復加載動畫文案硬編碼中文（新增 `analyzing` 和 `analyzingHint` locale）
+- [x] 修復建議分類標籤翻譯（新增 category locale 字串與 `resolveCategory` 函數）
+- [x] 新增 5 個 category 翻譯（zh-TW/en/ja）
+- [x] 編譯驗證通過
+- 📝 備註：Insights 標題不顯示是因為 API 未返回 metrics.aeo/metrics.seo，非翻譯問題
 
 ### 任務 5：後端 API 注入 locale（✅ 完成）
 - [x] 改造 AsyncAnalysisFlow.jsx 提交邏輯，附帶 locale 參數
@@ -424,3 +425,11 @@
 - [x] 改造 generateResultEmailText 支援 locale 參數
 - [x] 編譯驗證通過
 - 📝 備註：結果連結附帶 locale 參數，導向對應語系頁面
+
+### 任務 6：Email 異步分析流程修復（✅ 完成）
+- [x] 改造 InputSection.jsx 傳遞 locale 參數
+- [x] 改造 App.jsx handleAnalyze 檢測 email 並使用異步流程
+- [x] 改造 App.jsx 傳遞 locale 至後端 API
+- [x] 改造 [[path]].js 接收 locale 參數
+- [x] 編譯驗證通過
+- 📝 備註：Email 提交時會自動進入異步分析模式，結果將寄送至指定信箱

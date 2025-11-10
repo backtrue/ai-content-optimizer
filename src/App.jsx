@@ -150,6 +150,8 @@ function App() {
       const plainText = typeof contentPayload?.plain === 'string' ? contentPayload.plain : ''
       const htmlText = typeof contentPayload?.html === 'string' ? contentPayload.html : ''
       const markdownText = typeof contentPayload?.markdown === 'string' ? contentPayload.markdown : ''
+      const email = typeof contentPayload?.email === 'string' ? contentPayload.email : ''
+      const locale = meta?.locale || 'zh-TW'
       const formatHint = markdownText
         ? 'markdown'
         : htmlText
@@ -158,6 +160,50 @@ function App() {
 
       const contentHash = await sha256Hex(plainText)
       setFeedbackContext({ sessionId, contentHash, targetKeywords, format: formatHint, sourceUrl: null })
+      
+      // 如果有 email，使用異步分析流程
+      if (email.trim()) {
+        const asyncResponse = await fetchWithRetry(
+          `${apiUrl}/api/analyze`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            mode: 'cors',
+            credentials: 'include',
+            body: JSON.stringify({
+              content: plainText,
+              contentPlain: plainText,
+              contentHtml: htmlText || null,
+              contentMarkdown: markdownText || null,
+              contentFormatHint: formatHint,
+              targetKeywords,
+              email: email.trim(),
+              locale: locale,
+              returnChunks: false,
+              sessionId,
+              mode: meta.mode,
+              includeRecommendations: false,
+            }),
+          },
+          2,
+          1000
+        )
+        
+        const asyncData = await asyncResponse.json()
+        setAnalysisResults({
+          status: 'queued',
+          taskId: asyncData.taskId,
+          email: email.trim(),
+          message: `分析任務已提交，結果將寄送至 ${email.trim()}`
+        })
+        setIsLoading(false)
+        return
+      }
+      
+      // 同步分析流程
       const response = await fetchWithRetry(
         `${apiUrl}/api/analyze`,
         {
@@ -175,6 +221,7 @@ function App() {
             contentMarkdown: markdownText || null,
             contentFormatHint: formatHint,
             targetKeywords,
+            locale: locale,
             returnChunks: true,
             sessionId,
             mode: meta.mode,

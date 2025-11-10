@@ -42,6 +42,51 @@ const METRIC_NAME_TO_KEY = {
   'Reader Engagement & Follow-up': 'metricReaderActivation'
 }
 
+// 建議分類映射
+const CATEGORY_MAP = {
+  內容: {
+    labelKey: 'categoryContent',
+    className: 'bg-blue-100 text-blue-800 border-blue-200'
+  },
+  信任: {
+    labelKey: 'categoryTrust',
+    className: 'bg-green-100 text-green-800 border-green-200'
+  },
+  讀者體驗: {
+    labelKey: 'categoryExperience',
+    className: 'bg-purple-100 text-purple-800 border-purple-200'
+  },
+  結構: {
+    labelKey: 'categoryStructure',
+    className: 'bg-orange-100 text-orange-800 border-orange-200'
+  },
+  策略: {
+    labelKey: 'categoryStrategy',
+    className: 'bg-indigo-100 text-indigo-800 border-indigo-200'
+  }
+}
+
+const CATEGORY_ALIASES = {
+  SEO: '內容',
+  AEO: '內容',
+  Authority: '信任',
+  Structure: '讀者體驗',
+  Safety: '信任',
+  內容: '內容',
+  結構: '讀者體驗',
+  'E-E-A-T': '信任',
+  技術: '內容',
+  風險: '信任'
+}
+
+const resolveCategory = (rawCategory) => {
+  if (!rawCategory || typeof rawCategory !== 'string') return null
+  const trimmed = rawCategory.trim()
+  const normalized = CATEGORY_MAP[trimmed] ? trimmed : CATEGORY_ALIASES[trimmed]
+  if (!normalized || !CATEGORY_MAP[normalized]) return null
+  return CATEGORY_MAP[normalized]
+}
+
 const OVERALL_EXPLANATIONS = {
   '結構構面（40%）': '內容的段落編排、可讀性、證據與經驗等結構訊號，占 v5 評分 40%，確保文章骨架穩固。',
   '策略構面（60%）': '黃金圈 WHY/HOW/WHAT 策略深度，占 60%，反映內容是否真正回應讀者與搜尋需求。'
@@ -508,11 +553,18 @@ export default function ResultsDashboard({
                         {badge.label}
                       </span>
                     </div>
-                    {rec.category && (
-                      <div className="mt-2 text-xs text-gray-500">
-                        {resultsStrings.category}：{rec.category}
-                      </div>
-                    )}
+                    {rec.category && (() => {
+                      const categoryInfo = resolveCategory(rec.category)
+                      if (!categoryInfo) return null
+                      return (
+                        <div className="mt-2 text-xs text-gray-500">
+                          {resultsStrings.category}：
+                          <span className={`ml-1 px-2 py-1 rounded text-xs font-medium border ${categoryInfo.className}`}>
+                            {resultsStrings[categoryInfo.labelKey] || rec.category}
+                          </span>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}

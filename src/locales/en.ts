@@ -132,7 +132,9 @@ export const enStrings: UIStrings = {
     errorEmptyContent: 'Please enter your article content.',
     errorKeywordsRequired: 'Please provide between 1 and 5 target keywords.',
     errorKeywordsMax: 'You can specify up to 5 target keywords only.',
-    errorInvalidEmail: 'Please enter a valid email address.'
+    errorInvalidEmail: 'Please enter a valid email address.',
+    analyzing: 'AI is analyzing your content...',
+    analyzingHint: 'This may take a few seconds. Please wait.'
   },
 
   results: {
@@ -221,7 +223,12 @@ export const enStrings: UIStrings = {
     metricExtractabilityDesc: 'Measures how easily AI systems can extract answers from individual paragraphs.',
     metricKeySummaryDesc: 'Checks for key takeaways, summaries, and highlighted information for quick scanning.',
     metricConversationalGuidanceDesc: 'Evaluates conversational tone and reader guidance cues throughout the content.',
-    metricReaderActivationDesc: 'Measures engagement elements like CTAs and follow-up questions to encourage reader interaction.'
+    metricReaderActivationDesc: 'Measures engagement elements like CTAs and follow-up questions to encourage reader interaction.',
+    categoryContent: 'Content',
+    categoryTrust: 'Trust',
+    categoryExperience: 'Reader Experience',
+    categoryStructure: 'Structure',
+    categoryStrategy: 'Strategy'
   },
 
   scoreCard: {

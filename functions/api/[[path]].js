@@ -4310,6 +4310,7 @@ async function handleAsyncAnalysis(context, requestBody, corsHeaders) {
       targetKeywords: requestBody.targetKeywords || [],
       contentFormatHint: requestBody.contentFormatHint || 'auto',
       email: requestBody.email,
+      locale: requestBody.locale || 'zh-TW',
       includeRecommendations: requestBody.includeRecommendations === true || requestBody.includeRecommendations === 'true'
     }
 

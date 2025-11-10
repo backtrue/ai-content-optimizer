@@ -164,7 +164,9 @@ export const jaStrings: UIStrings = {
     errorEmptyContent: '記事内容を入力してください。',
     errorKeywordsRequired: 'ターゲットキーワードを1〜5語入力してください。',
     errorKeywordsMax: 'ターゲットキーワードは最大5語までです。',
-    errorInvalidEmail: '有効なメールアドレスを入力してください。'
+    errorInvalidEmail: '有効なメールアドレスを入力してください。',
+    analyzing: 'AI がコンテンツを分析中です...',
+    analyzingHint: 'これには数秒かかる場合があります。お待ちください。'
   },
 
   results: {
@@ -253,7 +255,12 @@ export const jaStrings: UIStrings = {
     metricExtractabilityDesc: 'AI システムが個々の段落から回答を抽出できる容易さを測定します。',
     metricKeySummaryDesc: 'キーポイント、要約、強調表示された情報をチェックして、素早いスキャンを可能にします。',
     metricConversationalGuidanceDesc: 'コンテンツ全体の会話的なトーンと読者ガイダンス キューを評価します。',
-    metricReaderActivationDesc: '読者のインタラクションを促すための CTA やフォローアップ質問などのエンゲージメント要素を測定します。'
+    metricReaderActivationDesc: '読者のインタラクションを促すための CTA やフォローアップ質問などのエンゲージメント要素を測定します。',
+    categoryContent: 'コンテンツ',
+    categoryTrust: '信頼性',
+    categoryExperience: '読者体験',
+    categoryStructure: '構造',
+    categoryStrategy: '戦略'
   },
 
   scoreCard: {

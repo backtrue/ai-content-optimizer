@@ -10,7 +10,7 @@ export default function InputSection({ onAnalyze, isLoading }) {
   const [targetKeywordsInput, setTargetKeywordsInput] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
-  const { strings } = useLocale()
+  const { strings, locale } = useLocale()
   const { input } = strings
 
   const handleEditorInput = (event) => {
@@ -123,7 +123,8 @@ export default function InputSection({ onAnalyze, isLoading }) {
       payload.email = email.trim()
     }
     const meta = {
-      mode: 'text'
+      mode: 'text',
+      locale: locale
     }
     onAnalyze(payload, keywords, meta)
   }
