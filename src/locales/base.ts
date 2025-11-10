@@ -266,6 +266,39 @@ export interface UIStrings {
     good: string
     fair: string
     needsImprovement: string
+    // Breakdown 標籤
+    headingStructure: string
+    contentOrganization: string
+    readability: string
+    evidence: string
+    experience: string
+    freshness: string
+    actionability: string
+    semanticQuality: string
+    credibility: string
+    trustSignals: string
+    why: string
+    how: string
+    what: string
+    overallScore: string
+    structure: string
+    strategy: string
+    // 解釋文案
+    structureExplanationIntro: string
+    strategyExplanationIntro: string
+    headingStructureExpl: string
+    contentOrganizationExpl: string
+    readabilityExpl: string
+    evidenceExpl: string
+    experienceExpl: string
+    freshnessExpl: string
+    actionabilityExpl: string
+    semanticQualityExpl: string
+    contentLengthExpl: string
+    whyExpl: string
+    howExpl: string
+    whatExpl: string
+    overallScoreExpl: string
   }
 
   // 建議清單相關文案

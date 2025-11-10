@@ -87,29 +87,7 @@ const resolveCategory = (rawCategory) => {
   return CATEGORY_MAP[normalized]
 }
 
-const OVERALL_EXPLANATIONS = {
-  '結構構面（40%）': '內容的段落編排、可讀性、證據與經驗等結構訊號，占 v5 評分 40%，確保文章骨架穩固。',
-  '策略構面（60%）': '黃金圈 WHY/HOW/WHAT 策略深度，占 60%，反映內容是否真正回應讀者與搜尋需求。'
-}
-
-const STRUCTURE_EXPLANATIONS = {
-  headingStructure: '檢查 H1/H2 層級是否清楚、標題命名是否聚焦主題，讓讀者與搜尋引擎快速掌握大綱。',
-  contentOrganization: '評估段落、清單、表格等結構化元素的運用，確保資訊有條理、不散亂。',
-  readability: '衡量句子長度與長段落比例，確認語句流暢、段落適中，減輕閱讀負擔。',
-  evidence: '檢視是否援引數據、年份與可靠來源，佐證內容主張並提升可信度。',
-  experience: '偵測第一人稱經驗、案例或實作心得，強化 EEAT 的「經驗」信號。',
-  freshness: '確認是否揭露更新日期並引用近期資訊，避免過時內容影響搜尋可信度。',
-  actionability: '看內容是否提供步驟、檢核表或具體建議，協助讀者立即採取行動。',
-  semanticQuality: '針對 HTML 模式評估語意自然度與段落聚焦度，避免堆砌關鍵字。',
-  contentLength: '純文字模式下評估字數與段落密度是否足以完整回答主題、維持節奏。'
-}
-
-const STRATEGY_EXPLANATIONS = {
-  why: '說明為什麼這個主題重要，是否具體描繪讀者痛點與情境，建立內容可信賴的理由。',
-  how: '評估內容是否提供清楚步驟、方法與執行準則，讓讀者知道該怎麼做。',
-  what: '檢查最終主張與行動呼籲是否明確，幫助讀者了解下一步或可得到的價值。',
-  overallScore: '黃金圈三構面平均後的策略表現，用來衡量整體說服力與敘事完整度。'
-}
+// 解釋文案已移至 locale 檔案中的 scoreCard 區塊
 
 export default function ResultsDashboard({
   results,
@@ -203,6 +181,39 @@ export default function ResultsDashboard({
     breakdown: null,
     recommendations: recommendations,
     isV5: false
+  }
+
+  // 建立動態的解釋物件（從 locale 字串中提取）
+  const { scoreCard: scoreCardStrings } = strings
+  const buildExplanations = (type) => {
+    if (type === 'overall') {
+      return {
+        structure: scoreCardStrings.structureExplanationIntro,
+        strategy: scoreCardStrings.strategyExplanationIntro
+      }
+    }
+    if (type === 'structure') {
+      return {
+        headingStructure: scoreCardStrings.headingStructureExpl,
+        contentOrganization: scoreCardStrings.contentOrganizationExpl,
+        readability: scoreCardStrings.readabilityExpl,
+        evidence: scoreCardStrings.evidenceExpl,
+        experience: scoreCardStrings.experienceExpl,
+        freshness: scoreCardStrings.freshnessExpl,
+        actionability: scoreCardStrings.actionabilityExpl,
+        semanticQuality: scoreCardStrings.semanticQualityExpl,
+        contentLength: scoreCardStrings.contentLengthExpl
+      }
+    }
+    if (type === 'strategy') {
+      return {
+        why: scoreCardStrings.whyExpl,
+        how: scoreCardStrings.howExpl,
+        what: scoreCardStrings.whatExpl,
+        overallScore: scoreCardStrings.overallScoreExpl
+      }
+    }
+    return null
   }
 
   const convertToPercent = (value) => {
@@ -488,10 +499,10 @@ export default function ResultsDashboard({
             ? resultsStrings.overallScoreDescription
             : '目前尚未取得 v5 評分，以下為舊版綜合分數。'}
           breakdown={displayScores.isV5 ? {
-            '結構構面（40%）': displayScores.structure,
-            '策略構面（60%）': displayScores.strategy
+            structure: displayScores.structure,
+            strategy: displayScores.strategy
           } : null}
-          explanations={displayScores.isV5 ? OVERALL_EXPLANATIONS : null}
+          explanations={displayScores.isV5 ? buildExplanations('overall') : null}
         />
       </section>
 
@@ -508,7 +519,7 @@ export default function ResultsDashboard({
             maxScore={displayScores.isV5 ? 10 : 100}
             description={resultsStrings.structureScoreDescription}
             breakdown={displayScores.isV5 ? displayScores.breakdown?.structure : null}
-            explanations={displayScores.isV5 ? STRUCTURE_EXPLANATIONS : null}
+            explanations={displayScores.isV5 ? buildExplanations('structure') : null}
           />
           <ScoreCard
             title={resultsStrings.strategyScoreTitle}
@@ -516,7 +527,7 @@ export default function ResultsDashboard({
             maxScore={displayScores.isV5 ? 10 : 100}
             description={resultsStrings.strategyScoreDescription}
             breakdown={displayScores.isV5 ? displayScores.breakdown?.strategy : null}
-            explanations={displayScores.isV5 ? STRATEGY_EXPLANATIONS : null}
+            explanations={displayScores.isV5 ? buildExplanations('strategy') : null}
           />
         </div>
       </section>

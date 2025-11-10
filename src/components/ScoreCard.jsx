@@ -2,25 +2,6 @@ import { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { useLocale } from '../locales/useLocale'
 
-const BREAKDOWN_LABEL_MAP = {
-  headingStructure: '標題結構',
-  contentOrganization: '內容編排',
-  readability: '易讀性',
-  evidence: '佐證資料',
-  experience: '實務經驗',
-  freshness: '時效與更新',
-  actionability: '可執行性',
-  semanticQuality: '語意品質',
-  credibility: '可信度',
-  trustSignals: '信任訊號',
-  why: 'Why（為何）',
-  how: 'How（如何）',
-  what: 'What（做什麼）',
-  overallScore: '整體策略指標',
-  structure: '結構',
-  strategy: '策略'
-}
-
 // 狀態配置（使用 locale key）
 const STATUS_CONFIG = [
   {
@@ -154,8 +135,8 @@ export default function ScoreCard({
               const displayValue = numeric <= 10 ? `${numeric}/10` : `${numeric}`
               const labelKey = typeof rawLabel === 'string' ? rawLabel : String(rawLabel)
               const normalizedKey = typeof labelKey === 'string' ? labelKey.toLowerCase() : labelKey
-              const translatedLabel = BREAKDOWN_LABEL_MAP[labelKey]
-                || (typeof normalizedKey === 'string' ? BREAKDOWN_LABEL_MAP[normalizedKey] : undefined)
+              const translatedLabel = scoreCardStrings[labelKey]
+                || (typeof normalizedKey === 'string' ? scoreCardStrings[normalizedKey] : undefined)
                 || labelKey
               const explanation = explanationEntries[labelKey]
                 || (typeof normalizedKey === 'string' ? explanationEntries[normalizedKey] : undefined)

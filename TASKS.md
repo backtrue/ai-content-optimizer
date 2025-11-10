@@ -413,6 +413,10 @@
 - [x] 修復加載動畫文案硬編碼中文（新增 `analyzing` 和 `analyzingHint` locale）
 - [x] 修復建議分類標籤翻譯（新增 category locale 字串與 `resolveCategory` 函數）
 - [x] 新增 5 個 category 翻譯（zh-TW/en/ja）
+- [x] 修復 ScoreCard Breakdown 標籤翻譯（移除硬編碼 BREAKDOWN_LABEL_MAP）
+- [x] 修復解釋文案翻譯（移除硬編碼 OVERALL/STRUCTURE/STRATEGY_EXPLANATIONS）
+- [x] 新增 40+ 個 scoreCard 相關翻譯（zh-TW/en/ja）
+- [x] 改造 ResultsDashboard.jsx 使用動態 buildExplanations 函數
 - [x] 編譯驗證通過
 - 📝 備註：Insights 標題不顯示是因為 API 未返回 metrics.aeo/metrics.seo，非翻譯問題
 
