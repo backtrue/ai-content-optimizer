@@ -11,26 +11,26 @@ const indexPath = path.join(distDir, 'index.html')
 const localeMetadata = {
   en: {
     lang: 'en',
-    title: 'Content Optimizer AI - SEO & AEO Scoring Analysis Tool',
-    description: 'Analyze your content\'s SEO strategy and structure performance with AI-driven scoring. Get detailed optimization recommendations to improve search rankings and AI citation rates.',
-    ogTitle: 'Content Optimizer AI',
-    ogDescription: 'Professional SEO & AEO content analysis tool',
+    title: 'SrcRank: The AI Content Strategy & AEO Score',
+    description: 'Stop guessing what AI wants. SrcRank analyzes your content on two dimensions: Structural Integrity for RAG retrievability and Strategic Persuasion. It moves beyond keywords to evaluate your content\'s core logic, helping you become a credible, citable source in the generative AI era.',
+    ogTitle: 'SrcRank: The AI Content Strategy & AEO Score',
+    ogDescription: 'Analyze your content\'s structural integrity and strategic persuasion for AI citation',
     ogLocale: 'en_US'
   },
   'zh-TW': {
     lang: 'zh-TW',
-    title: 'AI 內容優化大師 - SEO 與 AEO 評分分析工具',
-    description: '使用 AI 驅動的評分模型，分析您的內容在 SEO 策略與結構方面的表現。獲得詳細的優化建議，提升搜尋排名與 AI 引用率。',
-    ogTitle: 'AI 內容優化大師',
-    ogDescription: '專業的 SEO 與 AEO 內容分析工具',
+    title: '源策 (SrcRank): 您的 AI 內容策略顧問',
+    description: '「報數據」提供客觀指標，「源策」評估內容靈魂。源策 (SrcRank) 是一個專為 AEO/GEO 時代打造的自適應評分演算法，它同時評估您內容的「純內容結構」與「AI 策略說服力」。我們不再只評估關鍵字，而是讓 AI 深度解讀您內容的核心論述，幫助您的內容從「資訊」升級為「可信的引用來源」。',
+    ogTitle: '源策 (SrcRank): 您的 AI 內容策略顧問',
+    ogDescription: '評估內容結構與 AI 策略說服力，助您成為可信的引用來源',
     ogLocale: 'zh_TW'
   },
   ja: {
     lang: 'ja',
-    title: 'コンテンツ最適化AI - SEO＆AEOスコアリング分析ツール',
-    description: 'AI駆動のスコアリングモデルを使用して、コンテンツのSEO戦略と構造パフォーマンスを分析します。詳細な最適化推奨事項を取得して、検索ランキングとAI引用率を向上させます。',
-    ogTitle: 'コンテンツ最適化AI',
-    ogDescription: 'プロフェッショナルなSEO＆AEOコンテンツ分析ツール',
+    title: '源策 (Gensaku): AI時代のためのAEO/RAG戦略スコア',
+    description: '「源策 (ゲンサク)」は、AIの引用元 (Source) となるための「戦略 (Strategy)」を評価するアルゴリズムです。客観的な「コンテンツ構造」と、AIが評価する「戦略的説得力」を融合。AIがコンテンツの核心的な論理フレームワークを深く読み解き、あなたのコンテンツがAIの「原作 (Gensaku)」として引用されるに値する「典拠 (Tenkyo)」となるよう導きます。',
+    ogTitle: '源策 (Gensaku): AI時代のためのAEO/RAG戦略スコア',
+    ogDescription: 'AIの引用元となるための戦略を評価し、あなたのコンテンツを信頼できる情報源へ',
     ogLocale: 'ja_JP'
   }
 }
