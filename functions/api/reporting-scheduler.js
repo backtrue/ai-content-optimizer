@@ -190,6 +190,9 @@ export class ReportingScheduler {
         await this.notifySlack(weeklyReport)
       }
 
+      // 寄送 Email
+      await this.sendWeeklyReportEmail(weeklyReport)
+
       // 更新狀態
       const state = await this.getStatus()
       state.lastWeeklyReportAt = now.toISOString()
@@ -371,6 +374,124 @@ export class ReportingScheduler {
     } catch (error) {
       console.error('發送 Slack 通知失敗:', error)
     }
+  }
+
+  /**
+   * 寄送週報 Email
+   */
+  async sendWeeklyReportEmail(report) {
+    try {
+      if (!this.env.RESEND_API_KEY) {
+        console.warn('RESEND_API_KEY 未設定，略過週報 Email 寄送')
+        return
+      }
+
+      const { Resend } = await import('resend')
+      const resend = new Resend(this.env.RESEND_API_KEY)
+
+      const recipients = (this.env.WEEKLY_REPORT_RECIPIENTS || 'backtrue@toldyou.co')
+        .split(',')
+        .map((email) => email.trim())
+        .filter(Boolean)
+
+      if (!recipients.length) {
+        console.warn('週報 Email 收件者列表為空，略過寄送')
+        return
+      }
+
+      const subject = `📈 Pipeline 週報 (${report.period})`
+      const html = this.buildWeeklyReportHtml(report)
+      const text = this.buildWeeklyReportText(report)
+
+      const response = await resend.emails.send({
+        from: this.env.RESEND_FROM_EMAIL || 'noreply@content-optimizer.ai',
+        to: recipients,
+        subject,
+        html,
+        text
+      })
+
+      console.log(`📬 週報 Email 已寄送: ${response.id || 'no-id'}`)
+    } catch (error) {
+      console.error('週報 Email 寄送失敗:', error)
+    }
+  }
+
+  buildWeeklyReportHtml(report) {
+    const { aggregated, recommendations, nextSteps } = report
+    const formatCurrency = (value) => `$${(value ?? 0).toFixed(2)}`
+
+    return `
+      <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111827; background: #f9fafb; padding: 24px;">
+          <div style="max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 12px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 24px 32px; color: white;">
+              <p style="margin: 0; opacity: 0.8; font-size: 14px;">Pipeline 每週報告</p>
+              <h1 style="margin: 8px 0 0; font-size: 28px;">${report.period}</h1>
+            </div>
+            <div style="padding: 24px 32px;">
+              <h2 style="font-size: 20px; margin-top: 0;">📊 摘要指標</h2>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                <tbody>
+                  <tr>
+                    <td style="padding: 12px 0; font-weight: 600; color: #4b5563;">蒐集記錄總數</td>
+                    <td style="text-align: right; font-size: 18px; font-weight: 700; color: #111827;">${aggregated.totalRecords}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 0; font-weight: 600; color: #4b5563;">總成本</td>
+                    <td style="text-align: right; font-size: 18px; font-weight: 700; color: #10b981;">${formatCurrency(aggregated.totalCost)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 0; font-weight: 600; color: #4b5563;">日均成本</td>
+                    <td style="text-align: right; font-size: 18px; font-weight: 700; color: #2563eb;">${formatCurrency(aggregated.averageDailyCost)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 0; font-weight: 600; color: #4b5563;">平均成功率</td>
+                    <td style="text-align: right; font-size: 18px; font-weight: 700; color: #f59e0b;">${(aggregated.averageSuccessRate ?? 0).toFixed(1)}%</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h2 style="font-size: 20px;">✅ 建議事項</h2>
+              <ul style="padding-left: 20px; color: #374151;">
+                ${(recommendations || []).map((item) => `<li style="margin: 8px 0;">${item}</li>`).join('') || '<li style="margin: 8px 0; color: #6b7280;">本週無特別建議</li>'}
+              </ul>
+
+              <h2 style="font-size: 20px;">🛠 下一步行動</h2>
+              <ol style="padding-left: 20px; color: #374151;">
+                ${(nextSteps || []).map((item) => `<li style="margin: 8px 0;">${item}</li>`).join('') || '<li style="margin: 8px 0; color: #6b7280;">請持續監控 Pipeline 狀態</li>'}
+              </ol>
+            </div>
+            <div style="padding: 16px 32px; background: #f3f4f6; color: #6b7280; font-size: 13px; text-align: center;">
+              如需查看更多細節，請登入 Pipeline 控制台。
+            </div>
+          </div>
+        </body>
+      </html>
+    `
+  }
+
+  buildWeeklyReportText(report) {
+    const { aggregated, recommendations, nextSteps } = report
+    const formatCurrency = (value) => `$${(value ?? 0).toFixed(2)}`
+
+    return [
+      `📈 Pipeline 週報 (${report.period})`,
+      '',
+      '📊 摘要指標',
+      `- 蒐集記錄總數：${aggregated.totalRecords}`,
+      `- 總成本：${formatCurrency(aggregated.totalCost)}`,
+      `- 日均成本：${formatCurrency(aggregated.averageDailyCost)}`,
+      `- 平均成功率：${(aggregated.averageSuccessRate ?? 0).toFixed(1)}%`,
+      '',
+      '✅ 建議事項',
+      ...(recommendations?.length ? recommendations.map((item) => `- ${item}`) : ['- 本週無特別建議']),
+      '',
+      '🛠 下一步行動',
+      ...(nextSteps?.length ? nextSteps.map((item) => `- ${item}`) : ['- 請持續監控 Pipeline 狀態']),
+      '',
+      '如需查看更多細節，請登入 Pipeline 控制台。'
+    ].join('\n')
   }
 
   /**

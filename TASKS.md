@@ -545,7 +545,7 @@
   - 故障排除指南
 
 #### 2.7 測試清單
-- [x] 本地測試 `serp_collection_batch.py` - 待實施
+- [ ] 本地測試 `serp_collection_batch.py`
 - [ ] 測試 SERP Collection Scheduler 狀態機
 - [ ] 測試 R2 上傳
 - [ ] 測試 Pipeline 整合流程
@@ -599,7 +599,7 @@
   - 故障排除指南
 
 #### 3.7 測試清單
-- [x] 本地測試 `train_model_cli.py` - 待實施
+- [ ] 本地測試 `train_model_cli.py`
 - [ ] 測試 Model Deployment Scheduler 狀態機
 - [ ] 測試模型轉檔流程
 - [ ] 測試 KV 更新
@@ -645,7 +645,7 @@
   - 故障排除指南
 
 #### 4.6 測試清單
-- [x] 本地測試 cost_tracker.py 新功能 - 待實施
+- [ ] 本地測試 cost_tracker.py 新功能
 - [ ] 測試 Reporting Scheduler 狀態機
 - [ ] 測試報表生成與 R2 上傳
 - [ ] 測試 Slack 通知
