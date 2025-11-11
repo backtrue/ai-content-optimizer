@@ -98,6 +98,107 @@ const RATE_LIMIT_CONFIG = {
   ip: { limit: 40, windowSeconds: 60 * 60 }
 };
 
+const EMAIL_PATTERN = /@|mail|email|＠/i
+const URL_PATTERN = /(https?:\/\/|www\.|\.com\b|\.net\b|\.io\b|\.app\b)/i
+const KEYWORD_LOG_TTL_SECONDS = 30 * 24 * 60 * 60
+const MAX_TRACKED_KEYWORD_LENGTH = 120
+
+async function sha256Hex(value) {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(value || '')
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function normalizeTargetKeywords(rawKeywords) {
+  if (!rawKeywords) return []
+
+  let keywords = []
+  if (Array.isArray(rawKeywords)) {
+    keywords = rawKeywords
+  } else if (typeof rawKeywords === 'string') {
+    keywords = rawKeywords.split(/[\s,]+/)
+  }
+
+  return keywords
+    .map((kw) => String(kw || '').trim())
+    .filter(Boolean)
+    .slice(0, 5)
+}
+
+function sanitizeKeywordsForLogging(keywords) {
+  const unique = new Set()
+  const sanitized = []
+
+  for (const keyword of keywords) {
+    if (typeof keyword !== 'string') continue
+    let candidate = keyword.trim()
+    if (!candidate) continue
+    if (candidate.length > MAX_TRACKED_KEYWORD_LENGTH) {
+      candidate = candidate.slice(0, MAX_TRACKED_KEYWORD_LENGTH)
+    }
+    if (EMAIL_PATTERN.test(candidate) || URL_PATTERN.test(candidate)) {
+      continue
+    }
+    const normalized = candidate.toLowerCase()
+    if (unique.has(normalized)) continue
+    unique.add(normalized)
+    sanitized.push(candidate)
+  }
+
+  return sanitized
+}
+
+async function logKeywordAnalytics({
+  env,
+  keywords = [],
+  locale = 'zh-TW',
+  sessionId = null,
+  hasEmail = false,
+  mode = 'sync',
+  plainContent = ''
+}) {
+  try {
+    if (!env?.KEYWORD_ANALYTICS) {
+      return
+    }
+
+    const normalizedKeywords = normalizeTargetKeywords(keywords)
+    const sanitizedKeywords = sanitizeKeywordsForLogging(normalizedKeywords)
+
+    if (!sanitizedKeywords.length) {
+      return
+    }
+
+    const timestamp = new Date().toISOString()
+    const keywordHash = await sha256Hex(sanitizedKeywords.join('|'))
+    const contentHash = plainContent && typeof plainContent === 'string' && plainContent.trim()
+      ? await sha256Hex(plainContent.slice(0, 6000))
+      : null
+
+    const storageKey = `kw:${timestamp}:${keywordHash.slice(0, 12)}`
+
+    const record = {
+      timestamp,
+      locale,
+      keywords: sanitizedKeywords,
+      hash: keywordHash,
+      sessionId: sessionId || null,
+      contentHash,
+      hasEmail: Boolean(hasEmail),
+      mode,
+      source: 'analyze'
+    }
+
+    await env.KEYWORD_ANALYTICS.put(storageKey, JSON.stringify(record), {
+      expirationTtl: KEYWORD_LOG_TTL_SECONDS
+    })
+  } catch (error) {
+    console.warn('logKeywordAnalytics failed:', error?.message || error)
+  }
+}
+
 export const onRequest = async (context) => {
   const { request, env } = context
   const requestUrl = new URL(request.url)
@@ -1912,10 +2013,12 @@ async function handleAnalyzePost(context, corsHeaders) {
       throw new Error('無效的 JSON 請求體')
     }
 
+    const sessionId = getClientSessionId(requestBody)
+
     // v5：如果提供 email，改用非同步模式
     if (requestBody.email && typeof requestBody.email === 'string' && requestBody.email.trim()) {
       console.log('偵測到 email，改用非同步模式')
-      return await handleAsyncAnalysis(context, requestBody, corsHeaders)
+      return await handleAsyncAnalysis({ ...context, sessionId }, requestBody, corsHeaders)
     }
 
     const rawContentUrl = requestBody?.contentUrl || requestBody?.url
@@ -2056,6 +2159,16 @@ async function handleAnalyzePost(context, corsHeaders) {
       )
     }
     console.log('目標關鍵字:', targetKeywords)
+
+    await logKeywordAnalytics({
+      env,
+      keywords: targetKeywords,
+      locale: requestBody.locale || 'zh-TW',
+      sessionId,
+      hasEmail: false,
+      mode: 'sync',
+      plainContent: normalizedContentVariants.plain
+    })
 
     const returnChunks = Boolean(requestBody.returnChunks)
 
@@ -4293,7 +4406,7 @@ function ensureMetricShape(metrics, defaults, scope) {
  * 使用 Durable Object 隊列提交任務
  */
 async function handleAsyncAnalysis(context, requestBody, corsHeaders) {
-  const { env } = context
+  const { env, sessionId = null } = context
 
   try {
     console.log('準備提交非同步分析任務...')
@@ -4303,16 +4416,28 @@ async function handleAsyncAnalysis(context, requestBody, corsHeaders) {
     const queueObject = env.ANALYSIS_QUEUE.get(queueId)
 
     // 準備分析負載
+    const normalizedKeywords = normalizeTargetKeywords(requestBody.targetKeywords || requestBody.targetKeyword || [])
+
     const analysisPayload = {
       content: requestBody.content || requestBody.contentPlain || '',
       contentHtml: requestBody.contentHtml || '',
       contentMarkdown: requestBody.contentMarkdown || '',
-      targetKeywords: requestBody.targetKeywords || [],
+      targetKeywords: normalizedKeywords,
       contentFormatHint: requestBody.contentFormatHint || 'auto',
       email: requestBody.email,
       locale: requestBody.locale || 'zh-TW',
       includeRecommendations: requestBody.includeRecommendations === true || requestBody.includeRecommendations === 'true'
     }
+
+    await logKeywordAnalytics({
+      env,
+      keywords: normalizedKeywords,
+      locale: analysisPayload.locale,
+      sessionId,
+      hasEmail: true,
+      mode: 'async',
+      plainContent: analysisPayload.content
+    })
 
     // 提交到 Durable Object 隊列
     const submitResponse = await queueObject.fetch(new Request('http://localhost/submit', {

@@ -140,6 +140,23 @@ wrangler pages secret put GEMINI_API_KEY
 wrangler pages secret put OPENAI_API_KEY
 ```
 
+6. **設定關鍵字分析儲存**
+   - 使用 Cloudflare Dashboard 建立 `ANALYSIS_RESULTS` 與 `KEYWORD_ANALYTICS` 兩個 KV Namespace，並將 ID 更新到 `wrangler.toml`
+   - 設定管理端查詢所需的 bearer token：
+     ```bash
+     wrangler secret put KEYWORD_ANALYTICS_TOKEN
+     ```
+
+### Keyword analytics
+- 每次分析請求會紀錄最多 5 個、已清洗的目標關鍵字（去重、移除 email/URL），並存入 `KEYWORD_ANALYTICS`，保存 30 天。
+- 查詢最近紀錄（部署後、已設定 `KEYWORD_ANALYTICS_TOKEN`）：
+  ```bash
+  curl \
+    -H "Authorization: Bearer ${KEYWORD_ANALYTICS_TOKEN}" \
+    "https://<worker-host>/api/keywords/recent?limit=100"
+  ```
+- 支援查詢參數： `limit`（預設 100，最高 200）、`since`（ISO timestamp）、`locale`（`en`、`zh-TW`、`ja`）
+
 ## 🔑 獲取 API Key
 
 ### OpenAI API Key

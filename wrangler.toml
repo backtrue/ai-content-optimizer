@@ -8,6 +8,11 @@ binding = "ANALYSIS_RESULTS"
 id = "26377e2774624d0781a19b026e018b5f"
 preview_id = "26377e2774624d0781a19b026e018b5f"
 
+[[kv_namespaces]]
+binding = "KEYWORD_ANALYTICS"
+id = "3f3dbe6d18fd4b9b8f0a5c9d0d37a8cb"
+preview_id = "3f3dbe6d18fd4b9b8f0a5c9d0d37a8cb"
+
 # Durable Object for async analysis queue (replaces Queues for free plan)
 [[durable_objects.bindings]]
 name = "ANALYSIS_QUEUE"
@@ -28,6 +33,10 @@ routes = [
 [[env.production.kv_namespaces]]
 binding = "ANALYSIS_RESULTS"
 id = "analysis_results_prod"
+
+[[env.production.kv_namespaces]]
+binding = "KEYWORD_ANALYTICS"
+id = "keyword_analytics_prod"
 
 [[env.production.durable_objects.bindings]]
 name = "ANALYSIS_QUEUE"
