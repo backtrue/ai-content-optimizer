@@ -1,0 +1,173 @@
+{
+  "timestamp": "2025-11-11T01:47:41.395Z",
+  "totalTests": 3,
+  "passCount": 3,
+  "passRate": 100,
+  "results": [
+    {
+      "testCase": "golden_001",
+      "title": "如何選擇葉黃素補充品",
+      "analysis": {
+        "why": {
+          "scores": [
+            8,
+            8,
+            8
+          ],
+          "average": 8,
+          "stdDev": 0,
+          "expected": {
+            "min": 7,
+            "max": 9,
+            "description": "清楚說明了視力衰退問題"
+          },
+          "withinRange": true,
+          "pass": true
+        },
+        "how": {
+          "scores": [
+            6,
+            6,
+            6
+          ],
+          "average": 6,
+          "stdDev": 0,
+          "expected": {
+            "min": 5,
+            "max": 7,
+            "description": "提供了基本選擇標準與劑量"
+          },
+          "withinRange": true,
+          "pass": true
+        },
+        "what": {
+          "scores": [
+            8,
+            8,
+            8
+          ],
+          "average": 8,
+          "stdDev": 0,
+          "expected": {
+            "min": 7,
+            "max": 9,
+            "description": "給出了明確的建議"
+          },
+          "withinRange": true,
+          "pass": true
+        }
+      },
+      "passed": true
+    },
+    {
+      "testCase": "golden_002",
+      "title": "遠端工作的生產力技巧",
+      "analysis": {
+        "why": {
+          "scores": [
+            7,
+            7,
+            7
+          ],
+          "average": 7,
+          "stdDev": 0,
+          "expected": {
+            "min": 5,
+            "max": 9,
+            "description": "提及了遠端工作的挑戰"
+          },
+          "withinRange": true,
+          "pass": true
+        },
+        "how": {
+          "scores": [
+            6,
+            6,
+            6
+          ],
+          "average": 6,
+          "stdDev": 0,
+          "expected": {
+            "min": 5,
+            "max": 7,
+            "description": "提供了基本方法和工具"
+          },
+          "withinRange": true,
+          "pass": true
+        },
+        "what": {
+          "scores": [
+            5,
+            5,
+            5
+          ],
+          "average": 5,
+          "stdDev": 0,
+          "expected": {
+            "min": 4,
+            "max": 6,
+            "description": "結論較為通用"
+          },
+          "withinRange": true,
+          "pass": true
+        }
+      },
+      "passed": true
+    },
+    {
+      "testCase": "golden_003",
+      "title": "氣候變遷對農業的影響",
+      "analysis": {
+        "why": {
+          "scores": [
+            9,
+            9,
+            9
+          ],
+          "average": 9,
+          "stdDev": 0,
+          "expected": {
+            "min": 8,
+            "max": 10,
+            "description": "清楚闡述了問題的嚴重性"
+          },
+          "withinRange": true,
+          "pass": true
+        },
+        "how": {
+          "scores": [
+            3,
+            3,
+            3
+          ],
+          "average": 3,
+          "stdDev": 0,
+          "expected": {
+            "min": 2,
+            "max": 4,
+            "description": "提供的適應策略較為概念性"
+          },
+          "withinRange": true,
+          "pass": true
+        },
+        "what": {
+          "scores": [
+            8,
+            8,
+            8
+          ],
+          "average": 8,
+          "stdDev": 0,
+          "expected": {
+            "min": 7,
+            "max": 9,
+            "description": "給出了綜合建議"
+          },
+          "withinRange": true,
+          "pass": true
+        }
+      },
+      "passed": true
+    }
+  ]
+}

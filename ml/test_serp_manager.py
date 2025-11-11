@@ -16,6 +16,7 @@ def test_manager():
     print("="*70 + "\n")
     
     manager = get_manager()
+    assert manager is not None, "Manager should be initialized"
     
     # Check configuration
     print("📋 Configuration:")
@@ -29,12 +30,16 @@ def test_manager():
     # Check services
     print("🔧 Configured Services:")
     if not manager.services:
-        print("  ❌ No services configured!")
-        print("  Please set API keys in environment variables:")
-        print("    - SERPAPI_KEY")
-        print("    - VALUESERP_KEY")
-        print("    - ZENSERP_KEY")
-        return False
+        print("  ⚠️ No services configured (API Keys not set)")
+        print("  To enable testing, set environment variables:")
+        print("    - SERPAPI_KEYS")
+        print("    - VALUESERP_KEYS")
+        print("    - ZENSERP_KEYS")
+        print("\n  Skipping fetch test (API Keys required)")
+        print("✅ Configuration test passed!")
+        return
+    
+    print(f"  ✓ Services configured: {len(manager.services)}")
     
     for name, service in manager.services.items():
         status = "✓" if service.is_available() else "✗"
@@ -57,10 +62,11 @@ def test_manager():
         print(f"  Results: {len(results)}")
         for i, result in enumerate(results[:3], 1):
             print(f"    {i}. {result['title'][:50]}...")
+        assert len(results) > 0, "Should have at least one result"
     else:
         print(f"  ✗ Failed!")
         print(f"  Error: {error}")
-        return False
+        assert False, f"Fetch should succeed, got error: {error}"
     
     print()
     
@@ -68,8 +74,15 @@ def test_manager():
     print("📊 Service Status:")
     manager.print_status()
     
-    return True
+    print("✅ All tests passed!")
 
 if __name__ == '__main__':
-    success = test_manager()
-    sys.exit(0 if success else 1)
+    try:
+        test_manager()
+        sys.exit(0)
+    except AssertionError as e:
+        print(f"\n❌ Test failed: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
+        sys.exit(1)

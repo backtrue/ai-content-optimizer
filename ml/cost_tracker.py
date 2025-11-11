@@ -2,12 +2,15 @@
 """
 SERP API Cost Tracker
 Track API usage and estimate costs across services
+支援每日摘要、R2 歸檔、週報生成
 """
 
 import json
 import os
-from datetime import datetime
-from typing import Dict
+import csv
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional
 
 class CostTracker:
     """Track API usage and costs"""
@@ -159,8 +162,6 @@ class CostTracker:
     
     def export_csv(self, filename: str = './ml/api_usage.csv'):
         """Export usage to CSV"""
-        import csv
-        
         summary = self.get_summary()
         
         with open(filename, 'w', newline='') as f:
@@ -175,6 +176,151 @@ class CostTracker:
                            summary['total']['errors'], f"{summary['total']['cost']:.4f}"])
         
         print(f"✓ Exported to {filename}")
+    
+    def generate_daily_summary(self, output_dir: str = './ml/cost-reports') -> str:
+        """
+        生成每日成本摘要
+        
+        Args:
+            output_dir: 輸出目錄
+        
+        Returns:
+            摘要檔案路徑
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        summary = self.get_summary()
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        daily_summary = {
+            'date': date_str,
+            'timestamp': datetime.now().isoformat(),
+            'usage': summary['services'],
+            'total': summary['total'],
+            'recommendations': summary['recommendations']
+        }
+        
+        filename = output_path / f"cost-summary-{date_str}.json"
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(daily_summary, f, ensure_ascii=False, indent=2)
+        
+        print(f"✅ 每日摘要已生成: {filename}")
+        return str(filename)
+    
+    def generate_weekly_report(self, output_dir: str = './ml/cost-reports') -> str:
+        """
+        生成週報（彙整過去 7 天的成本數據）
+        
+        Args:
+            output_dir: 輸出目錄
+        
+        Returns:
+            週報檔案路徑
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        summary = self.get_summary()
+        week_start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        week_end = datetime.now().strftime('%Y-%m-%d')
+        
+        weekly_report = {
+            'period': f"{week_start} to {week_end}",
+            'generatedAt': datetime.now().isoformat(),
+            'services': summary['services'],
+            'total': summary['total'],
+            'dailyAverage': {
+                'requests': round(summary['total']['requests'] / 7, 2),
+                'cost': round(summary['total']['cost'] / 7, 4)
+            },
+            'recommendations': summary['recommendations'],
+            'projections': {
+                'monthlyRequests': round(summary['total']['requests'] / 7 * 30),
+                'monthlyCost': round(summary['total']['cost'] / 7 * 30, 4)
+            }
+        }
+        
+        filename = output_path / f"weekly-report-{week_end}.json"
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(weekly_report, f, ensure_ascii=False, indent=2)
+        
+        print(f"✅ 週報已生成: {filename}")
+        return str(filename)
+    
+    def export_to_r2_format(self, output_dir: str = './ml/cost-reports') -> Dict:
+        """
+        生成 R2 上傳格式的成本數據
+        
+        Args:
+            output_dir: 輸出目錄
+        
+        Returns:
+            包含日期、檔案路徑、上傳鍵的字典
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        # 生成每日摘要
+        daily_summary = self.generate_daily_summary(output_dir)
+        
+        # 生成週報（如果是週一）
+        weekly_report = None
+        if datetime.now().weekday() == 0:  # 週一
+            weekly_report = self.generate_weekly_report(output_dir)
+        
+        # 準備 R2 上傳資訊
+        r2_info = {
+            'date': date_str,
+            'files': {
+                'daily': {
+                    'localPath': daily_summary,
+                    'r2Key': f"cost-reports/{date_str}/daily-summary.json"
+                }
+            }
+        }
+        
+        if weekly_report:
+            r2_info['files']['weekly'] = {
+                'localPath': weekly_report,
+                'r2Key': f"cost-reports/{date_str}/weekly-report.json"
+            }
+        
+        return r2_info
+    
+    def get_pipeline_metrics(self) -> Dict:
+        """
+        取得 Pipeline 執行指標（用於排程報表）
+        
+        Returns:
+            包含蒐集樣本數、模型指標、API 成本的字典
+        """
+        summary = self.get_summary()
+        
+        return {
+            'timestamp': datetime.now().isoformat(),
+            'serpCollection': {
+                'totalRequests': summary['total']['requests'],
+                'successRate': self._calculate_success_rate(),
+                'estimatedSamples': round(summary['total']['requests'] * 10),  # 假設每個請求 10 個 URL
+                'cost': summary['total']['cost']
+            },
+            'apiUsage': summary['services'],
+            'totalCost': summary['total']['cost'],
+            'recommendations': summary['recommendations']
+        }
+    
+    def _calculate_success_rate(self) -> float:
+        """計算成功率"""
+        total_requests = self.usage['total']['requests']
+        if total_requests == 0:
+            return 100.0
+        
+        total_errors = self.usage['total']['errors']
+        success_rate = ((total_requests - total_errors) / total_requests) * 100
+        return round(success_rate, 2)
 
 # Global instance
 _tracker = None

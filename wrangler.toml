@@ -13,16 +13,56 @@ binding = "KEYWORD_ANALYTICS"
 id = "a9644f456d684858897178a664b47633"
 preview_id = "a9644f456d684858897178a664b47633"
 
+# R2 Bucket for keyword exports and training data
+[[r2_buckets]]
+binding = "KEYWORD_EXPORTS_BUCKET"
+bucket_name = "keyword-exports"
+preview_bucket_name = "keyword-exports-preview"
+
 # Durable Object for async analysis queue (replaces Queues for free plan)
 [[durable_objects.bindings]]
 name = "ANALYSIS_QUEUE"
 class_name = "AnalysisQueue"
 script_name = "ai-content-optimizer-worker"
 
+# Durable Object for pipeline scheduling
+[[durable_objects.bindings]]
+name = "PIPELINE_SCHEDULER"
+class_name = "PipelineScheduler"
+script_name = "ai-content-optimizer-worker"
+
+# Durable Object for SERP collection scheduling
+[[durable_objects.bindings]]
+name = "SERP_COLLECTION_SCHEDULER"
+class_name = "SerpCollectionScheduler"
+script_name = "ai-content-optimizer-worker"
+
+# Durable Object for model deployment scheduling
+[[durable_objects.bindings]]
+name = "MODEL_DEPLOYMENT_SCHEDULER"
+class_name = "ModelDeploymentScheduler"
+script_name = "ai-content-optimizer-worker"
+
+# Durable Object for reporting and monitoring
+[[durable_objects.bindings]]
+name = "REPORTING_SCHEDULER"
+class_name = "ReportingScheduler"
+script_name = "ai-content-optimizer-worker"
+
 # Durable Object migrations (use SQLite for free plan)
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["AnalysisQueue"]
+new_sqlite_classes = ["AnalysisQueue", "PipelineScheduler", "SerpCollectionScheduler", "ModelDeploymentScheduler", "ReportingScheduler"]
+
+# Cron triggers for automated pipeline
+[[triggers.crons]]
+crons = ["0 2 * * 1"]  # 每週一 02:00 UTC - 關鍵字匯出
+
+[[triggers.crons]]
+crons = ["0 2:30 * * 1"]  # 每週一 02:30 UTC - SERP 蒐集
+
+[[triggers.crons]]
+crons = ["0 3 * * 2"]  # 每週二 03:00 UTC - 模型訓練與部署
 
 [env.production]
 name = "ai-content-optimizer-worker-prod"
