@@ -52,23 +52,30 @@ script_name = "ai-content-optimizer-worker"
 # Durable Object migrations (use SQLite for free plan)
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["AnalysisQueue", "PipelineScheduler", "SerpCollectionScheduler", "ModelDeploymentScheduler", "ReportingScheduler"]
+new_sqlite_classes = ["AnalysisQueue"]
 
-# Cron triggers for automated pipeline
-[[triggers.crons]]
-crons = ["0 2 * * 1"]  # 每週一 02:00 UTC - 關鍵字匯出
-
-[[triggers.crons]]
-crons = ["0 2:30 * * 1"]  # 每週一 02:30 UTC - SERP 蒐集
-
-[[triggers.crons]]
-crons = ["0 3 * * 2"]  # 每週二 03:00 UTC - 模型訓練與部署
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["PipelineScheduler", "SerpCollectionScheduler", "ModelDeploymentScheduler", "ReportingScheduler"]
 
 [env.production]
 name = "ai-content-optimizer-worker-prod"
 routes = [
   { pattern = "ragseo.thinkwithblack.com/api/analyze-worker", zone_name = "thinkwithblack.com" }
 ]
+
+# Cron triggers for automated pipeline (production)
+[[env.production.triggers.crons]]
+crons = ["0 2 * * 1"]  # 每週一 02:00 UTC - 關鍵字匯出
+
+[[env.production.triggers.crons]]
+crons = ["30 2 * * 1"]  # 每週一 02:30 UTC - SERP 蒐集
+
+[[env.production.triggers.crons]]
+crons = ["0 3 * * 2"]  # 每週二 03:00 UTC - 模型訓練與部署
+
+[[env.production.triggers.crons]]
+crons = ["30 3 * * 2"]  # 每週二 03:30 UTC - 成本摘要與週報
 
 [[env.production.kv_namespaces]]
 binding = "ANALYSIS_RESULTS"
