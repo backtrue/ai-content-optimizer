@@ -199,8 +199,9 @@ export default function InputSection({ onAnalyze, isLoading }) {
             onChange={(e) => setEmail(e.target.value)}
             placeholder={input.emailPlaceholder}
             className="input-field"
-            disabled={isLoading}
+            disabled={true}
           />
+          <p className="text-xs text-gray-500 mt-2">（功能暫時關閉中）</p>
         </div>
 
         <button
