@@ -139,6 +139,9 @@ export class ReportingScheduler {
         }
       }
 
+      // 取得使用量摘要（預設過去 7 天）
+      const usageSummary = await this.fetchUsageSummary(options.usageHours || 24 * 7, options.usageRecordLimit || 1000)
+
       // 彙整週報
       const weeklyReport = {
         period: `${weekStartStr} to ${dateStr}`,
@@ -150,6 +153,7 @@ export class ReportingScheduler {
           averageDailyCost: 0,
           averageSuccessRate: 0
         },
+        usageSummary,
         recommendations: this.generateRecommendations(dailyReports),
         nextSteps: this.generateNextSteps(dailyReports)
       }
@@ -310,6 +314,37 @@ export class ReportingScheduler {
     return steps
   }
 
+  async fetchUsageSummary(hours = 168, limit = 1000) {
+    const token = this.env.USAGE_SUMMARY_TOKEN || this.env.KEYWORD_ANALYTICS_TOKEN
+    if (!token) {
+      console.warn('USAGE_SUMMARY_TOKEN/KEYWORD_ANALYTICS_TOKEN 未設定，無法取得使用量摘要')
+      return null
+    }
+
+    const baseUrl = this.env.API_BASE_URL || this.env.SITE_URL || 'https://content-optimizer.ai'
+    const endpoint = new URL(`/api/analytics/usage?hours=${encodeURIComponent(hours)}&limit=${encodeURIComponent(limit)}`, baseUrl)
+
+    try {
+      const response = await fetch(endpoint.toString(), {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Usage summary fetch failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (!data?.ok) {
+        throw new Error('Usage summary response missing ok flag')
+      }
+      return data
+    } catch (error) {
+      console.error('取得使用量摘要失敗:', error)
+      return null
+    }
+  }
+
   /**
    * 發送 Slack 通知
    */
@@ -389,7 +424,9 @@ export class ReportingScheduler {
       const { Resend } = await import('resend')
       const resend = new Resend(this.env.RESEND_API_KEY)
 
-      const recipients = (this.env.WEEKLY_REPORT_RECIPIENTS || 'backtrue@toldyou.co')
+      const recipients = (this.env.USAGE_REPORT_RECIPIENTS
+        || this.env.WEEKLY_REPORT_RECIPIENTS
+        || 'backtrue@gmail.com')
         .split(',')
         .map((email) => email.trim())
         .filter(Boolean)
@@ -399,7 +436,7 @@ export class ReportingScheduler {
         return
       }
 
-      const subject = `📈 Pipeline 週報 (${report.period})`
+      const subject = `📈 Pipeline 使用週報 (${report.period})`
       const html = this.buildWeeklyReportHtml(report)
       const text = this.buildWeeklyReportText(report)
 
@@ -418,8 +455,10 @@ export class ReportingScheduler {
   }
 
   buildWeeklyReportHtml(report) {
-    const { aggregated, recommendations, nextSteps } = report
+    const { aggregated, recommendations, nextSteps, usageSummary } = report
     const formatCurrency = (value) => `$${(value ?? 0).toFixed(2)}`
+    const keywordStats = usageSummary?.keywordAnalytics
+    const resultStats = usageSummary?.analysisResults
 
     return `
       <html>
@@ -452,6 +491,32 @@ export class ReportingScheduler {
                 </tbody>
               </table>
 
+              <h2 style="font-size: 20px;">🧑‍💻 使用量與成功率</h2>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                <tbody>
+                  <tr>
+                    <td style="padding: 12px 0; font-weight: 600; color: #4b5563;">分析請求（${keywordStats?.lastTimestamp ? `自 ${new Date(keywordStats.firstTimestamp || usageSummary?.since).toLocaleDateString()} 起` : '期間'}）</td>
+                    <td style="text-align: right; font-size: 18px; font-weight: 700; color: #111827;">${keywordStats?.total ?? 0}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 0; font-weight: 600; color: #4b5563;">語系分佈</td>
+                    <td style="text-align: right; font-size: 15px; color: #4b5563;">${keywordStats?.locales ? Object.entries(keywordStats.locales).map(([locale, count]) => `${locale}: ${count}`).join(' · ') : '—'}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 0; font-weight: 600; color: #4b5563;">任務狀態</td>
+                    <td style="text-align: right; font-size: 15px; color: #4b5563;">${resultStats?.statusCounts ? Object.entries(resultStats.statusCounts).map(([status, count]) => `${status}: ${count}`).join(' · ') : '—'}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 0; font-weight: 600; color: #4b5563;">成功率</td>
+                    <td style="text-align: right; font-size: 18px; font-weight: 700; color: #059669;">${resultStats?.successRate != null ? `${(resultStats.successRate * 100).toFixed(1)}%` : '—'}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 0; font-weight: 600; color: #4b5563;">平均分析耗時</td>
+                    <td style="text-align: right; font-size: 18px; font-weight: 700; color: #2563eb;">${resultStats?.averageAnalysisDurationMs != null ? `${resultStats.averageAnalysisDurationMs} ms` : '—'}</td>
+                  </tr>
+                </tbody>
+              </table>
+
               <h2 style="font-size: 20px;">✅ 建議事項</h2>
               <ul style="padding-left: 20px; color: #374151;">
                 ${(recommendations || []).map((item) => `<li style="margin: 8px 0;">${item}</li>`).join('') || '<li style="margin: 8px 0; color: #6b7280;">本週無特別建議</li>'}
@@ -472,8 +537,10 @@ export class ReportingScheduler {
   }
 
   buildWeeklyReportText(report) {
-    const { aggregated, recommendations, nextSteps } = report
+    const { aggregated, recommendations, nextSteps, usageSummary } = report
     const formatCurrency = (value) => `$${(value ?? 0).toFixed(2)}`
+    const keywordStats = usageSummary?.keywordAnalytics
+    const resultStats = usageSummary?.analysisResults
 
     return [
       `📈 Pipeline 週報 (${report.period})`,
@@ -483,6 +550,13 @@ export class ReportingScheduler {
       `- 總成本：${formatCurrency(aggregated.totalCost)}`,
       `- 日均成本：${formatCurrency(aggregated.averageDailyCost)}`,
       `- 平均成功率：${(aggregated.averageSuccessRate ?? 0).toFixed(1)}%`,
+      '',
+      '🧑‍💻 使用量與成功率',
+      `- 分析請求：${keywordStats?.total ?? 0}`,
+      `- 語系分佈：${keywordStats?.locales ? Object.entries(keywordStats.locales).map(([locale, count]) => `${locale}=${count}`).join(', ') : '—'}`,
+      `- 任務狀態：${resultStats?.statusCounts ? Object.entries(resultStats.statusCounts).map(([status, count]) => `${status}=${count}`).join(', ') : '—'}`,
+      `- 任務成功率：${resultStats?.successRate != null ? `${(resultStats.successRate * 100).toFixed(1)}%` : '—'}`,
+      `- 平均分析耗時：${resultStats?.averageAnalysisDurationMs != null ? `${resultStats.averageAnalysisDurationMs} ms` : '—'}`,
       '',
       '✅ 建議事項',
       ...(recommendations?.length ? recommendations.map((item) => `- ${item}`) : ['- 本週無特別建議']),
