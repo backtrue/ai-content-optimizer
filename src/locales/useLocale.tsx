@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import type { SupportedLocale, UIStrings, SEOMetadata } from './base'
-import { supportedLocales, defaultLocale, localeConfigs, detectLocaleFromHeader } from './base'
+import { supportedLocales, defaultLocale, localeConfigs, detectLocaleFromHeader, detectLocaleFromIP } from './base'
 import { zhTWStrings, zhTWSEO } from './zh-TW'
 import { enStrings, enSEO } from './en'
 import { jaStrings, jaSEO } from './ja'
@@ -45,12 +45,33 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    const headerLocale = detectLocaleFromHeader(navigator.language)
-    if (headerLocale) {
-      setLocaleState(headerLocale)
-      localStorage.setItem('locale', headerLocale)
-      return
+    // 嘗試從 API 獲取 IP 地理位置
+    const detectFromGeo = async () => {
+      try {
+        const response = await fetch('/api/geo')
+        if (response.ok) {
+          const data = await response.json()
+          const countryCode = data.countryCode
+          if (countryCode) {
+            const geoLocale = detectLocaleFromIP(countryCode)
+            setLocaleState(geoLocale)
+            localStorage.setItem('locale', geoLocale)
+            return
+          }
+        }
+      } catch (error) {
+        console.warn('無法獲取地理位置:', error)
+      }
+
+      // 回退到瀏覽器語言
+      const headerLocale = detectLocaleFromHeader(navigator.language)
+      if (headerLocale) {
+        setLocaleState(headerLocale)
+        localStorage.setItem('locale', headerLocale)
+      }
     }
+
+    detectFromGeo()
   }, [])
 
   const setLocale = (newLocale: SupportedLocale) => {

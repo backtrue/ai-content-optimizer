@@ -208,6 +208,39 @@ export const onRequest = async (context) => {
   const requestUrl = new URL(request.url)
   const segments = requestUrl.pathname.split('/').filter(Boolean)
 
+  // 處理 GET /api/geo - 返回用戶的國家代碼
+  if (request.method === 'GET' && segments.length >= 2 && segments[1] === 'geo') {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    }
+
+    try {
+      // 從 Cloudflare 請求標頭中獲取國家代碼
+      const countryCode = request.headers.get('cf-ipcountry') || 'US'
+      
+      console.log(`地理位置查詢: ${countryCode}`)
+
+      return new Response(
+        JSON.stringify({
+          countryCode: countryCode,
+          timestamp: new Date().toISOString()
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    } catch (error) {
+      console.error('地理位置查詢失敗:', error)
+      return new Response(
+        JSON.stringify({ error: 'Internal server error', message: error.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
   // 處理 GET /api/results/{taskId}
   if (request.method === 'GET' && segments.length >= 3 && segments[1] === 'results') {
     const taskId = segments[2]
