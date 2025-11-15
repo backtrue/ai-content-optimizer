@@ -1,3 +1,10 @@
+/**
+ * 下方區塊由 ml/train_model_cli.py 自動覆寫，請勿手動修改。
+ */
+/* AUTO-GENERATED:MODEL_CONFIG_START */
+export const AUTO_GENERATED_MODEL_CONFIG = null
+/* AUTO-GENERATED:MODEL_CONFIG_END */
+
 const DEFAULT_MODEL = {
   version: '2025-11-03-content-quality-v1',
   createdAt: '2025-11-03T15:20:00Z',

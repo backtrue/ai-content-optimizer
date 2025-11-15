@@ -1,5 +1,32 @@
 # ✅ 開發任務追蹤
 
+## 2025-11-15 自動訓練評分模型優化
+
+### 任務 A：資料分割與評估
+- [x] A1：將 `train_model_cli.py` 改為 K-fold（預設 5-fold）
+- [x] A2：輸出每折 RMSE / R² 並計算平均值
+- [x] A3：新增「時間排序模式」參數，支援依日期切分
+
+### 任務 B：特徵工程擴充
+- [x] B1：盤點 `/api/analyze` 回傳的全部特徵欄位（50+）
+- [x] B2：擴充 `feature_fields` 與特徵抽取邏輯
+- [x] B3：依特徵分布設計 normalization（z-score、log、quantile 等）
+
+### 任務 C：標籤品質與資料清洗
+- [x] C1：檢查 `target_score` 缺失 / 非數值並輸出異常統計
+- [x] C2：對同 `(keyword, url)` 多筆記錄採聚合策略（平均或最新）
+- [x] C3：過濾極端分數並回報處理結果
+
+### 任務 D：模型輸出與部署自動化
+- [x] D1：將 XGBoost 模型轉換為 Worker 可讀格式並產生 JS 片段
+- [x] D2：CLI 自動寫入 `functions/api/scoring-model.js` 指定區塊
+- [x] D3：同步模型版本資訊至 KV，提供查詢端點
+
+### 任務 E：資料健康檢查與報表
+- [x] E1：訓練前輸出資料摘要（筆數、語系、關鍵字、rank 分布）
+- [x] E2：生成健康報表 JSON（特徵缺失率、top keywords/locales）
+- [x] E3：自動上傳報表至 R2 或推送 Slack
+
 ## 2025-11-09 v5 自適應混合評分導入
 
 ### 1. 後端：AI 策略分（60%）
