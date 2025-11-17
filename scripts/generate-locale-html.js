@@ -6,6 +6,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.join(__dirname, '..')
 const distDir = path.join(projectRoot, 'dist')
 const indexPath = path.join(distDir, 'index.html')
+const publicDocsDir = path.join(projectRoot, 'public', 'docs')
+const distDocsDir = path.join(distDir, 'docs')
+
+function copyDirRecursive(source, destination) {
+  if (!fs.existsSync(source)) return
+  const stats = fs.statSync(source)
+  if (stats.isDirectory()) {
+    fs.mkdirSync(destination, { recursive: true })
+    for (const entry of fs.readdirSync(source)) {
+      copyDirRecursive(path.join(source, entry), path.join(destination, entry))
+    }
+  } else {
+    fs.copyFileSync(source, destination)
+  }
+}
 
 // SEO metadata per locale
 const localeMetadata = {
@@ -102,10 +117,20 @@ async function main() {
       }
     }
 
+    // Copy docs assets to dist/docs
+    if (fs.existsSync(publicDocsDir)) {
+      fs.rmSync(distDocsDir, { recursive: true, force: true })
+      copyDirRecursive(publicDocsDir, distDocsDir)
+      console.log('✓ Copied docs assets to dist/docs')
+    } else {
+      console.warn('⚠️ public/docs not found, skipped copying guide assets')
+    }
+
     console.log('\n✅ Multi-locale HTML generation complete!')
     console.log('   dist/index.html (English)')
     console.log('   dist/zh-tw/index.html (Traditional Chinese)')
     console.log('   dist/jp/index.html (Japanese)')
+    console.log('   dist/docs/ (Guide markdown assets)')
   } catch (error) {
     console.error('❌ Error generating locale HTML:', error)
     process.exit(1)

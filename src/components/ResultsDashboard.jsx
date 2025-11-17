@@ -42,6 +42,94 @@ const METRIC_NAME_TO_KEY = {
   'Reader Engagement & Follow-up': 'metricReaderActivation'
 }
 
+const GUIDE_FILES = {
+  metricIntentFit: {
+    'zh-TW': '搜尋意圖契合優化指南.md',
+    en: 'en/Search_Intent_Satisfaction_Guide.md',
+    ja: 'ja/Search_Intent_Satisfaction_Guide.md'
+  },
+  metricHelpfulRatio: {
+    'zh-TW': 'Helpful_Ratio優化指南.md',
+    en: 'en/Helpful_Ratio_Optimization_Guide.md',
+    ja: 'ja/Helpful_Ratio_Optimization_Guide.md'
+  },
+  metricDepthCoverage: {
+    'zh-TW': '內容覆蓋與深度優化指南.md',
+    en: 'en/Content_Coverage_and_Depth_Guide.md',
+    ja: 'ja/Content_Coverage_and_Depth_Guide.md'
+  },
+  metricIntentExpansion: {
+    'zh-TW': '延伸疑問與關鍵字覆蓋優化指南.md',
+    en: 'en/Related_Questions_and_Keyword_Coverage_Guide.md',
+    ja: 'ja/Related_Questions_and_Keyword_Coverage_Guide.md'
+  },
+  metricActionability: {
+    'zh-TW': '行動可行性優化指南.md',
+    en: 'en/Actionability_Guide.md',
+    ja: 'ja/Actionability_Guide.md'
+  },
+  metricReadabilityRhythm: {
+    'zh-TW': '可讀性與敘事節奏優化指南.md',
+    en: 'en/Readability_and_Narrative_Pace_Guide.md',
+    ja: 'ja/Readability_and_Narrative_Pace_Guide.md'
+  },
+  metricStructureHighlights: {
+    'zh-TW': '結構化重點提示優化指南.md',
+    en: 'en/Structured_Highlights_Guide.md',
+    ja: 'ja/Structured_Highlights_Guide.md'
+  },
+  metricAuthorBrandSignals: {
+    'zh-TW': '作者與品牌辨識優化指南.md',
+    en: 'en/Author_and_Brand_Identification_Guide.md',
+    ja: 'ja/Author_and_Brand_Identification_Guide.md'
+  },
+  metricEvidenceSupport: {
+    'zh-TW': '可信證據與引用優化指南.md',
+    en: 'en/Credible_Evidence_and_Citations_Guide.md',
+    ja: 'ja/Credible_Evidence_and_Citations_Guide.md'
+  },
+  metricExperienceSignals: {
+    'zh-TW': '第一手經驗與案例優化指南.md',
+    en: 'en/First_Hand_Experience_and_Case_Studies_Guide.md',
+    ja: 'ja/First_Hand_Experience_and_Case_Studies_Guide.md'
+  },
+  metricNarrativeDensity: {
+    'zh-TW': '敘事具體度與資訊密度優化指南.md',
+    en: 'en/Narrative_Specificity_and_Information_Density_Guide.md',
+    ja: 'ja/Narrative_Specificity_and_Information_Density_Guide.md'
+  },
+  metricFreshnessSignals: {
+    'zh-TW': '時效與更新訊號優化指南.md',
+    en: 'en/Freshness_and_Update_Signals_Guide.md',
+    ja: 'ja/Freshness_and_Update_Signals_Guide.md'
+  },
+  metricExpertPerspective: {
+    'zh-TW': '專家觀點與判斷優化指南.md',
+    en: 'en/Expert_Perspective_and_Judgment_Guide.md',
+    ja: 'ja/Expert_Perspective_and_Judgment_Guide.md'
+  },
+  metricExtractability: {
+    'zh-TW': '答案可抽取性優化指南.md',
+    en: 'en/Answer_Extractability_Guide.md',
+    ja: 'ja/Answer_Extractability_Guide.md'
+  },
+  metricKeySummary: {
+    'zh-TW': '關鍵摘要與重點整理優化指南.md',
+    en: 'en/Key_Summary_and_Highlights_Guide.md',
+    ja: 'ja/Key_Summary_and_Highlights_Guide.md'
+  },
+  metricConversationalGuidance: {
+    'zh-TW': '對話式語氣與指引優化指南.md',
+    en: 'en/Conversational_Tone_and_Guidance_Guide.md',
+    ja: 'ja/Conversational_Tone_and_Guidance_Guide.md'
+  },
+  metricReaderActivation: {
+    'zh-TW': '讀者互動與後續引導優化指南.md',
+    en: 'en/Reader_Engagement_and_Follow_Up_Guide.md',
+    ja: 'ja/Reader_Engagement_and_Follow_Up_Guide.md'
+  }
+}
+
 // 建議分類映射
 const CATEGORY_MAP = {
   內容: {
@@ -417,58 +505,24 @@ export default function ResultsDashboard({
   }
 
   const openGuideModal = async (metricName) => {
-    // 指標名稱到文件名的映射（基礎名稱，不含語系路徑）
-    const guideBaseMap = {
-      '搜尋意圖契合': '搜尋意圖契合優化指南.md',
-      'Search Intent Fit': 'en/Search_Intent_Satisfaction_Guide.md',
-      'Helpful Ratio': 'helpful-ratio',
-      '內容覆蓋與深度': 'content-depth-coverage',
-      'Content Depth & Coverage': 'content-depth-coverage',
-      '延伸疑問與關鍵字覆蓋': 'intent-expansion',
-      'Intent Expansion & Keyword Coverage': 'intent-expansion',
-      '行動可行性': 'actionability',
-      'Actionability': 'actionability',
-      '可讀性與敘事節奏': 'readability-rhythm',
-      'Readability & Narrative Rhythm': 'readability-rhythm',
-      '結構化重點提示': 'structure-highlights',
-      'Structure Highlights': 'structure-highlights',
-      '作者與品牌辨識': 'author-brand-signals',
-      'Author & Brand Recognition': 'author-brand-signals',
-      '可信證據與引用': 'evidence-support',
-      'Evidence & Citations': 'evidence-support',
-      '第一手經驗與案例': 'experience-signals',
-      'First-hand Experience & Case Studies': 'experience-signals',
-      '敘事具體度與資訊密度': 'narrative-density',
-      'Narrative Specificity & Information Density': 'narrative-density',
-      '時效與更新訊號': 'freshness-signals',
-      'Freshness & Update Signals': 'freshness-signals',
-      '專家觀點與判斷': 'expert-perspective',
-      'Expert Perspective & Judgment': 'expert-perspective',
-      '答案可抽取性': 'extractability',
-      'Answer Extractability': 'extractability',
-      '關鍵摘要與重點整理': 'key-summary',
-      'Key Summary & Highlights': 'key-summary',
-      '對話式語氣與指引': 'conversational-guidance',
-      'Conversational Tone & Guidance': 'conversational-guidance',
-      '讀者互動與後續引導': 'reader-activation',
-      'Reader Engagement & Follow-up': 'reader-activation'
-    }
+    const metricKey = METRIC_NAME_TO_KEY[metricName]
+    const filesForMetric = metricKey ? GUIDE_FILES[metricKey] : null
 
-    const baseFileName = guideBaseMap[metricName]
-    if (!baseFileName) {
+    if (!filesForMetric) {
       console.warn(`未找到指標 ${metricName} 的指南`)
       return
     }
 
-    // 依 locale 決定路徑
-    const localeDir = locale === 'zh-TW' ? '' : `${locale}/`
-    const needsMapping = baseFileName.endsWith('.md')
-    const fileName = needsMapping ? baseFileName : `${baseFileName}.md`
-    const filePath = `/docs/product/${needsMapping ? '' : localeDir}${fileName}`
+    const normalizedLocale = ['en', 'ja'].includes(locale) ? locale : 'zh-TW'
+    const filePath = filesForMetric[normalizedLocale] || filesForMetric['zh-TW']
+    if (!filePath) {
+      console.warn(`指標 ${metricName} 缺少對應指南檔案`)
+      return
+    }
 
     try {
       // 動態載入優化指南內容
-      const response = await fetch(filePath)
+      const response = await fetch(`/docs/product/${filePath}`)
       if (response.ok) {
         const content = await response.text()
         setGuideContent(content)
