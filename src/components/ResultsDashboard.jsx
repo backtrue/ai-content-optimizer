@@ -419,8 +419,8 @@ export default function ResultsDashboard({
   const openGuideModal = async (metricName) => {
     // 指標名稱到文件名的映射（基礎名稱，不含語系路徑）
     const guideBaseMap = {
-      '搜尋意圖契合': 'search-intent-fit',
-      'Search Intent Fit': 'search-intent-fit',
+      '搜尋意圖契合': '搜尋意圖契合優化指南.md',
+      'Search Intent Fit': 'en/Search_Intent_Satisfaction_Guide.md',
       'Helpful Ratio': 'helpful-ratio',
       '內容覆蓋與深度': 'content-depth-coverage',
       'Content Depth & Coverage': 'content-depth-coverage',
@@ -461,9 +461,10 @@ export default function ResultsDashboard({
     }
 
     // 依 locale 決定路徑
-    const localeDir = locale === 'zh-TW' ? '' : locale === 'en' ? 'en/' : 'ja/'
-    const fileName = `${baseFileName}.md`
-    const filePath = `/docs/product/${localeDir}${fileName}`
+    const localeDir = locale === 'zh-TW' ? '' : `${locale}/`
+    const needsMapping = baseFileName.endsWith('.md')
+    const fileName = needsMapping ? baseFileName : `${baseFileName}.md`
+    const filePath = `/docs/product/${needsMapping ? '' : localeDir}${fileName}`
 
     try {
       // 動態載入優化指南內容
