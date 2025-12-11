@@ -5,6 +5,7 @@ import InputSection from './components/InputSection'
 import ResultsDashboard from './components/ResultsDashboard'
 import LoadingSpinner from './components/LoadingSpinner'
 import { setSEOMetadata, generateHomeMetadata } from './utils/seoManager'
+import { fetchWithRetry, API_BASE_URL, getApiHeaders } from './utils/api'
 
 function App() {
   const { strings, locale } = useLocale()
@@ -18,7 +19,7 @@ function App() {
 
   // session and API base
   const sessionId = useMemo(() => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`), [])
-  const apiUrl = useMemo(() => (import.meta?.env?.VITE_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')), [])
+  const apiUrl = API_BASE_URL
   const [feedbackContext, setFeedbackContext] = useState(null)
 
   useEffect(() => {
@@ -91,52 +92,6 @@ function App() {
     setSEOMetadata(metadata, locale)
   }, [locale])
 
-  // 帶有重試機制的 API 請求函數
-  const fetchWithRetry = async (url, options, retries = 2, delay = 1000) => {
-    let lastError;
-    
-    for (let i = 0; i <= retries; i++) {
-      try {
-        const response = await fetch(url, options);
-        
-        if (response.ok) {
-          return response;
-        }
-        
-        // 如果是 5xx 錯誤，才重試
-        if (response.status < 500 || response.status >= 600) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-        }
-        
-        // 獲取錯誤訊息
-        let errorMessage = `HTTP error! status: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch (e) {
-          // 無法解析 JSON 錯誤響應
-          console.error('解析錯誤響應失敗:', e);
-        }
-        
-        throw new Error(errorMessage);
-        
-      } catch (error) {
-        lastError = error;
-        
-        // 如果不是最後一次重試，等待一段時間再重試
-        if (i < retries) {
-          console.warn(`請求失敗，${delay}ms 後重試 (${i + 1}/${retries})`, error);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          // 指數退避
-          delay *= 2;
-        }
-      }
-    }
-    
-    throw lastError;
-  };
-
   // string sha256 helper (Web Crypto)
   const sha256Hex = async (text) => {
     const enc = new TextEncoder()
@@ -167,19 +122,13 @@ function App() {
 
       const contentHash = await sha256Hex(plainText)
       setFeedbackContext({ sessionId, contentHash, targetKeywords, format: formatHint, sourceUrl: null })
-      
+
       // 如果有 email，使用異步分析流程
       if (email.trim()) {
         const asyncResponse = await fetchWithRetry(
           `${apiUrl}/api/analyze`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            mode: 'cors',
-            credentials: 'include',
             body: JSON.stringify({
               content: plainText,
               contentPlain: plainText,
@@ -198,7 +147,7 @@ function App() {
           2,
           1000
         )
-        
+
         const asyncData = await asyncResponse.json()
         setAnalysisResults({
           status: 'queued',
@@ -209,18 +158,12 @@ function App() {
         setIsLoading(false)
         return
       }
-      
+
       // 同步分析流程
       const response = await fetchWithRetry(
         `${apiUrl}/api/analyze`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          mode: 'cors',
-          credentials: 'include',
           body: JSON.stringify({
             content: plainText,
             contentPlain: plainText,
@@ -235,8 +178,8 @@ function App() {
             includeRecommendations: false,
           }),
         },
-        2, // 重試次數
-        1000 // 初始重試延遲(毫秒)
+        2,
+        1000
       );
 
       // 如果代碼執行到這裡，表示請求成功
@@ -311,7 +254,7 @@ function App() {
       const serializableScoreGuards = scoreGuards ? JSON.parse(JSON.stringify(scoreGuards, (key, value) => {
         return typeof value === 'function' ? undefined : value
       })) : undefined
-      
+
       const serializableContentSignals = contentSignals ? JSON.parse(JSON.stringify(contentSignals, (key, value) => {
         return typeof value === 'function' ? undefined : value
       })) : undefined
@@ -320,12 +263,6 @@ function App() {
         `${apiUrl}/api/analyze`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          mode: 'cors',
-          credentials: 'include',
           body: JSON.stringify({
             content: rawInput?.content ?? null,
             contentPlain: rawInput?.contentPlain ?? null,
@@ -396,7 +333,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <section className="mb-8">
           <div className="bg-white border border-primary-100/60 rounded-2xl shadow-sm p-6 space-y-3">
@@ -405,20 +342,20 @@ function App() {
           </div>
         </section>
         <InputSection onAnalyze={handleAnalyze} isLoading={isLoading} />
-        
+
         {error && (
           <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
             <p className="font-semibold">錯誤</p>
             <p>{error}</p>
           </div>
         )}
-        
+
         {isLoading && (
           <div className="mt-8">
             <LoadingSpinner />
           </div>
         )}
-        
+
         {analysisResults && !isLoading && (
           <div className="mt-8">
             <ResultsDashboard
@@ -432,7 +369,7 @@ function App() {
           </div>
         )}
       </main>
-      
+
       <footer className="mt-16 py-8 bg-gray-900 text-gray-300">
         <div className="container mx-auto px-4 text-center space-y-2">
           <p dangerouslySetInnerHTML={{ __html: footer.copy }} />

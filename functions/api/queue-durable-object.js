@@ -16,8 +16,10 @@ export class AnalysisQueue {
    */
   async submitTask(payload) {
     const taskId = crypto.randomUUID()
+    const ownerToken = crypto.randomUUID() // IDOR 防護：生成存取權杖
     const task = {
       id: taskId,
+      ownerToken,
       payload,
       status: 'queued',
       createdAt: new Date().toISOString(),
@@ -28,12 +30,13 @@ export class AnalysisQueue {
     // 儲存到記憶體隊列
     this.queue.push(task)
 
-    // 儲存初始狀態到 KV
+    // 儲存初始狀態到 KV（包含 ownerToken）
     const resultKey = `analysis:${taskId}`
     await this.env.ANALYSIS_RESULTS.put(
       resultKey,
       JSON.stringify({
         taskId,
+        ownerToken,
         status: 'queued',
         createdAt: new Date().toISOString()
       }),
@@ -45,7 +48,7 @@ export class AnalysisQueue {
     // 立即開始處理隊列（不等待完成）
     this.processQueue().catch(err => console.error('Queue processing error:', err))
 
-    return { taskId, status: 'queued' }
+    return { taskId, ownerToken, status: 'queued' }
   }
 
   /**
@@ -112,9 +115,10 @@ export class AnalysisQueue {
       }
       console.log(`[Task ${task.id}] 結果結構: ${JSON.stringify(result).substring(0, 100)}...`)
 
-      // 儲存結果到 KV
+      // 儲存結果到 KV（保留 ownerToken 用於 IDOR 防護）
       const resultData = {
         taskId: task.id,
+        ownerToken: task.ownerToken,
         status: 'completed',
         result,
         completedAt: new Date().toISOString(),

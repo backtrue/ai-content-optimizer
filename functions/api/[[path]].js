@@ -208,6 +208,29 @@ export const onRequest = async (context) => {
   const requestUrl = new URL(request.url)
   const segments = requestUrl.pathname.split('/').filter(Boolean)
 
+  // 通用 CORS 標頭（包含 X-API-Key）
+  const globalCorsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-API-Key'
+  }
+
+  // OPTIONS 預檢請求直接放行
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: globalCorsHeaders })
+  }
+
+  // API Key 驗證（若有設定 CLIENT_API_SECRET）
+  if (env.CLIENT_API_SECRET) {
+    const clientKey = request.headers.get('X-API-Key')
+    if (clientKey !== env.CLIENT_API_SECRET) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', message: 'Invalid or missing API key' }),
+        { status: 401, headers: { ...globalCorsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
   // 處理 GET /api/geo - 返回用戶的國家代碼
   if (request.method === 'GET' && segments.length >= 2 && segments[1] === 'geo') {
     const corsHeaders = {
@@ -219,7 +242,7 @@ export const onRequest = async (context) => {
     try {
       // 從 Cloudflare 請求標頭中獲取國家代碼
       const countryCode = request.headers.get('cf-ipcountry') || 'US'
-      
+
       console.log(`地理位置查詢: ${countryCode}`)
 
       return new Response(
@@ -244,12 +267,13 @@ export const onRequest = async (context) => {
   // 處理 GET /api/results/{taskId}
   if (request.method === 'GET' && segments.length >= 3 && segments[1] === 'results') {
     const taskId = segments[2]
+    const ownerToken = requestUrl.searchParams.get('token')
     console.log(`查詢結果: ${taskId}`)
 
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
+      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key'
     }
 
     try {
@@ -267,7 +291,19 @@ export const onRequest = async (context) => {
       }
 
       const result = JSON.parse(resultData)
-      return new Response(JSON.stringify(result), {
+
+      // IDOR 防護：驗證 ownerToken
+      if (result.ownerToken && result.ownerToken !== ownerToken) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden', message: '無權存取此分析結果' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // 移除 ownerToken 避免洩露
+      const { ownerToken: _, ...safeResult } = result
+
+      return new Response(JSON.stringify(safeResult), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -683,7 +719,7 @@ function blendMetric(baseMetric = {}, llmMetric = {}) {
   if (llmScore !== null && baseScore !== null) {
     const blendRatio = llmMetric.confidence === 'high' ? 0.7
       : llmMetric.confidence === 'medium' ? 0.6
-      : 0.5
+        : 0.5
     score = Math.round((llmScore * blendRatio + baseScore * (1 - blendRatio)) * 10) / 10
   } else if (llmScore !== null) {
     score = llmScore
@@ -1175,7 +1211,7 @@ function buildMetricRecommendation(metric, modelContext, target = 'seo') {
     return {
       priority: metric.score <= 3 ? 'high' : metric.score <= 6 ? 'medium' : 'low',
       category: '內容',
-      issue: `${metric.name} 分數偏低 (${metric.score} 分)` ,
+      issue: `${metric.name} 分數偏低 (${metric.score} 分)`,
       action: metric.description || '補強該指標相關的內容與信任訊號。',
       expectedScoreGain: '+3 分',
       title: `${metric.name} 分數偏低`,
@@ -1342,10 +1378,10 @@ function formatHcuQuestions(questionSet = HCU_QUESTION_SET) {
     .join('\n')
 }
 
-// 禁用全局速率限制以避免記憶體洩漏
-// 改由客戶端控制請求速率
+// 速率限制設定
+// 已啟用以防止 API 濫用（Denial of Wallet 攻擊）
 const rateLimitStore = new Map()
-const RATE_LIMIT_ENABLED = false
+const RATE_LIMIT_ENABLED = true
 
 function nowSeconds() {
   return Math.floor(Date.now() / 1000)
@@ -1382,7 +1418,7 @@ function checkRateLimit(prefix, id, config) {
   if (!RATE_LIMIT_ENABLED) {
     return { allowed: true, remaining: config.limit }
   }
-  
+
   if (!id) return { allowed: true }
   const key = rateLimitKey(prefix, id)
   const entry = rateLimitStore.get(key)
@@ -1421,6 +1457,40 @@ function responseWithRateLimitError(message, retryAfter, corsHeaders) {
   )
 }
 
+/**
+ * SSRF 防護：檢測私有 IP 與 localhost
+ * 阻止請求內網資源，防止開放代理攻擊
+ */
+function isPrivateIpOrLocalhost(hostname) {
+  // Localhost 檢查
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    return true
+  }
+
+  // IPv4 私有 IP 範圍
+  const ipv4PrivateRanges = [
+    /^10\./,                          // 10.0.0.0/8
+    /^172\.(1[6-9]|2\d|3[01])\./,     // 172.16.0.0/12
+    /^192\.168\./,                    // 192.168.0.0/16
+    /^127\./,                         // 127.0.0.0/8 (loopback)
+    /^169\.254\./,                    // 169.254.0.0/16 (link-local)
+    /^0\./                            // 0.0.0.0/8
+  ]
+
+  for (const pattern of ipv4PrivateRanges) {
+    if (pattern.test(hostname)) {
+      return true
+    }
+  }
+
+  // IPv6 私有範圍簡易檢查
+  if (hostname.startsWith('fe80:') || hostname.startsWith('fc') || hostname.startsWith('fd')) {
+    return true
+  }
+
+  return false
+}
+
 function validateContentUrl(rawUrl) {
   if (typeof rawUrl !== 'string' || !rawUrl.trim()) return { valid: false, error: 'contentUrl 必須是字串' }
   let url
@@ -1432,6 +1502,11 @@ function validateContentUrl(rawUrl) {
 
   if (!['http:', 'https:'].includes(url.protocol)) {
     return { valid: false, error: '僅支援 http/https 網址' }
+  }
+
+  // SSRF 防護：阻擋私有 IP 與 localhost
+  if (isPrivateIpOrLocalhost(url.hostname)) {
+    return { valid: false, error: '不允許存取內網或本機位址' }
   }
 
   return { valid: true, url }
@@ -1660,7 +1735,7 @@ function appendMissingClosers(text) {
 async function analyzeWithGemini(content, targetKeywords, env, contentSignals = {}) {
   try {
     console.log('Starting Gemini API call...');
-    
+
     const firstKeyword = Array.isArray(targetKeywords) && targetKeywords.length ? targetKeywords[0] : '';
     const apiKey = env && env.GEMINI_API_KEY ? env.GEMINI_API_KEY : null;
     const forceMock = String(env?.USE_GEMINI_MOCK || '').toLowerCase() === 'true';
@@ -1679,7 +1754,7 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
     const truncatedContent = typeof content === 'string' ? content.slice(0, MAX_CONTENT_CHARS) : content;
     const prompt = buildAnalysisPrompt(truncatedContent, targetKeywords, contentSignals);
     console.log('Prompt length:', prompt.length);
-    
+
     // 動態選擇可用模型：呼叫 v1 ListModels 並挑選支援 generateContent 的 2.x 或 1.5 模型
     const listUrl = `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`;
     console.log('Listing models from:', listUrl);
@@ -1715,7 +1790,7 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
     const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${chosenModel}:generateContent?key=${apiKey}`;
     console.log('Chosen model:', chosenModel);
     console.log('API URL:', apiUrl);
-    
+
     // 簡化請求體，只包含必要字段
     const requestBody = {
       contents: [{
@@ -1735,7 +1810,7 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
         { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
       ]
     };
-    
+
     console.log('Sending request to Gemini API...');
     console.log('Request URL:', apiUrl);
     console.log('Request payload summary:', JSON.stringify({
@@ -1744,7 +1819,7 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
       temperature: requestBody.generationConfig.temperature,
       maxOutputTokens: requestBody.generationConfig.maxOutputTokens
     }, null, 2));
-    
+
     let response;
     let responseText;
 
@@ -1766,17 +1841,17 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
       response = await tryOnce();
       responseText = await response.text();
       console.log('Response status:', response.status, response.statusText);
-      
+
       // 記錄響應頭和部分響應體（不記錄敏感信息）
       const responseHeaders = {};
       response.headers.forEach((value, key) => {
         responseHeaders[key] = key.toLowerCase().includes('key') ? '***REDACTED***' : value;
       });
       console.log('Response headers:', JSON.stringify(responseHeaders, null, 2));
-      
+
       // 只記錄響應體的前 500 個字符，避免日誌過大
       console.log('Response body length:', typeof responseText === 'string' ? responseText.length : 0);
-      
+
       if (response.ok) {
         const data = JSON.parse(responseText);
         const responseSummary = {
@@ -1786,7 +1861,7 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
           responseTokens: data?.usageMetadata?.candidatesTokenCount ?? data?.usage?.completion_tokens ?? null
         };
         console.log('Parsed response summary:', JSON.stringify(responseSummary, null, 2));
-        
+
         const parts = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) ? data.candidates[0].content.parts : [];
         const textPart = Array.isArray(parts) ? parts.find(p => typeof p.text === 'string') : undefined;
         if (!textPart || !textPart.text) {
@@ -1832,13 +1907,13 @@ async function analyzeWithGemini(content, targetKeywords, env, contentSignals = 
           if (errorJson.error && errorJson.error.message) {
             errorDetails = errorJson.error.message;
           } else {
-            errorDetails = JSON.stringify(errorJson, (key, value) => 
+            errorDetails = JSON.stringify(errorJson, (key, value) =>
               key.toLowerCase().includes('key') ? '***REDACTED***' : value, 2);
           }
         } catch (e) {
           errorDetails = 'Failed to parse error response';
         }
-        
+
         const errorMessage = `Gemini API 錯誤 (${response.status} ${response.statusText}): ${errorDetails}`;
         console.error(errorMessage);
         if (response.status >= 400 && response.status < 500 && response.status !== 429) {
@@ -2392,11 +2467,11 @@ async function handleAnalyzePost(context, corsHeaders) {
     } : {
       why: 5, how: 5, what: 5, overallScore: 5
     }
-    
+
     // 計算總分：40% 結構分 + 60% 策略分
     // 結構分和策略分都是 0-10 範圍，最終總分也是 0-10
     const v5Score = Math.round(
-      (structureScoreResult.score * 0.4) + 
+      (structureScoreResult.score * 0.4) +
       (strategyScoreResult.overallScore * 0.6)
     )
 
@@ -2416,10 +2491,10 @@ async function handleAnalyzePost(context, corsHeaders) {
 
     payload = { ...payload, contentSignals }
     payload = { ...payload, includeRecommendations }
-    
+
     // 新增 v5 評分結果
-    payload = { 
-      ...payload, 
+    payload = {
+      ...payload,
       v5Scores: {
         structureScore: structureScoreResult.score,
         strategyScore: strategyScoreResult.overallScore,
@@ -2508,7 +2583,7 @@ async function analyzeWithOpenAI(content, targetKeyword, apiKey) {
 
   const data = await response.json();
   const result = JSON.parse(data.choices[0].message.content);
-  
+
   return result;
 }
 
@@ -2610,7 +2685,7 @@ function extractKeyPassages(content, contentSignals = {}) {
 function buildAnalysisPrompt(content, targetKeywords, contentSignals = {}) {
   const keywordsList = Array.isArray(targetKeywords) ? targetKeywords.filter(Boolean).join(', ') : ''
   const passages = extractKeyPassages(content, contentSignals)
-  
+
   // 組合關鍵段落供 AI 評估
   const keyPassagesText = [
     passages.firstParagraph ? `【首段】\n${passages.firstParagraph}` : '',
@@ -2736,7 +2811,7 @@ function guessChunkSourceFormat(variants) {
 function computeContentSignals({ plain = '', html = '', markdown = '', targetKeywords = [], sourceUrl = null, contentFormatHint = 'auto' }) {
   // v5 版本：支援 contentFormatHint 自動辨識 HTML vs 純文字
   // contentFormatHint: 'html' | 'plain' | 'auto'（預設自動判斷）
-  
+
   // 自動判斷內容格式
   let detectedFormat = contentFormatHint
   if (contentFormatHint === 'auto') {
@@ -2744,14 +2819,14 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
     const hasHeadTag = html && /<head[^>]*>/i.test(html)
     detectedFormat = (hasHtmlTags || hasHeadTag) ? 'html' : 'plain'
   }
-  
+
   const signal = {
     // 基本訊號
     contentFormatHint: detectedFormat,
     hasHtml: Boolean(html && html.trim()),
     hasMarkdown: Boolean(markdown && markdown.trim()),
     hasPlain: Boolean(plain && plain.trim()),
-    
+
     // 技術性訊號（Mode A HTML 時計算，Mode B 時標記 unknown）
     hasFaqSchema: false,
     hasHowToSchema: false,
@@ -2765,7 +2840,7 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
     hasMetaDescription: false,
     hasUniqueTitle: false,
     hasCanonical: false,
-    
+
     // 內容訊號（兩種模式都計算）
     h1Count: 0,
     h1ContainsKeyword: false,
@@ -2856,7 +2931,7 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
   try {
     // 簡化版：使用正則表達式而非 DOM 解析以避免超時
     // 完整版應在後端計算
-    
+
     if (hasHtml) {
       // 快速檢查基本標籤
       if (metadataInspectable) {
@@ -2895,11 +2970,11 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
 
       const h2Matches = sourceHtml.match(/<h2[^>]*>/gi) || []
       signal.h2Count = h2Matches.length
-      
+
       signal.listCount = ((sourceHtml.match(/<ul[^>]*>/gi) || []).length + (sourceHtml.match(/<ol[^>]*>/gi) || []).length)
       signal.tableCount = (sourceHtml.match(/<table[^>]*>/gi) || []).length
       signal.imageCount = (sourceHtml.match(/<img[^>]*>/gi) || []).length
-      
+
       // 檢查 Schema
       if (schemaInspectable) {
         const schemaMatches = sourceHtml.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || []
@@ -2935,7 +3010,7 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
       setKnownBoolean(
         'hasVisibleDate',
         /\d{4}[年\/-]/.test(sourceHtml) ||
-          /(?:發佈|發布|更新)[^\n]*\d{4}[年\/-]\d{1,2}[月\/-]\d{1,2}/.test(sourceHtml)
+        /(?:發佈|發布|更新)[^\n]*\d{4}[年\/-]\d{1,2}[月\/-]\d{1,2}/.test(sourceHtml)
       )
     }
 
@@ -2943,11 +3018,11 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
     if (plain && plain.trim()) {
       const words = plain.split(/\s+/).filter(w => w.length > 0)
       signal.wordCount = words.length
-      
+
       const sentences = plain.split(/[。！？\n]+/).filter(s => s.trim().length > 0)
       signal.sentenceCount = sentences.length
       signal.avgSentenceLength = sentences.length > 0 ? Math.round(signal.wordCount / sentences.length) : 0
-      
+
       const uniqueWords = new Set(words.map(w => w.toLowerCase()))
       signal.uniqueWordRatio = uniqueWords.size > 0 ? (uniqueWords.size / words.length).toFixed(2) : 0
     }
@@ -2979,7 +3054,7 @@ function computeContentSignals({ plain = '', html = '', markdown = '', targetKey
               signal.externalAuthorityLinkCount += 1
             }
           }
-        } catch (error) {}
+        } catch (error) { }
       })
     }
 
@@ -3760,18 +3835,18 @@ function chunkContent(text, options = {}) {
     const fallbackText = normalized.trim();
     return fallbackText
       ? [
-          {
-            id: 1,
-            start: 0,
-            end: fallbackText.length,
-            text: fallbackText,
-            tokens: estimateTokens(fallbackText),
-            segmentCount: 1,
-            headings: [],
-            leadingContext: '',
-            sourceFormat
-          }
-        ]
+        {
+          id: 1,
+          start: 0,
+          end: fallbackText.length,
+          text: fallbackText,
+          tokens: estimateTokens(fallbackText),
+          segmentCount: 1,
+          headings: [],
+          leadingContext: '',
+          sourceFormat
+        }
+      ]
       : [];
   }
 
@@ -4172,7 +4247,7 @@ function estimateTokens(text) {
 function generateMockAnalysis(content, targetKeyword) {
   const wordCount = content.trim().split(/\s+/).length;
   const hasKeyword = targetKeyword && content.includes(targetKeyword);
-  
+
   return {
     overallScore: 75,
     aeoScore: 78,
@@ -4224,7 +4299,7 @@ function generateMockAnalysis(content, targetKeyword) {
         priority: 'high',
         category: 'SEO',
         title: '優化關鍵字密度',
-        description: targetKeyword 
+        description: targetKeyword
           ? `目標關鍵字「${targetKeyword}」在文中出現次數可以增加，建議在標題和結論處自然融入。`
           : '建議設定目標關鍵字並在文章中適當分佈。',
         example: '在文章開頭、中間和結尾各出現 1-2 次'
@@ -4288,11 +4363,11 @@ function normalizeAnalysisResult(result, contentSignals = {}) {
 
   result.highRiskFlags = Array.isArray(result.highRiskFlags)
     ? result.highRiskFlags.map((flag) => ({
-        type: typeof flag?.type === 'string' ? flag.type : 'safety',
-        severity: typeof flag?.severity === 'string' ? flag.severity : 'warning',
-        summary: typeof flag?.summary === 'string' ? flag.summary : '',
-        action: typeof flag?.action === 'string' ? flag.action : ''
-      }))
+      type: typeof flag?.type === 'string' ? flag.type : 'safety',
+      severity: typeof flag?.severity === 'string' ? flag.severity : 'warning',
+      summary: typeof flag?.summary === 'string' ? flag.summary : '',
+      action: typeof flag?.action === 'string' ? flag.action : ''
+    }))
     : [];
 
   if (!Number.isFinite(result.overallScore)) {

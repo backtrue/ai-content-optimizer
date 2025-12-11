@@ -48,7 +48,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     // 嘗試從 API 獲取 IP 地理位置
     const detectFromGeo = async () => {
       try {
-        const response = await fetch('/api/geo')
+        // 使用動態 import 避免循環依賴
+        const { apiFetch } = await import('../utils/api')
+        const response = await apiFetch('/api/geo')
         if (response.ok) {
           const data = await response.json()
           const countryCode = data.countryCode

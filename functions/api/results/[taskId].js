@@ -6,12 +6,14 @@
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type'
+  'Access-Control-Allow-Headers': 'Content-Type, X-API-Key'
 }
 
 export async function onRequest(context) {
   const { request, env, params } = context
   const { taskId } = params
+  const requestUrl = new URL(request.url)
+  const ownerToken = requestUrl.searchParams.get('token')
 
   if (request.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -41,6 +43,14 @@ export async function onRequest(context) {
 
     const result = JSON.parse(resultData)
 
+    // IDOR 防護：驗證 ownerToken
+    if (result.ownerToken && result.ownerToken !== ownerToken) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden', message: '無權存取此分析結果' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // 檢查任務狀態
     if (result.status === 'queued' || result.status === 'processing') {
       return new Response(
@@ -64,13 +74,16 @@ export async function onRequest(context) {
       )
     }
 
+    // 移除 ownerToken 避免洩露
+    const { ownerToken: _, ...safeResult } = result
+
     // 成功：返回完整結果
     return new Response(
       JSON.stringify({
         status: 'completed',
         taskId,
-        completedAt: result.completedAt,
-        result: result.result
+        completedAt: safeResult.completedAt,
+        result: safeResult.result
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

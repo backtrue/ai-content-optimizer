@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Loader } from 'lucide-react'
 import V5ResultsDashboard from '../components/V5ResultsDashboard'
 import { useLocale } from '../locales/useLocale'
+import { apiFetch } from '../utils/api'
 
 /**
  * 結果查詢頁面
@@ -26,11 +27,18 @@ export default function ResultsPage() {
 
       try {
         setLoading(true)
-        const response = await fetch(`/api/results/${taskId}`)
+        // 從 URL 獲取 ownerToken（若有）
+        const urlParams = new URLSearchParams(window.location.search)
+        const token = urlParams.get('token') || ''
+        const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : ''
+
+        const response = await apiFetch(`/api/results/${taskId}${tokenQuery}`)
 
         if (!response.ok) {
           if (response.status === 404) {
             setError(rpStrings.notFound)
+          } else if (response.status === 403) {
+            setError('無權存取此分析結果')
           } else {
             setError(`${rpStrings.resultExpired}：${response.status} ${response.statusText}`)
           }
@@ -177,25 +185,23 @@ export default function ResultsPage() {
               {results.result.recommendations.map((rec, idx) => (
                 <div
                   key={idx}
-                  className={`p-4 rounded-lg border-l-4 ${
-                    rec.priority === 'high'
+                  className={`p-4 rounded-lg border-l-4 ${rec.priority === 'high'
                       ? 'bg-red-50 border-red-500'
                       : rec.priority === 'medium'
-                      ? 'bg-yellow-50 border-yellow-500'
-                      : 'bg-blue-50 border-blue-500'
-                  }`}
+                        ? 'bg-yellow-50 border-yellow-500'
+                        : 'bg-blue-50 border-blue-500'
+                    }`}
                 >
                   <div className="flex items-start gap-3">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${
-                            rec.priority === 'high'
+                          className={`px-2 py-1 rounded text-xs font-semibold ${rec.priority === 'high'
                               ? 'bg-red-200 text-red-800'
                               : rec.priority === 'medium'
-                              ? 'bg-yellow-200 text-yellow-800'
-                              : 'bg-blue-200 text-blue-800'
-                          }`}
+                                ? 'bg-yellow-200 text-yellow-800'
+                                : 'bg-blue-200 text-blue-800'
+                            }`}
                         >
                           {rec.priority.toUpperCase()}
                         </span>

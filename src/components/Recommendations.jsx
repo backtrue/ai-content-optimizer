@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AlertTriangle, AlertCircle, Info } from 'lucide-react'
 import { useLocale } from '../locales/useLocale'
+import { apiFetch } from '../utils/api'
 
 const CATEGORY_MAP = {
   內容: {
@@ -98,11 +99,8 @@ export default function Recommendations({ recommendations = [], feedbackContext,
     const { sessionId, contentHash, targetKeywords } = feedbackContext
     setSendingId(recommendationId)
     try {
-      await fetch(`${apiBaseUrl}/api/feedback`, {
+      await apiFetch(`${apiBaseUrl}/api/feedback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        mode: 'cors',
-        credentials: 'include',
         body: JSON.stringify({
           sessionId,
           contentHash,
@@ -123,7 +121,7 @@ export default function Recommendations({ recommendations = [], feedbackContext,
   return (
     <div className="card">
       <h3 className="text-xl font-bold text-gray-800 mb-6">{recStrings.title}</h3>
-      
+
       <div className="space-y-4">
         {sortedRecommendations.map((rec, index) => (
           <div
