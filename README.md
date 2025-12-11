@@ -2,7 +2,7 @@
 
 由台灣 SEO 專家邱煜庭（小黑老師）研究開發，結合 Google《搜尋品質評分者指南》與 Helpful Content Update (HCU) 核心精神，打造專為內容團隊與 SEOer 設計的 AI 驅動分析工具。
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## ✨ 功能特色
@@ -11,8 +11,9 @@
 - 📊 **視覺化儀表板**：整合圓餅圖、進度條與佐證清單，快速洞察重點
 - 💡 **智慧建議系統**：提供具體、可操作的優化建議並標示優先級
 - 🤖 **AI 驅動分析**：預設採用 Google Gemini 2.x，支援 OpenAI 作為備援
-- ⚡ **極速部署**：基於 Cloudflare Pages，全球 CDN 加速
+- ⚡ **極速部署**：基於 Cloudflare Pages + Workers，全球 CDN 加速
 - 🎨 **現代化 UI**：使用 React + TailwindCSS 打造的美觀介面
+- 🔒 **安全防護**：API Key 認證、速率限制、SSRF/IDOR 防護
 
 > **單篇內容限定**：目前版本專注於貼上文本的內部信號，不推測網域或競品資訊。當文本缺少必要線索時，AI 會回傳「文本未提供」。
 
@@ -33,9 +34,10 @@
 - **前端**: React 18 + Vite
 - **樣式**: TailwindCSS
 - **圖標**: Lucide React
-- **後端**: Cloudflare Workers (Serverless)
-- **AI**: OpenAI GPT-4 / Google Gemini
-- **部署**: Cloudflare Pages
+- **後端**: Cloudflare Workers (Serverless) + Durable Objects
+- **AI**: Google Gemini / OpenAI GPT-4
+- **儲存**: Cloudflare KV + R2
+- **部署**: Cloudflare Pages + Workers
 
 ## 🚀 快速開始
 
@@ -62,12 +64,14 @@ npm install
 3. **設定環境變數**
 ```bash
 cp .env.example .env
-# 編輯 .env 或 .dev.vars，填入 GEMINI_API_KEY（必要）與選用的 OPENAI_API_KEY
+cp .dev.vars.example .dev.vars
+# 編輯 .env 與 .dev.vars，填入必要的 API Keys
 ```
 
 4. **啟動開發伺服器**
 ```bash
-npm run dev
+npm run dev          # 前端
+npm run worker:dev   # Worker（另開終端）
 ```
 
 5. **在瀏覽器中打開**
@@ -75,99 +79,89 @@ npm run dev
 http://localhost:5173
 ```
 
-### 測試 API（可選）
+## 🔐 安全性設定
 
-如果要在本地測試 Cloudflare Workers 函數：
+### API Key 認證
 
+本專案使用 API Key 保護 API 端點，防止未授權存取和資源濫用。
+
+1. **生成安全密鑰**
 ```bash
-npm run worker:dev
+openssl rand -hex 32
 ```
 
-## 📦 部署到 Cloudflare Pages
-
-### 方法一：使用 Cloudflare Dashboard（推薦）
-
-1. **登入 Cloudflare Dashboard**
-   - 前往 https://dash.cloudflare.com/
-   - 選擇 "Workers & Pages"
-
-2. **創建新專案**
-   - 點擊 "Create application" > "Pages" > "Connect to Git"
-   - 連接你的 GitHub/GitLab 倉庫
-   - 選擇此專案
-
-3. **配置構建設定**
-   ```
-   Framework preset: None
-   Build command: npm run build
-   Build output directory: dist
-   ```
-
-4. **設定環境變數**
-   - 在 Settings > Environment variables 中添加：
-     - `OPENAI_API_KEY` 或 `GEMINI_API_KEY`
-
-5. **部署**
-   - 點擊 "Save and Deploy"
-   - 等待構建完成
-
-### 方法二：使用 Wrangler CLI
-
-1. **安裝 Wrangler**
+2. **設定 Worker 密鑰**
 ```bash
-npm install -g wrangler
+# 開發環境
+echo "YOUR_KEY" | npx wrangler secret put CLIENT_API_SECRET
+
+# 生產環境
+echo "YOUR_KEY" | npx wrangler secret put CLIENT_API_SECRET --env=production
 ```
 
-2. **登入 Cloudflare**
+3. **設定前端環境變數**
 ```bash
-wrangler login
+# .env
+VITE_API_KEY=YOUR_KEY
 ```
 
-3. **構建專案**
+### 安全防護機制
+
+| 機制 | 說明 |
+|---|---|
+| **API Key 驗證** | 所有 API 請求需帶 `X-API-Key` 標頭 |
+| **速率限制** | 每 Session 每日 20 次、每 IP 每小時 40 次 |
+| **SSRF 防護** | 阻擋對 localhost、內網 IP 的請求 |
+| **IDOR 防護** | 分析結果需持有 ownerToken 才能存取 |
+
+## 📦 部署到 Cloudflare
+
+### 環境變數清單
+
+| 變數名稱 | 說明 | 設定位置 |
+|---|---|---|
+| `GEMINI_API_KEY` | Google Gemini API Key | Worker Secret |
+| `OPENAI_API_KEY` | OpenAI API Key（備援） | Worker Secret |
+| `CLIENT_API_SECRET` | API 認證密鑰 | Worker Secret |
+| `VITE_API_KEY` | 前端 API Key | Pages 環境變數 |
+
+### 使用 Wrangler CLI 部署
+
+1. **部署 Worker**
+```bash
+npm run worker:deploy        # 開發環境
+npm run worker:deploy:prod   # 生產環境
+```
+
+2. **設定 Secrets**
+```bash
+wrangler secret put GEMINI_API_KEY
+wrangler secret put CLIENT_API_SECRET
+```
+
+3. **部署前端（若使用 Cloudflare Pages）**
 ```bash
 npm run build
-```
-
-4. **部署**
-```bash
 wrangler pages deploy dist --project-name=ai-content-optimizer
 ```
 
-5. **設定環境變數**
-```bash
-wrangler pages secret put GEMINI_API_KEY
-# 如需 OpenAI 備援，可另外設定：
-wrangler pages secret put OPENAI_API_KEY
-```
+### 使用 GitHub 連接自動部署（推薦）
 
-6. **設定關鍵字分析儲存**
-   - 使用 Cloudflare Dashboard 建立 `ANALYSIS_RESULTS` 與 `KEYWORD_ANALYTICS` 兩個 KV Namespace，並將 ID 更新到 `wrangler.toml`
-   - 設定管理端查詢所需的 bearer token：
-     ```bash
-     wrangler secret put KEYWORD_ANALYTICS_TOKEN
-     ```
-
-### Keyword analytics
-- 每次分析請求會紀錄最多 5 個、已清洗的目標關鍵字（去重、移除 email/URL），並存入 `KEYWORD_ANALYTICS`，保存 30 天。
-- 查詢最近紀錄（部署後、已設定 `KEYWORD_ANALYTICS_TOKEN`）：
-  ```bash
-  curl \
-    -H "Authorization: Bearer ${KEYWORD_ANALYTICS_TOKEN}" \
-    "https://<worker-host>/api/keywords/recent?limit=100"
-  ```
-- 支援查詢參數： `limit`（預設 100，最高 200）、`since`（ISO timestamp）、`locale`（`en`、`zh-TW`、`ja`）
+1. 在 Cloudflare Dashboard 連接 GitHub 倉庫
+2. Pages 和 Workers 會自動從 `main` 分支同步部署
+3. 在 Dashboard 設定環境變數和 Secrets
 
 ## 🔑 獲取 API Key
-
-### OpenAI API Key
-1. 前往 https://platform.openai.com/api-keys
-2. 登入並創建新的 API Key
-3. 複製 Key 並保存（只會顯示一次）
 
 ### Google Gemini API Key
 1. 前往 https://makersuite.google.com/app/apikey
 2. 創建新的 API Key
 3. 複製並保存
+
+### OpenAI API Key
+1. 前往 https://platform.openai.com/api-keys
+2. 登入並創建新的 API Key
+3. 複製 Key 並保存（只會顯示一次）
 
 ## 📖 使用說明
 
@@ -185,9 +179,12 @@ wrangler pages secret put OPENAI_API_KEY
 
 ## 🛡️ 安全性與隱私
 
-- **API 金鑰保護**：僅透過 Cloudflare Pages Secrets 儲存，前端從不暴露。
-- **最小化日誌**：後端僅記錄請求與回應摘要（如 token 數、候選數），避免洩漏文章內容或敏感資訊。
-- **輸出校驗**：防呆邏輯會過濾非物件建議、修補不完整 JSON，確保前端穩定展示。
+- **API 金鑰保護**：透過 Cloudflare Secrets 儲存，前端僅持有認證用途的 Client Key。
+- **API 認證**：所有端點需驗證 `X-API-Key` 標頭，防止未授權存取。
+- **速率限制**：防止 API 濫用與 Denial of Wallet 攻擊。
+- **SSRF 防護**：阻擋對內網資源的請求，防止伺服器端請求偽造。
+- **IDOR 防護**：分析結果綁定 ownerToken，僅任務發起者可查看。
+- **最小化日誌**：後端僅記錄請求摘要，避免洩漏敏感資訊。
 
 ## 🎯 未來規劃 (Roadmap)
 
@@ -195,7 +192,7 @@ wrangler pages secret put OPENAI_API_KEY
 - [ ] 競品分析（SERP 前10名對比）
 - [ ] Chrome 擴充功能
 - [ ] WordPress / Notion 整合
-- [ ] 多語言支援（英文、日文等）
+- [x] 多語言支援（英文、日文）
 - [ ] 歷史記錄與趨勢分析
 - [ ] 團隊協作功能
 - [ ] API 開放給第三方使用
